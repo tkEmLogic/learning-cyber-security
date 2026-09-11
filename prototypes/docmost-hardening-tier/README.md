@@ -7,6 +7,14 @@ It compares three structures for Tier 3, **Require authentic firmware images**.
 The technical content is intentionally the same. The information order and
 learner flow are different.
 
+The selected candidate combines the variants in this order:
+
+1. Variant C for the incident and attack.
+2. Variant A for the hardening procedure.
+3. Variant B for evidence and weakness tracking.
+
+Import `selected-cab.md` for the Docmost round-trip test.
+
 ## Open the comparison
 
 Open `index.html` in a browser.
@@ -24,6 +32,7 @@ Import these files separately:
 - `variant-a-linear-procedure.md`
 - `variant-b-evidence-first.md`
 - `variant-c-incident-mission.md`
+- `selected-cab.md`
 
 Export each page back to Markdown. Check headings, tables, code blocks, links,
 and the Mermaid diagram. Record any changes caused by import or export.
