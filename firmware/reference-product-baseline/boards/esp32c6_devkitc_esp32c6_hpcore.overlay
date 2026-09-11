@@ -1,0 +1,1 @@
+#include "../dts/esp32c6_4m_flash_map.dtsi"
