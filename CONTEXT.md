@@ -25,9 +25,10 @@ security reasoning, and responds to a prepared failure or challenge.
 _Avoid_: Instructor checkpoint, lesson review
 
 **Reference product**:
-The small connected product scenario used to give every course exercise a
-shared system, threat model, and lifecycle.
-_Avoid_: Demo app, blinky
+An industrial equipment status beacon built around an ESP32-C6. It shows a
+simulated machine state with an RGB LED, reports status over Wi-Fi, and receives
+software updates over Wi-Fi.
+_Avoid_: Demo app, blinky, access controller
 
 **Lab artifact**:
 A reviewable result that shows what the learner designed, implemented,
