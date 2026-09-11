@@ -100,6 +100,12 @@ func TestDryRunAndHostFixtures(t *testing.T) {
 			}
 			stdout.Reset()
 			stderr.Reset()
+			code = Run([]string{"--repo", root, "attack", "run", fixture, "--target", server.URL, "--execute", "wrong-fixture"}, &stdout, &stderr)
+			if code == 0 || !strings.Contains(stderr.String(), "exactly match") {
+				t.Fatalf("wrong execute identifier was not refused: code=%d stderr=%s", code, stderr.String())
+			}
+			stdout.Reset()
+			stderr.Reset()
 			code = Run([]string{"--repo", root, "attack", "run", fixture, "--target", server.URL, "--execute", fixture}, &stdout, &stderr)
 			if code != 0 {
 				t.Fatalf("execute code=%d stdout=%s stderr=%s", code, stdout.String(), stderr.String())
@@ -108,6 +114,26 @@ func TestDryRunAndHostFixtures(t *testing.T) {
 				t.Fatalf("missing reset result:\n%s", stdout.String())
 			}
 		})
+	}
+}
+
+func TestFixtureRefusesAfterFailedResetMarker(t *testing.T) {
+	root := testRepository(t)
+	block := filepath.Join(root, ".course-state", "fixture-blocks", "tier-00--plaintext-inspection.json")
+	if err := os.MkdirAll(filepath.Dir(block), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(block, []byte("{}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{
+		"--repo", root, "attack", "run", "tier-00/plaintext-inspection",
+		"--target", "http://127.0.0.1:8080",
+		"--execute", "tier-00/plaintext-inspection",
+	}, &stdout, &stderr)
+	if code == 0 || !strings.Contains(stderr.String(), "blocked after a failed reset") {
+		t.Fatalf("blocked fixture was not refused: code=%d stderr=%s", code, stderr.String())
 	}
 }
 
