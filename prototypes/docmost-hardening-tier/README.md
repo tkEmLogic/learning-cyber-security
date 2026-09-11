@@ -15,6 +15,10 @@ The selected candidate combines the variants in this order:
 
 Import `selected-cab.md` for the Docmost round-trip test.
 
+The first round-trip showed that fenced Mermaid source remained intact but
+rendered as a code block in the tested Docmost sandbox. The selected candidate
+therefore uses a plain-text flow diagram.
+
 ## Open the comparison
 
 Open `index.html` in a browser.
