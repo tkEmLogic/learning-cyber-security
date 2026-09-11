@@ -1,21 +1,16 @@
 # Tier 3: Require authentic firmware images
 
-> Prototype candidate selected for Docmost testing. This is throwaway course
-> material.
+> Prototype candidate selected for Docmost testing. This is throwaway course material.
 
 ## Incident brief
 
-The status beacon uses HTTPS. The device validates the OTA service
-certificate.
+The status beacon uses HTTPS. The device validates the OTA service certificate.
 
-An attacker gains access to the OTA service storage. The attacker replaces the
-firmware image with a build that always shows the fast-blink error state.
+An attacker gains access to the OTA service storage. The attacker replaces the firmware image with a build that always shows the fast-blink error state.
 
-The TLS connection is valid. The server certificate is valid. The device
-downloads and runs the hostile image.
+The TLS connection is valid. The server certificate is valid. The device downloads and runs the hostile image.
 
-Your task is to reproduce the incident, find the missing trust boundary, and
-make the same attack fail.
+Your task is to reproduce the incident, find the missing trust boundary, and make the same attack fail.
 
 ## Learning result
 
@@ -30,11 +25,9 @@ After this tier, you can:
 
 ## Safety boundary
 
-Run the attack only against the local reference product and course OTA service.
-Keep the lab network isolated.
+Run the attack only against the local reference product and course OTA service. Keep the lab network isolated.
 
-Use only disposable course credentials and images. Do not use a production
-signing key. Do not commit the course signing key.
+Use only disposable course credentials and images. Do not use a production signing key. Do not commit the course signing key.
 
 ## Starting state
 
@@ -45,13 +38,12 @@ You need:
 - The isolated course network.
 - The Tier 2 security evidence pack.
 
-The device validates the server connection but still accepts unsigned firmware
-images.
+The device validates the server connection but still accepts unsigned firmware images.
 
 ## Weakness ledger before hardening
 
 | Weakness | Attack vector | Current result | Planned treatment |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | The device accepts unsigned firmware | Replace the hosted image | The hostile image boots | Add MCUboot image signatures |
 | The OTA host can change image bytes | Modify an image after upload | The changed image boots | Sign offline and verify during boot |
 | An older valid image can replay | Serve an older signed release | Not controlled by this tier | Add signed metadata and a security counter in Tier 4 |
@@ -120,18 +112,22 @@ Answer:
 
 Update the trust-boundary diagram:
 
-```mermaid
-flowchart LR
-    W[Offline release workstation] -->|signed image| S[OTA service]
-    S -->|HTTPS download| D[ESP32-C6]
-    K[Verification public key] --> B[MCUboot]
-    D --> B
-    B -->|valid signature| A[Zephyr application]
-    B -->|invalid signature| R[Reject image]
+```text
+Offline release workstation
+    |
+    | signed image
+    v
+OTA service -- HTTPS download --> ESP32-C6 --> MCUboot
+                                             |       |
+                               valid image --+       +-- invalid image
+                                    |                     |
+                                    v                     v
+                            Zephyr application       Reject image
+
+Verification public key --------------------> MCUboot
 ```
 
-The release workstation authorizes firmware. The OTA service distributes
-firmware. MCUboot verifies the image before the application runs.
+The release workstation authorizes firmware. The OTA service distributes firmware. MCUboot verifies the image before the application runs.
 
 ## Add firmware publisher authentication
 
@@ -194,8 +190,7 @@ boot result: rejected
 active image: last accepted signed image
 ```
 
-The attacker still controls the OTA service. The device now rejects the
-attacker's unsigned application image.
+The attacker still controls the OTA service. The device now rejects the attacker's unsigned application image.
 
 ## Test bypass attempts
 
@@ -208,7 +203,7 @@ Run:
 Record the results:
 
 | Evidence ID | Test | Expected result | Actual result |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | E-3-01 | Approved signed image | Boot | |
 | E-3-02 | Unsigned image | Reject | |
 | E-3-03 | Modified signed image | Reject | |
@@ -216,13 +211,12 @@ Record the results:
 | E-3-05 | Truncated image | Reject | |
 | E-3-06 | Search OTA service for the private signing key | Key not found | |
 
-If a test produces another result, record the actual result before you
-troubleshoot it. Do not mark the security claim as supported.
+If a test produces another result, record the actual result before you troubleshoot it. Do not mark the security claim as supported.
 
 ## Weakness ledger after hardening
 
 | Weakness | Result after Tier 3 | Status | Evidence or next action |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | Unsigned application image | Rejected on the tested path | Closed | E-3-02 |
 | OTA host changes image bytes | Modified image is rejected | Reduced | E-3-03 |
 | Wrong release-signing authority | Wrong-key image is rejected | Closed on the tested path | E-3-04 |
@@ -234,18 +228,15 @@ Later tiers rerun the relevant Tier 3 tests to detect regressions.
 
 ## Security claim
 
-**FW-AUTH-1**: The tested update path rejects an application image that does
-not have a valid manufacturer signature.
+**FW-AUTH-1**: The tested update path rejects an application image that does not have a valid manufacturer signature.
 
 Set the status:
 
 - **Supported** when E-3-01 through E-3-06 match the expected results.
-- **Partly supported** when signature enforcement works but a documented test
-  or environment gap remains.
+- **Partly supported** when signature enforcement works but a documented test or environment gap remains.
 - **Unsupported** when an invalid image boots or required evidence is missing.
 
-Do not describe this claim as hardware-rooted. Standard Zephyr MCUboot is not
-authenticated by ESP32-C6 Secure Boot v2 in the core course.
+Do not describe this claim as hardware-rooted. Standard Zephyr MCUboot is not authenticated by ESP32-C6 Secure Boot v2 in the core course.
 
 ## Update the security evidence pack
 
@@ -265,15 +256,14 @@ Add:
 ## Troubleshooting
 
 | Observation | First check |
-|---|---|
+| --- | --- |
 | Every image is rejected | Compare the signing key with the MCUboot verification key |
 | The hostile image still boots | Confirm that the Tier 3 MCUboot build is active |
 | The OTA service contains the private key | Stop, remove it, and review the key roles |
 | A clean build changes the result | Compare the saved build manifests |
 | The wrong-key test passes | Confirm that the fixture did not reuse the approved key |
 
-Ask the mentor to inspect the logs and trust boundary with you when the result
-is unclear.
+Ask the mentor to inspect the logs and trust boundary with you when the result is unclear.
 
 ## Mentor conversation
 
@@ -292,16 +282,15 @@ Explain:
 - Why the core chain remains software-rooted.
 - Which weaknesses remain for Tier 4 and Advanced Tier A.
 
-Diagnose one prepared wrong-key or stale-bootloader case with the mentor. Record
-notes and the agreed next action. There is no grade.
+Diagnose one prepared wrong-key or stale-bootloader case with the mentor. Record notes and the agreed next action. There is no grade.
 
 ## Continue
 
-Save the Tier 3 runnable state. Continue to Tier 4, **Protect release metadata
-and block downgrade**.
+Save the Tier 3 runnable state. Continue to Tier 4:
 
-The next attack uses an older valid signed image. Its signature is correct, but
-the release is no longer acceptable.
+**Protect release metadata and block downgrade**
+
+The next attack uses an older valid signed image. Its signature is correct, but the release is no longer acceptable.
 
 ## References
 
