@@ -708,7 +708,7 @@ Source: resolved decision ticket [#14](https://github.com/tkEmLogic/learning-cyb
 
 ### Validated prototype
 
-**Fixed decision.** The selected module structure is validated by a prototype comparing three variants on the same Tier 3 content: an incident-driven mission, a linear procedure, and an evidence-first review sheet. The chosen combination uses the incident opening and attack narrative from the incident-driven variant, the linear hardening procedure from the linear-procedure variant, and the evidence board and weakness-ledger delta from the evidence-first variant. The validated file is [`selected-cab.md`](https://github.com/tkEmLogic/learning-cyber-security/blob/prototype/docmost-hardening-tier/prototypes/docmost-hardening-tier/selected-cab.md) on the throwaway branch `prototype/docmost-hardening-tier`, at validated commit `7988ef5351059a2d6c688206ab047305e5c5f13b`. Treat this file as the reference example for every core and advanced module. Its content is throwaway prototype text and must not be copied verbatim into the final course, but its structure, tone, table shapes, and command-and-expected-result pattern are the pattern to reuse.
+**Fixed decision.** The selected module structure is validated by a prototype comparing three variants on the same Tier 3 content: an incident-driven mission, a linear procedure, and an evidence-first review sheet. The chosen combination uses the incident opening and attack narrative from the incident-driven variant, the linear hardening procedure from the linear-procedure variant, and the evidence board and weakness-ledger delta from the evidence-first variant. The validated file is [`selected-cab.md`](../prototypes/docmost-hardening-tier/selected-cab.md), originally validated on branch `prototype/docmost-hardening-tier` at commit `7988ef5351059a2d6c688206ab047305e5c5f13b`. Treat this file as the reference example for every core and advanced module. Its content is throwaway prototype text and must not be copied verbatim into the final course, but its structure, tone, table shapes, and command-and-expected-result pattern are the pattern to reuse.
 
 ### Docmost round-trip validation
 
@@ -898,7 +898,7 @@ Source: resolved decision ticket [#16](https://github.com/tkEmLogic/learning-cyb
 
 ### Reading plan pointer
 
-The complete, versioned reading list with every required, recommended, and optional source, exact sections, and a maintenance policy lives in [`research/course-readings.md`](https://github.com/tkEmLogic/learning-cyber-security/blob/research/course-readings/research/course-readings.md) on branch `research/course-readings`. An implementer copies each tier's relevant rows from that report into the matching `course/tiers/<tier>/references.md` file rather than re-deriving the list.
+The complete, versioned reading list with every required, recommended, and optional source, exact sections, and a maintenance policy lives in [`research/course-readings.md`](../research/course-readings.md), originally published on branch `research/course-readings`. An implementer copies each tier's relevant rows from that report into the matching `course/tiers/<tier>/references.md` file rather than re-deriving the list.
 
 The table below is a compact pointer, not the full list. It names the required readings and their learning question so an implementer can start each tier's `references.md` without opening the full report first.
 
@@ -985,7 +985,7 @@ Source: synthesized from resolved decision tickets [#2](https://github.com/tkEmL
 3. Implement the local OTA service described in section 7, including the status-event endpoint, starting with the HTTP-only Tier 0 shape, then adding HTTPS, signed images, signed manifests, and Operational-identity authorization as later tiers require them.
 4. Implement the provisioning tools and identity lifecycle described in section 8, starting with the shared-credential exercise in Tier 6, consuming the Bootstrap credential during Factory enrollment, and ending with the separate owner-authorized claiming and full lifecycle in Tier 8.
 5. Implement the `./course` command wrapper from section 16, backed by the tier manifest and checkpoint tags from section 15.
-6. Write each tier module using the format in section 14 and the validated prototype at `prototypes/docmost-hardening-tier/selected-cab.md` on branch `prototype/docmost-hardening-tier` as the structural reference.
+6. Write each tier module using the format in section 14 and the validated prototype at `prototypes/docmost-hardening-tier/selected-cab.md` as the structural reference.
 7. Build the attack fixtures and weakness ledger entries for each tier from section 11 and section 12, and verify each fixture fails closed outside the isolated lab network.
 8. Build the security evidence pack templates and schemas from section 10, and wire the CI quality checks from section 18 to them.
 9. Write the Mentor review prompts and prepared failures for every gate in section 13, and store them under `mentor/` as specified in section 15.
@@ -1034,7 +1034,7 @@ Source: all resolved research and decision tickets referenced above.
 
 **Known platform uncertainty.** The exact algorithm used by an advanced hardware identity provider is left open by decision ticket [#10](https://github.com/tkEmLogic/learning-cyber-security/issues/10): it may be ECDSA P-256, matching the core course, or the ESP32-C6 Digital Signature peripheral's RSA path. This is a deliberate implementation choice, not an unresolved conflict, and either is acceptable if the certificate lifecycle and role separation in section 8 are preserved.
 
-**Not a conflict, but worth flagging for the implementer.** The research reports referenced in section 24 live on unmerged research and prototype branches, not on `main`. This specification treats them as the durable citation trail for the decisions in this document. An implementer choosing to merge or archive those branches should preserve the exact commit references cited here so the source register in section 24 stays accurate.
+**Not a conflict, but worth flagging for the implementer.** The Tier reading report and validated Docmost prototype are integrated into the first-release implementation branch. The other research reports referenced in section 24 remain on their named research branches. Preserve the exact commit and branch references in the source register if those reports are later merged or archived.
 
 **No unresolved conflict was found between issue 13's tier list, issue 14's gate cadence, issue 15's module format, issue 16's `course.yml` tier identifiers, and issue 18's per-tier reading list.** All five use the same Tier 0 through Tier 10 and Advanced A and B structure, and this specification preserves that alignment throughout.
 
