@@ -110,4 +110,4 @@ ZEPHYR_BUILD_DIR=/path/to/zephyr-v4.4.2/build/reference-product-baseline \
 
 Flashing this baseline writes normal flash only. Do not run any eFuse, secure boot, flash encryption, or debug-disable command.
 
-No safely identifiable ESP32-C6 was connected during validation. The available USB serial devices identified themselves as Nordic, FTDI, ADI, and STMicroelectronics equipment. Physical flashing and serial output inspection remain pending.
+The user confirmed that no physical ESP32-C6 is available. Validation therefore stops at the successful build and configuration checks. Physical flashing, serial output inspection, and all hardware behavior remain pending. This result makes no hardware-dependent claim.
