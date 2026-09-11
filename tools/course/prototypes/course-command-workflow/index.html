@@ -1,0 +1,1329 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Throwaway prototype: course command workflow</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #17202a;
+      --muted: #5d6875;
+      --line: #d8dee6;
+      --panel: #ffffff;
+      --wash: #f4f7fa;
+      --accent: #176b5b;
+      --accent-soft: #e5f4f0;
+      --danger: #9a2f2f;
+      --danger-soft: #fbeaea;
+      --warn: #8a5a00;
+      --warn-soft: #fff3d6;
+      --shadow: 0 10px 30px rgba(23, 32, 42, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--wash);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+
+    main {
+      width: min(1400px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 32px 0 64px;
+    }
+
+    h1, h2, h3 { line-height: 1.2; }
+    h1 { margin: 0 0 10px; font-size: clamp(2rem, 4vw, 3.4rem); }
+    h2 { margin-top: 0; font-size: 1.35rem; }
+    h3 { font-size: 1rem; margin: 0 0 8px; }
+    p { max-width: 82ch; }
+
+    code, pre, .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    .eyebrow {
+      color: var(--danger);
+      font-size: 0.78rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .intro {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-top: 6px solid var(--accent);
+      border-radius: 14px;
+      box-shadow: var(--shadow);
+      padding: 28px;
+    }
+
+    .question {
+      border-left: 4px solid var(--accent);
+      margin: 22px 0 0;
+      padding: 4px 0 4px 18px;
+      font-size: 1.05rem;
+    }
+
+    .notice {
+      background: var(--warn-soft);
+      border: 1px solid #e5c66e;
+      border-radius: 10px;
+      color: #5f4000;
+      padding: 12px 14px;
+    }
+
+    section {
+      margin-top: 24px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: var(--shadow);
+      padding: 22px;
+    }
+
+    .state-layout {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .state-card {
+      background: var(--wash);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      min-height: 122px;
+      padding: 14px;
+    }
+
+    .state-card dl { margin: 0; }
+    .state-card dt { color: var(--muted); font-size: 0.78rem; margin-top: 7px; }
+    .state-card dd { margin: 1px 0 0; overflow-wrap: anywhere; }
+
+    .outcome {
+      border-radius: 10px;
+      margin-bottom: 16px;
+      padding: 14px 16px;
+    }
+
+    .outcome.ok { background: var(--accent-soft); border: 1px solid #8fcdbf; }
+    .outcome.refused { background: var(--danger-soft); border: 1px solid #e6aaaa; }
+    .outcome.info { background: #eaf1fb; border: 1px solid #aac6e6; }
+
+    .outcome strong { display: block; margin-bottom: 4px; }
+    .outcome ul { margin: 8px 0 0; padding-left: 20px; }
+
+    details {
+      border-top: 1px solid var(--line);
+      margin-top: 16px;
+      padding-top: 14px;
+    }
+
+    summary {
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    pre {
+      background: #111820;
+      border-radius: 10px;
+      color: #dce8e5;
+      font-size: 0.78rem;
+      max-height: 480px;
+      overflow: auto;
+      padding: 16px;
+      white-space: pre-wrap;
+    }
+
+    .button-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: 10px;
+    }
+
+    button {
+      appearance: none;
+      background: var(--panel);
+      border: 1px solid #9ca8b4;
+      border-radius: 8px;
+      color: var(--ink);
+      cursor: pointer;
+      font: inherit;
+      font-weight: 700;
+      min-height: 44px;
+      padding: 9px 12px;
+      text-align: left;
+    }
+
+    button:hover { border-color: var(--accent); color: var(--accent); }
+    button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    button.danger { border-color: var(--danger); color: var(--danger); }
+    button:disabled { cursor: not-allowed; opacity: 0.42; }
+
+    .tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .tabs button[aria-selected="true"] {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    .walkthrough {
+      background: var(--wash);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 18px;
+    }
+
+    .steps {
+      display: grid;
+      gap: 9px;
+      margin-top: 16px;
+    }
+
+    .step {
+      align-items: center;
+      display: grid;
+      grid-template-columns: 34px minmax(0, 1fr);
+      gap: 10px;
+    }
+
+    .step-number {
+      align-items: center;
+      background: #dfe5eb;
+      border-radius: 50%;
+      display: flex;
+      font-weight: 800;
+      height: 30px;
+      justify-content: center;
+      width: 30px;
+    }
+
+    .step.done .step-number { background: var(--accent); color: #fff; }
+    .step.current button { border: 2px solid var(--accent); }
+
+    table {
+      border-collapse: collapse;
+      font-size: 0.9rem;
+      width: 100%;
+    }
+
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 10px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th { color: var(--muted); font-size: 0.78rem; text-transform: uppercase; }
+    .recommended { color: var(--accent); font-weight: 800; }
+
+    .two-column {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .history-list {
+      font-size: 0.88rem;
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    .history-list li {
+      border-bottom: 1px solid var(--line);
+      display: grid;
+      grid-template-columns: 80px 110px 1fr;
+      gap: 10px;
+      padding: 8px 0;
+    }
+
+    .status-ok { color: var(--accent); font-weight: 800; }
+    .status-refused { color: var(--danger); font-weight: 800; }
+
+    @media (max-width: 980px) {
+      .state-layout { grid-template-columns: 1fr 1fr; }
+      .two-column { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 600px) {
+      main { width: min(100% - 18px, 1400px); padding-top: 10px; }
+      .intro, .panel { padding: 16px; }
+      .state-layout { grid-template-columns: 1fr; }
+      .history-list li { grid-template-columns: 64px 90px 1fr; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header class="intro">
+    <div class="eyebrow">Throwaway logic prototype. Not the production ./course command.</div>
+    <h1>Course manifest and command workflow</h1>
+    <p>This demo lets a Learner drive the proposed <code>course.yml</code> and <code>./course</code> state model without installing tools or changing a repository.</p>
+    <p class="question"><strong>Question:</strong> Does a worktree-first command workflow, backed by manifest capabilities and a local verification receipt, make setup, Tier 0, and the move to Tier 1 clear and safe? Try the refusal and cleanup cases as well as the successful path.</p>
+    <p class="notice"><strong>Assumption under test:</strong> <code>tier start</code> creates a new Course workspace from a published checkpoint. The Learner then runs short commands inside that worktree. A passing <code>verify</code> writes an untracked local completion receipt that unlocks the next tier.</p>
+  </header>
+
+  <section class="panel" aria-labelledby="state-title">
+    <h2 id="state-title">Current state</h2>
+    <div id="last-outcome"></div>
+    <div class="state-layout" id="state-cards"></div>
+    <details>
+      <summary>Full machine state after the last action</summary>
+      <pre id="state-json"></pre>
+    </details>
+  </section>
+
+  <section class="panel" aria-labelledby="free-title">
+    <h2 id="free-title">Free play</h2>
+    <p>Every action remains available. Invalid actions are sent to the same state machine and return a refusal with no hidden state change.</p>
+    <div class="button-grid" id="free-actions"></div>
+  </section>
+
+  <section class="panel" aria-labelledby="walkthrough-title">
+    <h2 id="walkthrough-title">Guided walkthroughs</h2>
+    <p>Choose a scenario, then press its highlighted steps in order. Each scenario starts from a known state.</p>
+    <div class="tabs" id="scenario-tabs" role="tablist"></div>
+    <div id="scenario-content"></div>
+  </section>
+
+  <section class="panel" aria-labelledby="choices-title">
+    <h2 id="choices-title">Material workflow choices</h2>
+    <table>
+      <thead>
+        <tr><th>Choice</th><th>Option A</th><th>Option B</th><th>Prototype position</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Where later commands run</td>
+          <td>Run from the shared repository and pass <code>--workspace</code> every time.</td>
+          <td>Enter the generated Course workspace and run short commands there.</td>
+          <td><span class="recommended">B.</span> It keeps commands readable and lets Git identify the current tier and branch.</td>
+        </tr>
+        <tr>
+          <td>How Tier 1 is unlocked</td>
+          <td>Infer completion from branch names, commits, or evidence files.</td>
+          <td>Write a local receipt only after manifest-declared verification passes.</td>
+          <td><span class="recommended">B.</span> It is explicit and reproducible. The receipt is untracked and tied to the checkpoint plus Git revision.</td>
+        </tr>
+        <tr>
+          <td>What Tier 1 starts from</td>
+          <td>Continue from the Learner's Tier 0 branch.</td>
+          <td>Create a fresh worktree from the published Tier 0 completion checkpoint.</td>
+          <td><span class="recommended">B.</span> It gives every Learner the same starting state and preserves Tier 0 work separately.</td>
+        </tr>
+        <tr>
+          <td>How a compose runtime is chosen</td>
+          <td>Silently use the first runtime found.</td>
+          <td>Use saved configuration, otherwise accept one detected runtime and refuse an ambiguous or missing choice.</td>
+          <td><span class="recommended">B.</span> The selected mechanism stays visible.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="panel two-column" aria-labelledby="history-title">
+    <div>
+      <h2 id="history-title">Action history</h2>
+      <ul id="history" class="history-list"></ul>
+    </div>
+    <div>
+      <h2>What to inspect</h2>
+      <ul>
+        <li>Does a refusal explain the missing precondition and the next safe command?</li>
+        <li>Is it clear that Tier 1 starts from the published checkpoint, not from Tier 0 Learner work?</li>
+        <li>Does the completion receipt feel useful or like hidden state?</li>
+        <li>Are the printed ecosystem commands detailed enough to teach the underlying mechanism?</li>
+        <li>Does cleanup name a narrow target and require enough confirmation?</li>
+      </ul>
+    </div>
+  </section>
+</main>
+
+<script>
+const CourseWorkflow = (() => {
+  const catalog = {
+    "00": {
+      id: "00",
+      title: "Build the unsecured reference product",
+      kind: "baseline",
+      track: "core",
+      status: "implemented",
+      startCheckpoint: "course-v1.0-tier-00-start",
+      completionCheckpoint: "course-v1.0-tier-00-complete",
+      module: "course/tiers/tier-00-unsecured/index.md",
+      prerequisites: [],
+      requiredTools: ["git", "python", "cmake", "ninja", "west"],
+      requiredRuntime: true,
+      requiredHardware: ["esp32c6-devkitc"],
+      attacks: ["tier-00/plaintext-inspection", "tier-00/altered-image"],
+      evidence: [
+        "baseline-architecture",
+        "captured-http-exchange",
+        "accepted-image-record",
+        "absent-controls-list"
+      ]
+    },
+    "01": {
+      id: "01",
+      title: "Model the product and its risks",
+      kind: "analysis",
+      track: "core",
+      status: "implemented",
+      startCheckpoint: "course-v1.0-tier-00-complete",
+      completionCheckpoint: "course-v1.0-tier-01-complete",
+      module: "course/tiers/tier-01-threat-model/index.md",
+      prerequisites: ["00"],
+      requiredTools: ["git", "python"],
+      requiredRuntime: false,
+      requiredHardware: [],
+      attacks: ["tier-00/plaintext-inspection"],
+      evidence: ["product-definition", "threat-model", "risk-register", "claims", "requirements"]
+    },
+    "02": {
+      id: "02",
+      title: "Authenticate and encrypt the server connection",
+      kind: "control",
+      track: "core",
+      status: "planned",
+      startCheckpoint: "course-v1.0-tier-01-complete",
+      completionCheckpoint: "course-v1.0-tier-02-complete",
+      module: "course/tiers/tier-02-authenticated-https/index.md",
+      prerequisites: ["01"],
+      requiredTools: [],
+      requiredRuntime: false,
+      requiredHardware: [],
+      attacks: [],
+      evidence: []
+    }
+  };
+
+  const generatedTargets = [
+    ".course-state/",
+    ".course-secrets/",
+    "build/",
+    "artifacts/generated/"
+  ];
+
+  const cleanPhrase = "REMOVE COURSE GENERATED STATE";
+
+  function clone(value) {
+    return JSON.parse(JSON.stringify(value));
+  }
+
+  function baseState() {
+    return {
+      prototype: {
+        question: "Does a worktree-first workflow with explicit capability checks and a verification receipt feel right?",
+        manifestSchemaVersion: 1,
+        courseVersion: "1.0",
+        wrapperVersion: "prototype-0",
+        simulated: true
+      },
+      repository: {
+        controllerPath: "/work/learning-cyber-security",
+        invokingPath: "/work/learning-cyber-security",
+        branch: "implementation/first-release",
+        revision: "8197f37",
+        dirty: false,
+        checkpoint: null
+      },
+      environment: {
+        setupComplete: false,
+        tools: { git: true, python: true, cmake: true, ninja: true, west: true },
+        runtimes: { dockerCompose: true, podmanCompose: false },
+        selectedRuntime: null,
+        zephyrWorkspace: "/opt/course/zephyr-v4.4.2",
+        isolatedLabNetwork: true,
+        targetIdentifiesAsCourse: true
+      },
+      workspace: null,
+      service: { ota: "stopped", address: "http://127.0.0.1:8080" },
+      device: {
+        connected: true,
+        stableId: "/dev/serial/by-id/usb-Espressif_USB_JTAG_serial_1234-if00",
+        flashed: false,
+        logsObserved: false,
+        updateObserved: false
+      },
+      progress: {
+        completedTiers: [],
+        verificationReceipts: {},
+        build: null,
+        attacks: {},
+        evidenceFiles: [],
+        evidenceCheck: null
+      },
+      generated: {
+        paths: [],
+        pendingCleanup: null
+      },
+      lastOutcome: {
+        status: "info",
+        command: "prototype reset",
+        message: "Choose a walkthrough or use the free-play actions.",
+        details: [],
+        underlying: []
+      },
+      history: []
+    };
+  }
+
+  function preset(name) {
+    const state = baseState();
+
+    if (["ready", "ready-dirty", "tier0-workspace", "tier0-completable", "tier0-verified", "generated"].includes(name)) {
+      state.environment.setupComplete = true;
+      state.environment.selectedRuntime = "docker compose";
+      state.generated.paths = clone(generatedTargets);
+    }
+
+    if (name === "ready-dirty") {
+      state.repository.dirty = true;
+    }
+
+    if (["tier0-workspace", "tier0-completable", "tier0-verified"].includes(name)) {
+      enterTier0Workspace(state);
+    }
+
+    if (["tier0-completable", "tier0-verified"].includes(name)) {
+      state.progress.build = { component: "firmware", result: "passed", output: "build/tier-00/zephyr/zephyr.bin" };
+      state.service.ota = "running";
+      state.device.flashed = true;
+      state.device.logsObserved = true;
+      state.device.updateObserved = true;
+      state.progress.attacks["tier-00/plaintext-inspection"] = "insecure-effect-observed";
+      state.progress.attacks["tier-00/altered-image"] = "insecure-effect-observed";
+      state.progress.evidenceFiles = clone(catalog["00"].evidence);
+      state.progress.evidenceCheck = { tier: "00", result: "passed" };
+    }
+
+    if (name === "tier0-verified") {
+      state.progress.completedTiers = ["00"];
+      state.progress.verificationReceipts["00"] = {
+        checkpoint: "course-v1.0-tier-00-start",
+        revision: "learner-a1b2c3d",
+        result: "passed"
+      };
+    }
+
+    if (name === "missing-runtime-tool") {
+      state.environment.tools.west = false;
+      state.environment.runtimes.dockerCompose = false;
+      state.environment.runtimes.podmanCompose = false;
+      state.device.connected = false;
+    }
+
+    state.lastOutcome = {
+      status: "info",
+      command: "scenario reset",
+      message: `Known starting state loaded: ${name}.`,
+      details: [],
+      underlying: []
+    };
+    return state;
+  }
+
+  function enterTier0Workspace(state) {
+    state.repository.invokingPath = "/work/cybersec-tier-00";
+    state.repository.branch = "learner/course-v1.0-tier-00";
+    state.repository.revision = "learner-a1b2c3d";
+    state.repository.checkpoint = "course-v1.0-tier-00-start";
+    state.workspace = {
+      tier: "00",
+      path: "/work/cybersec-tier-00",
+      branch: "learner/course-v1.0-tier-00",
+      basedOn: "course-v1.0-tier-00-start",
+      module: catalog["00"].module
+    };
+  }
+
+  function missingTools(state, names) {
+    return names.filter(name => !state.environment.tools[name]);
+  }
+
+  function availableRuntime(state) {
+    const candidates = [];
+    if (state.environment.runtimes.dockerCompose) candidates.push("docker compose");
+    if (state.environment.runtimes.podmanCompose) candidates.push("podman compose");
+    return candidates;
+  }
+
+  function outcome(state, status, command, message, details = [], underlying = []) {
+    state.lastOutcome = { status, command, message, details, underlying };
+    state.history.unshift({
+      number: state.history.length + 1,
+      status,
+      command,
+      message
+    });
+    state.history = state.history.slice(0, 40);
+    return state;
+  }
+
+  function refuse(state, command, message, details = [], underlying = []) {
+    return outcome(state, "refused", command, message, details, underlying);
+  }
+
+  function reduce(current, action) {
+    if (action.type === "RESET") return preset(action.preset);
+    const state = clone(current);
+
+    switch (action.type) {
+      case "TOGGLE_DIRTY":
+        state.repository.dirty = !state.repository.dirty;
+        return outcome(
+          state,
+          "info",
+          "simulate worktree change",
+          `The invoking worktree is now ${state.repository.dirty ? "dirty" : "clean"}.`
+        );
+
+      case "REMOVE_RUNTIME":
+        state.environment.runtimes.dockerCompose = false;
+        state.environment.runtimes.podmanCompose = false;
+        state.environment.selectedRuntime = null;
+        return outcome(state, "info", "simulate missing runtime", "No supported compose runtime is now available.");
+
+      case "REMOVE_WEST":
+        state.environment.tools.west = false;
+        return outcome(state, "info", "simulate missing west", "The West tool is now unavailable.");
+
+      case "DOCTOR": {
+        const missing = missingTools(state, ["git", "python", "cmake", "ninja", "west"]);
+        const runtimes = availableRuntime(state);
+        const problems = [];
+        if (missing.length) problems.push(`Missing tools: ${missing.join(", ")}.`);
+        if (!runtimes.length) problems.push("No supported compose runtime was found.");
+        if (runtimes.length > 1 && !state.environment.selectedRuntime) {
+          problems.push("More than one compose runtime was found. Run setup with --runtime.");
+        }
+        if (problems.length) {
+          return refuse(
+            state,
+            "./course doctor",
+            "Doctor found blocking environment problems.",
+            problems,
+            ["git --version", "west --version", "cmake --version", "ninja --version", "docker compose version", "podman compose version"]
+          );
+        }
+        return outcome(
+          state,
+          "ok",
+          "./course doctor",
+          "Required tools and one compose runtime are available.",
+          [
+            `Zephyr workspace: ${state.environment.zephyrWorkspace}`,
+            `Compose runtime: ${state.environment.selectedRuntime || runtimes[0]}`,
+            state.device.connected ? `Device detected at ${state.device.stableId}` : "No device detected. Build-only work remains available."
+          ],
+          ["git --version", "west --version", "cmake --version", "ninja --version", `${state.environment.selectedRuntime || runtimes[0]} version`]
+        );
+      }
+
+      case "SETUP": {
+        const missing = missingTools(state, ["git", "python", "cmake", "ninja", "west"]);
+        const runtimes = availableRuntime(state);
+        if (missing.length || !runtimes.length) {
+          const details = [];
+          if (missing.length) details.push(`Install missing tools: ${missing.join(", ")}.`);
+          if (!runtimes.length) details.push("Install Docker Compose or Podman Compose.");
+          details.push("Run ./course doctor again. Setup did not write generated state.");
+          return refuse(state, "./course setup", "Setup cannot continue until required host tools exist.", details);
+        }
+        if (runtimes.length > 1 && !action.runtime) {
+          return refuse(
+            state,
+            "./course setup",
+            "Two compose runtimes are available. Choose one explicitly.",
+            ["Run ./course setup --runtime docker or ./course setup --runtime podman."]
+          );
+        }
+        state.environment.selectedRuntime = action.runtime || runtimes[0];
+        state.environment.setupComplete = true;
+        state.generated.paths = clone(generatedTargets);
+        return outcome(
+          state,
+          "ok",
+          "./course setup",
+          "Disposable local configuration and secrets were created in untracked paths.",
+          [
+            `Selected runtime: ${state.environment.selectedRuntime}`,
+            "No tracked file changed.",
+            "Next: ./course doctor"
+          ],
+          [
+            "python3 tools/course/setup.py --state .course-state --secrets .course-secrets",
+            `${state.environment.selectedRuntime} -f services/ota/compose.yml config`
+          ]
+        );
+      }
+
+      case "TIER_LIST":
+        return outcome(
+          state,
+          "ok",
+          "./course tier list",
+          "The manifest lists implemented and planned tiers, but only implemented tiers are runnable.",
+          Object.values(catalog).map(tier => `${tier.id}: ${tier.title} [${tier.status}]`),
+          ["python3 tools/course/main.py tier list --manifest course.yml"]
+        );
+
+      case "TIER_START": {
+        const tier = catalog[action.id];
+        const command = `./course tier start ${action.id}`;
+        if (!tier) return refuse(state, command, "The manifest does not define this tier.");
+        if (tier.status !== "implemented") {
+          return refuse(
+            state,
+            command,
+            `Tier ${tier.id} is planned but not runnable.`,
+            ["Its manifest entry has status: planned.", "No worktree, branch, configuration, or secret was created."]
+          );
+        }
+        if (state.repository.dirty) {
+          return refuse(
+            state,
+            command,
+            "The invoking worktree has uncommitted changes.",
+            ["Commit, stash, or discard the changes yourself. The wrapper will not alter Learner work."],
+            ["git status --porcelain=v1"]
+          );
+        }
+        if (!state.environment.setupComplete) {
+          return refuse(state, command, "Setup is not complete.", ["Run ./course setup, then ./course doctor."]);
+        }
+        const missing = missingTools(state, tier.requiredTools);
+        if (missing.length) {
+          return refuse(state, command, "Required tools are missing.", [`Missing: ${missing.join(", ")}.`, "Run ./course doctor."]);
+        }
+        const incomplete = tier.prerequisites.filter(id => !state.progress.completedTiers.includes(id));
+        if (incomplete.length) {
+          return refuse(
+            state,
+            command,
+            `Tier ${tier.id} prerequisites are not complete.`,
+            incomplete.map(id => `Tier ${id} needs a passing local verification receipt.`)
+          );
+        }
+        const path = `/work/cybersec-tier-${tier.id}`;
+        const branch = `learner/course-v1.0-tier-${tier.id}`;
+        state.repository.invokingPath = path;
+        state.repository.branch = branch;
+        state.repository.revision = `learner-${tier.id}-new`;
+        state.repository.checkpoint = tier.startCheckpoint;
+        state.workspace = { tier: tier.id, path, branch, basedOn: tier.startCheckpoint, module: tier.module };
+        state.progress.build = null;
+        state.progress.attacks = {};
+        state.progress.evidenceFiles = [];
+        state.progress.evidenceCheck = null;
+        state.service.ota = "stopped";
+        state.device.flashed = false;
+        state.device.logsObserved = false;
+        state.device.updateObserved = false;
+        return outcome(
+          state,
+          "ok",
+          command,
+          `Course workspace created for Tier ${tier.id}.`,
+          [
+            `Worktree: ${path}`,
+            `Branch: ${branch}`,
+            `Starting checkpoint: ${tier.startCheckpoint}`,
+            `Module: ${tier.module}`,
+            `Next: cd ${path}`
+          ],
+          [
+            `git show-ref --verify refs/tags/${tier.startCheckpoint}`,
+            `git worktree add -b ${branch} ${path} ${tier.startCheckpoint}`,
+            `python3 tools/course/workspace.py init --tier ${tier.id} --path ${path}`
+          ]
+        );
+      }
+
+      case "BUILD": {
+        const command = "./course build firmware";
+        if (!state.workspace) return refuse(state, command, "This command must run inside a Course workspace.", ["Run ./course tier start <id>."]);
+        if (!state.environment.setupComplete) return refuse(state, command, "Setup is not complete.");
+        if (!state.environment.tools.west) {
+          return refuse(state, command, "West is required to build the firmware.", ["Run ./course doctor and install the pinned tool."]);
+        }
+        state.progress.build = {
+          component: "firmware",
+          result: "passed",
+          output: `build/tier-${state.workspace.tier}/zephyr/zephyr.bin`
+        };
+        return outcome(
+          state,
+          "ok",
+          command,
+          "The reference-product firmware build passed.",
+          [`Output: ${state.progress.build.output}`],
+          [
+            `west build --sysbuild -b esp32c6_devkitc/esp32c6/hpcore firmware/reference-product-baseline -d ${state.progress.build.output.replace("/zephyr/zephyr.bin", "")}`,
+            "cmake --build build/tier-00"
+          ]
+        );
+      }
+
+      case "SERVICE_START": {
+        const command = "./course service start";
+        if (!state.workspace) return refuse(state, command, "This command must run inside a Course workspace.");
+        if (!state.environment.selectedRuntime) {
+          return refuse(state, command, "No compose runtime is selected.", ["Run ./course doctor, then ./course setup --runtime <docker|podman>."]);
+        }
+        state.service.ota = "running";
+        return outcome(
+          state,
+          "ok",
+          command,
+          "The Tier 0 local OTA service is healthy.",
+          [`Address: ${state.service.address}`, "Boundary: local isolated lab network"],
+          [
+            `${state.environment.selectedRuntime} -f services/ota/compose.yml --profile tier-${state.workspace.tier} up -d`,
+            `curl --fail ${state.service.address}/health`
+          ]
+        );
+      }
+
+      case "SERVICE_STOP":
+        if (!state.environment.selectedRuntime) {
+          return refuse(state, "./course service stop", "No compose runtime is selected.");
+        }
+        state.service.ota = "stopped";
+        return outcome(
+          state,
+          "ok",
+          "./course service stop",
+          "The course-owned OTA service stopped. Other processes were not touched.",
+          [],
+          [`${state.environment.selectedRuntime} -f services/ota/compose.yml stop ota`]
+        );
+
+      case "DEVICE_FLASH": {
+        const command = "./course device flash";
+        if (!state.workspace) return refuse(state, command, "This command must run inside a Course workspace.");
+        if (!state.device.connected) {
+          return refuse(state, command, "No ESP32-C6 is available at a stable serial path.", ["Connect one board and run ./course doctor."]);
+        }
+        if (!state.progress.build || state.progress.build.result !== "passed") {
+          return refuse(state, command, "No passing firmware build is available.", ["Run ./course build firmware."]);
+        }
+        state.device.flashed = true;
+        return outcome(
+          state,
+          "ok",
+          command,
+          "The normal flash image was written to the named board.",
+          ["This Tier 0 action does not write eFuses or enable irreversible controls.", `Device: ${state.device.stableId}`],
+          [`west flash -d build/tier-${state.workspace.tier} --dev-id ${state.device.stableId}`]
+        );
+      }
+
+      case "DEVICE_LOGS":
+        if (!state.device.connected) return refuse(state, "./course device logs", "No device is connected.");
+        if (!state.device.flashed) return refuse(state, "./course device logs", "Flash the built image before checking its logs.");
+        state.device.logsObserved = true;
+        return outcome(
+          state,
+          "ok",
+          "./course device logs",
+          "The reference product reported its Tier 0 startup state.",
+          ["Expected observation: unsigned MCUboot baseline and local HTTP OTA endpoint."],
+          [`python3 -m serial.tools.miniterm ${state.device.stableId} 115200`]
+        );
+
+      case "DEVICE_UPDATE":
+        if (!state.device.flashed) return refuse(state, "./course device update", "The device has not been flashed.");
+        if (state.service.ota !== "running") return refuse(state, "./course device update", "The OTA service is not running.");
+        state.device.updateObserved = true;
+        return outcome(
+          state,
+          "ok",
+          "./course device update",
+          "The Tier 0 device accepted the offered unsigned update.",
+          ["This insecure result is expected only on the isolated Tier 0 lab network."],
+          [`curl --fail -X POST ${state.service.address}/course/devices/device-001/update`]
+        );
+
+      case "ATTACK_RUN": {
+        const fixture = action.fixture || "tier-00/plaintext-inspection";
+        const command = `./course attack run ${fixture}`;
+        if (!state.workspace) return refuse(state, command, "This command must run inside a Course workspace.");
+        if (state.service.ota !== "running") return refuse(state, command, "The local OTA service is not running.");
+        if (!state.environment.isolatedLabNetwork) return refuse(state, command, "The network is not marked as an isolated course lab.");
+        if (!state.environment.targetIdentifiesAsCourse) return refuse(state, command, "The target did not identify itself as the course environment.");
+        if (fixture === "tier-00/altered-image" && !state.device.flashed) {
+          return refuse(state, command, "The altered-image fixture needs a flashed course device.");
+        }
+        state.progress.attacks[fixture] = "insecure-effect-observed";
+        return outcome(
+          state,
+          "ok",
+          command,
+          "The expected Tier 0 insecure effect was observed and captured.",
+          [`Fixture: ${fixture}`, "Result: insecure-effect-observed"],
+          [`python3 attack-fixtures/tiers/tier-00/run.py --fixture ${fixture} --target ${state.service.address} --require-course-marker`]
+        );
+      }
+
+      case "RECORD_EVIDENCE": {
+        if (!state.workspace) return refuse(state, "Learner records lab artifacts", "There is no active Course workspace.");
+        const tier = catalog[state.workspace.tier];
+        state.progress.evidenceFiles = clone(tier.evidence);
+        return outcome(
+          state,
+          "info",
+          "Learner records lab artifacts",
+          "The prototype now simulates the Learner-authored evidence files.",
+          tier.evidence.map(id => `Recorded: ${id}`),
+          ["No wrapper command. The Learner edits the manifest-declared evidence paths."]
+        );
+      }
+
+      case "EVIDENCE_CHECK": {
+        const command = "./course evidence check";
+        if (!state.workspace) return refuse(state, command, "This command must run inside a Course workspace.");
+        const tier = catalog[state.workspace.tier];
+        const missing = tier.evidence.filter(id => !state.progress.evidenceFiles.includes(id));
+        if (missing.length) {
+          state.progress.evidenceCheck = { tier: tier.id, result: "failed", missing };
+          return refuse(
+            state,
+            command,
+            "Required evidence is incomplete.",
+            missing.map(id => `Missing: ${id}`),
+            [`python3 tools/course/evidence.py check --tier ${tier.id} --manifest course.yml`]
+          );
+        }
+        state.progress.evidenceCheck = { tier: tier.id, result: "passed", missing: [] };
+        return outcome(
+          state,
+          "ok",
+          command,
+          `All manifest-declared Tier ${tier.id} evidence is present and valid.`,
+          tier.evidence.map(id => `Valid: ${id}`),
+          [`python3 tools/course/evidence.py check --tier ${tier.id} --manifest course.yml`]
+        );
+      }
+
+      case "VERIFY": {
+        const id = action.id || (state.workspace && state.workspace.tier);
+        const command = `./course verify ${id || "<tier-id>"}`;
+        if (!state.workspace) return refuse(state, command, "This command must run inside a Course workspace.");
+        if (state.workspace.tier !== id) {
+          return refuse(state, command, `This workspace is for Tier ${state.workspace.tier}, not Tier ${id}.`);
+        }
+        if (state.repository.dirty) {
+          return refuse(state, command, "Verification needs a named Git revision.", ["Commit the Learner work, then run verify again."]);
+        }
+        const failures = [];
+        if (id === "00" && (!state.progress.build || state.progress.build.result !== "passed")) failures.push("Firmware build has not passed.");
+        if (id === "00" && !state.progress.attacks["tier-00/plaintext-inspection"]) failures.push("Plaintext inspection fixture has not recorded the expected insecure effect.");
+        if (id === "00" && !state.progress.attacks["tier-00/altered-image"]) failures.push("Altered image fixture has not recorded the expected insecure effect.");
+        if (!state.progress.evidenceCheck || state.progress.evidenceCheck.result !== "passed") failures.push("Evidence check has not passed.");
+        if (failures.length) {
+          return refuse(
+            state,
+            command,
+            `Tier ${id} verification failed. No completion receipt was written.`,
+            failures,
+            [`python3 tools/course/verify.py --tier ${id} --manifest course.yml`]
+          );
+        }
+        if (!state.progress.completedTiers.includes(id)) state.progress.completedTiers.push(id);
+        state.progress.verificationReceipts[id] = {
+          checkpoint: state.workspace.basedOn,
+          revision: state.repository.revision,
+          result: "passed"
+        };
+        return outcome(
+          state,
+          "ok",
+          command,
+          `Tier ${id} verification passed. A local completion receipt now unlocks its dependent tier.`,
+          [
+            `Receipt: .course-state/progress/tier-${id}.json`,
+            `Revision: ${state.repository.revision}`,
+            "The receipt is untracked and becomes stale if the verified revision changes."
+          ],
+          [`python3 tools/course/verify.py --tier ${id} --manifest course.yml`, `git rev-parse HEAD`]
+        );
+      }
+
+      case "CLEAN_REQUEST":
+        if (!state.generated.paths.length) {
+          return outcome(state, "info", "./course clean", "There is no course-generated state to remove.");
+        }
+        state.generated.pendingCleanup = { phrase: cleanPhrase, targets: clone(state.generated.paths) };
+        return outcome(
+          state,
+          "info",
+          "./course clean",
+          "Cleanup is waiting for typed confirmation.",
+          [...state.generated.paths.map(path => `Will remove only: ${path}`), `Type exactly: ${cleanPhrase}`],
+          ["No deletion command has run."]
+        );
+
+      case "CLEAN_CONFIRM": {
+        const command = `./course clean --confirm "${action.phrase}"`;
+        if (!state.generated.pendingCleanup) {
+          return refuse(state, command, "No cleanup request is pending.", ["Run ./course clean first to inspect the exact targets."]);
+        }
+        if (action.phrase !== state.generated.pendingCleanup.phrase) {
+          return refuse(
+            state,
+            command,
+            "The confirmation text did not match. Nothing was removed.",
+            [`Expected: ${state.generated.pendingCleanup.phrase}`]
+          );
+        }
+        const removed = clone(state.generated.pendingCleanup.targets);
+        state.generated.paths = [];
+        state.generated.pendingCleanup = null;
+        state.environment.setupComplete = false;
+        state.environment.selectedRuntime = null;
+        state.progress.build = null;
+        return outcome(
+          state,
+          "ok",
+          command,
+          "Only the named course-generated paths were removed.",
+          removed.map(path => `Removed: ${path}`),
+          ["python3 tools/course/clean.py --exact-targets-from course.yml"]
+        );
+      }
+
+      default:
+        return refuse(state, action.type, "The prototype does not define this action.");
+    }
+  }
+
+  return { catalog, cleanPhrase, preset, reduce };
+})();
+
+const freeActions = [
+  ["Reset: fresh clone", { type: "RESET", preset: "clean" }, "primary"],
+  ["Run setup", { type: "SETUP" }],
+  ["Run doctor", { type: "DOCTOR" }],
+  ["List tiers", { type: "TIER_LIST" }],
+  ["Start Tier 0", { type: "TIER_START", id: "00" }],
+  ["Start Tier 1", { type: "TIER_START", id: "01" }],
+  ["Try planned Tier 2", { type: "TIER_START", id: "02" }],
+  ["Build firmware", { type: "BUILD" }],
+  ["Start OTA service", { type: "SERVICE_START" }],
+  ["Stop OTA service", { type: "SERVICE_STOP" }],
+  ["Flash device", { type: "DEVICE_FLASH" }],
+  ["Read device logs", { type: "DEVICE_LOGS" }],
+  ["Request device update", { type: "DEVICE_UPDATE" }],
+  ["Run plaintext attack", { type: "ATTACK_RUN", fixture: "tier-00/plaintext-inspection" }],
+  ["Run altered-image attack", { type: "ATTACK_RUN", fixture: "tier-00/altered-image" }],
+  ["Simulate evidence files", { type: "RECORD_EVIDENCE" }],
+  ["Check evidence", { type: "EVIDENCE_CHECK" }],
+  ["Verify current tier", { type: "VERIFY" }],
+  ["Toggle dirty worktree", { type: "TOGGLE_DIRTY" }],
+  ["Simulate missing runtime", { type: "REMOVE_RUNTIME" }],
+  ["Simulate missing West", { type: "REMOVE_WEST" }],
+  ["Request cleanup", { type: "CLEAN_REQUEST" }, "danger"],
+  ["Confirm cleanup correctly", { type: "CLEAN_CONFIRM", phrase: CourseWorkflow.cleanPhrase }, "danger"]
+];
+
+const scenarios = [
+  {
+    id: "setup",
+    title: "Clean setup and doctor",
+    preset: "clean",
+    description: "Start from a clean clone with the pinned tools available. Watch setup write only untracked local state, then watch doctor show every checked mechanism.",
+    steps: [
+      ["Create disposable local setup", { type: "SETUP" }],
+      ["Check the complete environment", { type: "DOCTOR" }],
+      ["List implemented and planned tiers", { type: "TIER_LIST" }]
+    ]
+  },
+  {
+    id: "workspace",
+    title: "Tier 0 Course workspace",
+    preset: "ready",
+    description: "Create a Learner-owned worktree from the immutable Tier 0 start checkpoint. The shared repository remains unchanged.",
+    steps: [
+      ["Check the environment", { type: "DOCTOR" }],
+      ["Create the Tier 0 Course workspace", { type: "TIER_START", id: "00" }]
+    ]
+  },
+  {
+    id: "full-flow",
+    title: "Tier 0 full flow",
+    preset: "tier0-workspace",
+    description: "Exercise build, service, device, controlled attacks, evidence, and verification. Tier 0 succeeds when the insecure effects are reproduced and recorded.",
+    steps: [
+      ["Build the firmware", { type: "BUILD" }],
+      ["Start the local OTA service", { type: "SERVICE_START" }],
+      ["Flash the named ESP32-C6", { type: "DEVICE_FLASH" }],
+      ["Read startup logs", { type: "DEVICE_LOGS" }],
+      ["Request the unsigned Tier 0 update", { type: "DEVICE_UPDATE" }],
+      ["Capture readable HTTP traffic", { type: "ATTACK_RUN", fixture: "tier-00/plaintext-inspection" }],
+      ["Demonstrate altered-image acceptance", { type: "ATTACK_RUN", fixture: "tier-00/altered-image" }],
+      ["Simulate the Learner adding required artifacts", { type: "RECORD_EVIDENCE" }],
+      ["Check evidence shape and links", { type: "EVIDENCE_CHECK" }],
+      ["Verify Tier 0 and write its receipt", { type: "VERIFY", id: "00" }]
+    ]
+  },
+  {
+    id: "tier1",
+    title: "Start Tier 1",
+    preset: "tier0-completable",
+    description: "Begin with complete Tier 0 work but no completion receipt. Verify it, then create a separate Tier 1 workspace from the published Tier 0 completion checkpoint.",
+    steps: [
+      ["Verify Tier 0", { type: "VERIFY", id: "00" }],
+      ["Create the Tier 1 Course workspace", { type: "TIER_START", id: "01" }]
+    ]
+  },
+  {
+    id: "dirty",
+    title: "Dirty worktree refusal",
+    preset: "ready-dirty",
+    description: "Try to create a worktree while the invoking repository contains uncommitted work. The wrapper must not stash, reset, or clean it.",
+    steps: [
+      ["Try to start Tier 0", { type: "TIER_START", id: "00" }],
+      ["Simulate the Learner making the worktree clean", { type: "TOGGLE_DIRTY" }],
+      ["Start Tier 0 safely", { type: "TIER_START", id: "00" }]
+    ]
+  },
+  {
+    id: "missing",
+    title: "Missing runtime or tool",
+    preset: "missing-runtime-tool",
+    description: "Doctor reports both a missing West installation and a missing compose runtime. Setup and later commands refuse instead of using an unpinned fallback.",
+    steps: [
+      ["Diagnose the environment", { type: "DOCTOR" }],
+      ["Try setup", { type: "SETUP" }],
+      ["Try a firmware build without a workspace", { type: "BUILD" }],
+      ["Try to start the service", { type: "SERVICE_START" }]
+    ]
+  },
+  {
+    id: "planned",
+    title: "Unimplemented tier refusal",
+    preset: "tier0-verified",
+    description: "Tier 2 is visible so the future course shape is clear, but its planned status makes it impossible to create a branch or worktree.",
+    steps: [
+      ["List tier availability", { type: "TIER_LIST" }],
+      ["Try to start planned Tier 2", { type: "TIER_START", id: "02" }]
+    ]
+  },
+  {
+    id: "cleanup",
+    title: "Destructive cleanup",
+    preset: "generated",
+    description: "Cleanup first shows its exact targets. A wrong phrase changes nothing. The exact phrase removes only course-generated paths and never resets Learner work.",
+    steps: [
+      ["Show cleanup targets", { type: "CLEAN_REQUEST" }],
+      ["Enter the wrong confirmation", { type: "CLEAN_CONFIRM", phrase: "yes" }],
+      ["Enter the exact confirmation", { type: "CLEAN_CONFIRM", phrase: CourseWorkflow.cleanPhrase }]
+    ]
+  }
+];
+
+let state = CourseWorkflow.preset("clean");
+let activeScenario = scenarios[0];
+let scenarioStep = 0;
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+function dispatch(action, fromWalkthrough = false) {
+  state = CourseWorkflow.reduce(state, action);
+  if (fromWalkthrough) scenarioStep += 1;
+  render();
+}
+
+function renderOutcome() {
+  const out = state.lastOutcome;
+  const details = out.details.length ? `<ul>${out.details.map(item => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : "";
+  const commands = out.underlying.length
+    ? `<details><summary>Underlying mechanism printed to the Learner</summary><pre>${escapeHtml(out.underlying.join("\n"))}</pre></details>`
+    : "";
+  document.querySelector("#last-outcome").innerHTML = `
+    <div class="outcome ${out.status}">
+      <strong>${escapeHtml(out.status.toUpperCase())}: ${escapeHtml(out.command)}</strong>
+      <div>${escapeHtml(out.message)}</div>
+      ${details}
+      ${commands}
+    </div>`;
+}
+
+function renderCards() {
+  const tier = state.workspace ? CourseWorkflow.catalog[state.workspace.tier] : null;
+  const tools = Object.entries(state.environment.tools).map(([name, present]) => `${name}: ${present ? "ready" : "missing"}`).join(", ");
+  const receipts = Object.keys(state.progress.verificationReceipts);
+  const evidence = state.progress.evidenceFiles.length;
+  const attacks = Object.keys(state.progress.attacks).length;
+  const cleanup = state.generated.pendingCleanup ? "confirmation pending" : "none";
+  document.querySelector("#state-cards").innerHTML = `
+    <article class="state-card">
+      <h3>Repository</h3>
+      <dl>
+        <dt>Invoking path</dt><dd class="mono">${escapeHtml(state.repository.invokingPath)}</dd>
+        <dt>Branch and revision</dt><dd class="mono">${escapeHtml(state.repository.branch)} @ ${escapeHtml(state.repository.revision)}</dd>
+        <dt>Working tree</dt><dd>${state.repository.dirty ? "Dirty" : "Clean"}</dd>
+      </dl>
+    </article>
+    <article class="state-card">
+      <h3>Environment</h3>
+      <dl>
+        <dt>Setup</dt><dd>${state.environment.setupComplete ? "Complete" : "Not complete"}</dd>
+        <dt>Tools</dt><dd>${escapeHtml(tools)}</dd>
+        <dt>Runtime</dt><dd>${escapeHtml(state.environment.selectedRuntime || "Not selected")}</dd>
+      </dl>
+    </article>
+    <article class="state-card">
+      <h3>Course workspace</h3>
+      <dl>
+        <dt>Tier</dt><dd>${tier ? `${tier.id}: ${escapeHtml(tier.title)}` : "None"}</dd>
+        <dt>Based on</dt><dd class="mono">${state.workspace ? escapeHtml(state.workspace.basedOn) : "None"}</dd>
+        <dt>Module</dt><dd class="mono">${state.workspace ? escapeHtml(state.workspace.module) : "None"}</dd>
+      </dl>
+    </article>
+    <article class="state-card">
+      <h3>Runtime activity</h3>
+      <dl>
+        <dt>OTA service</dt><dd>${escapeHtml(state.service.ota)}</dd>
+        <dt>Device</dt><dd>${state.device.connected ? "Connected" : "Not connected"}; ${state.device.flashed ? "flashed" : "not flashed"}</dd>
+        <dt>Build</dt><dd>${state.progress.build ? escapeHtml(state.progress.build.result) : "Not run"}</dd>
+      </dl>
+    </article>
+    <article class="state-card">
+      <h3>Learning progress</h3>
+      <dl>
+        <dt>Observed attacks</dt><dd>${attacks}</dd>
+        <dt>Evidence artifacts</dt><dd>${evidence}</dd>
+        <dt>Evidence check</dt><dd>${state.progress.evidenceCheck ? escapeHtml(state.progress.evidenceCheck.result) : "Not run"}</dd>
+      </dl>
+    </article>
+    <article class="state-card">
+      <h3>Tier completion</h3>
+      <dl>
+        <dt>Completed tiers</dt><dd>${state.progress.completedTiers.join(", ") || "None"}</dd>
+        <dt>Local receipts</dt><dd>${receipts.join(", ") || "None"}</dd>
+        <dt>Receipt location</dt><dd class="mono">.course-state/progress/</dd>
+      </dl>
+    </article>
+    <article class="state-card">
+      <h3>Generated state</h3>
+      <dl>
+        <dt>Tracked paths</dt><dd>${state.generated.paths.length}</dd>
+        <dt>Cleanup</dt><dd>${cleanup}</dd>
+        <dt>Targets</dt><dd class="mono">${escapeHtml(state.generated.paths.join(", ") || "None")}</dd>
+      </dl>
+    </article>
+    <article class="state-card">
+      <h3>Safety boundary</h3>
+      <dl>
+        <dt>Network</dt><dd>${state.environment.isolatedLabNetwork ? "Isolated course lab" : "Not approved"}</dd>
+        <dt>Target marker</dt><dd>${state.environment.targetIdentifiesAsCourse ? "Present" : "Missing"}</dd>
+        <dt>Hardware operation</dt><dd>Normal flash only. No eFuse action.</dd>
+      </dl>
+    </article>`;
+}
+
+function renderFreeActions() {
+  document.querySelector("#free-actions").innerHTML = freeActions.map(([label, action, className = ""]) => {
+    return `<button class="${className}" data-action='${escapeHtml(JSON.stringify(action))}'>${escapeHtml(label)}</button>`;
+  }).join("");
+  document.querySelectorAll("#free-actions button").forEach(button => {
+    button.addEventListener("click", () => dispatch(JSON.parse(button.dataset.action)));
+  });
+}
+
+function selectScenario(id) {
+  activeScenario = scenarios.find(scenario => scenario.id === id);
+  scenarioStep = 0;
+  state = CourseWorkflow.preset(activeScenario.preset);
+  render();
+}
+
+function renderScenarios() {
+  document.querySelector("#scenario-tabs").innerHTML = scenarios.map(scenario => `
+    <button role="tab" aria-selected="${scenario.id === activeScenario.id}" data-scenario="${scenario.id}">
+      ${escapeHtml(scenario.title)}
+    </button>`).join("");
+  document.querySelectorAll("#scenario-tabs button").forEach(button => {
+    button.addEventListener("click", () => selectScenario(button.dataset.scenario));
+  });
+
+  const steps = activeScenario.steps.map(([label, action], index) => {
+    const status = index < scenarioStep ? "done" : index === scenarioStep ? "current" : "";
+    return `
+      <div class="step ${status}">
+        <span class="step-number">${index + 1}</span>
+        <button data-step="${index}" ${index === scenarioStep ? "" : "disabled"}>${escapeHtml(label)}</button>
+      </div>`;
+  }).join("");
+
+  const completion = scenarioStep >= activeScenario.steps.length
+    ? `<p class="notice"><strong>Walkthrough complete.</strong> Inspect the full state and action history, or restart this tab.</p>`
+    : "";
+
+  document.querySelector("#scenario-content").innerHTML = `
+    <div class="walkthrough" role="tabpanel">
+      <h3>${escapeHtml(activeScenario.title)}</h3>
+      <p>${escapeHtml(activeScenario.description)}</p>
+      <button class="primary" id="restart-scenario">Restart this scenario</button>
+      <div class="steps">${steps}</div>
+      ${completion}
+    </div>`;
+
+  document.querySelector("#restart-scenario").addEventListener("click", () => selectScenario(activeScenario.id));
+  document.querySelectorAll("#scenario-content [data-step]").forEach(button => {
+    button.addEventListener("click", () => {
+      const [, action] = activeScenario.steps[Number(button.dataset.step)];
+      dispatch(action, true);
+    });
+  });
+}
+
+function renderHistory() {
+  const html = state.history.length
+    ? state.history.map(item => `
+        <li>
+          <span>#${item.number}</span>
+          <span class="status-${item.status}">${escapeHtml(item.status)}</span>
+          <span><code>${escapeHtml(item.command)}</code><br>${escapeHtml(item.message)}</span>
+        </li>`).join("")
+    : "<li>No action has run in this scenario.</li>";
+  document.querySelector("#history").innerHTML = html;
+}
+
+function render() {
+  renderOutcome();
+  renderCards();
+  renderFreeActions();
+  renderScenarios();
+  renderHistory();
+  document.querySelector("#state-json").textContent = JSON.stringify(state, null, 2);
+}
+
+render();
+</script>
+</body>
+</html>
