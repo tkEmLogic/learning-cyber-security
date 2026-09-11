@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+# Provisions the Zephyr workspace on the persistent $ZEPHYR_WORKSPACE volume.
+# Idempotent: safe to re-run on every container start. Heavy steps (west
+# update, SDK install, blob fetch) are skipped once their markers exist, so a
+# container rebuild does not re-download the world.
+set -euo pipefail
+
+: "${ZEPHYR_WORKSPACE:=/opt/zephyr-workspace}"
+ZEPHYR_VERSION="v4.4.2"
+SDK_VERSION="1.0.1"
+
+echo "==> Provisioning Zephyr workspace at ${ZEPHYR_WORKSPACE}"
+
+if [ ! -x "${ZEPHYR_WORKSPACE}/.venv/bin/west" ]; then
+    echo "==> Creating venv and installing west"
+    python3 -m venv "${ZEPHYR_WORKSPACE}/.venv"
+    "${ZEPHYR_WORKSPACE}/.venv/bin/python" -m pip install --upgrade pip west
+fi
+
+WEST="${ZEPHYR_WORKSPACE}/.venv/bin/west"
+
+if [ ! -d "${ZEPHYR_WORKSPACE}/zephyr" ]; then
+    echo "==> west init (${ZEPHYR_VERSION})"
+    "${WEST}" init -m https://github.com/zephyrproject-rtos/zephyr.git \
+        --mr "${ZEPHYR_VERSION}" "${ZEPHYR_WORKSPACE}"
+fi
+
+cd "${ZEPHYR_WORKSPACE}"
+
+if [ ! -f "${ZEPHYR_WORKSPACE}/.west-update.done" ]; then
+    echo "==> west update (hal_espressif mcuboot mbedtls)"
+    "${WEST}" update hal_espressif mcuboot mbedtls
+    touch "${ZEPHYR_WORKSPACE}/.west-update.done"
+fi
+
+if [ ! -f "${ZEPHYR_WORKSPACE}/.west-packages-pip.done" ]; then
+    echo "==> west packages pip --install"
+    "${WEST}" packages pip --install
+    touch "${ZEPHYR_WORKSPACE}/.west-packages-pip.done"
+fi
+
+echo "==> west zephyr-export"
+"${WEST}" zephyr-export
+
+if [ ! -f "${ZEPHYR_WORKSPACE}/.west-blobs.done" ]; then
+    echo "==> west blobs fetch hal_espressif"
+    (cd "${ZEPHYR_WORKSPACE}/zephyr" && "${WEST}" blobs fetch hal_espressif)
+    touch "${ZEPHYR_WORKSPACE}/.west-blobs.done"
+fi
+
+if [ ! -d "${ZEPHYR_WORKSPACE}/zephyr-sdk-${SDK_VERSION}" ]; then
+    echo "==> west sdk install ${SDK_VERSION}"
+    (cd "${ZEPHYR_WORKSPACE}/zephyr" && "${WEST}" sdk install \
+        --version "${SDK_VERSION}" \
+        --install-dir "${ZEPHYR_WORKSPACE}/zephyr-sdk-${SDK_VERSION}" \
+        --gnu-toolchains riscv64-zephyr-elf)
+fi
+
+echo "==> Go module download"
+if [ -f "${WORKSPACE_ROOT:-/workspaces/learning-cyber-security}/go.mod" ]; then
+    (cd "${WORKSPACE_ROOT:-/workspaces/learning-cyber-security}" && go mod download)
+fi
+
+echo "==> Python tooling (requirements.txt: PyYAML, jsonschema for host verification)"
+if [ -f "${WORKSPACE_ROOT:-/workspaces/learning-cyber-security}/requirements.txt" ]; then
+    python3 -m pip install --break-system-packages --quiet \
+        -r "${WORKSPACE_ROOT:-/workspaces/learning-cyber-security}/requirements.txt"
+fi
+
+echo "==> Done. Build with:"
+echo "    ZEPHYR_WORKSPACE=${ZEPHYR_WORKSPACE} ./scripts/build-zephyr-baseline.sh"

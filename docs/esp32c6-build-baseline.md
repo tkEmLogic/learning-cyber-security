@@ -10,7 +10,13 @@ The build uses unsigned MCUboot because this is the Tier 0 baseline. It does not
 
 Keep the Zephyr workspace outside this Git repository because it contains large third-party source trees and toolchains.
 
-The validated workspace was `/home/tarjeik/.copilot/session-state/5a5f49b5-28f2-476f-b367-fdb9c04354ac/files/zephyr-v4.4.2`.
+The recommended way to provision this baseline is the repo's dev container
+(`.devcontainer/`), which pins Zephyr, MCUboot, and the SDK inside a Podman
+container and keeps the workspace on a named volume across rebuilds. See
+`.devcontainer/README.md`. The manual steps below are what that container
+automates, kept here for hosts that cannot use it.
+
+The validated workspace was `/home/tarjeik/.copilot/session-state/5a5f49b5-28f2-476f-b367-fdb9c04354ac/files/zephyr-v4.4.2` for the host build, and `/opt/zephyr-workspace` inside the dev container for the physical hardware validation below.
 
 Set `ZEPHYR_WORKSPACE` if your workspace is in another location.
 
@@ -96,7 +102,7 @@ The build reports one non-fatal upstream Kconfig warning. Sysbuild calculates `M
 
 ## Safe hardware check
 
-Connect one ESP32-C6-DevKitC and identify its serial device before flashing.
+Connect one ESP32-C6 board and identify its serial device before flashing.
 
 Do not guess when several serial adapters are present. Use a stable path under `/dev/serial/by-id`.
 
@@ -104,10 +110,82 @@ Flash the combined sysbuild image with:
 
 ```bash
 ZEPHYR_WORKSPACE=/path/to/zephyr-v4.4.2 \
-ZEPHYR_BUILD_DIR=/path/to/zephyr-v4.4.2/build/reference-product-baseline \
-"$ZEPHYR_WORKSPACE/.venv/bin/west" flash
+"$ZEPHYR_WORKSPACE/.venv/bin/west" flash -d "$ZEPHYR_WORKSPACE/build/reference-product-baseline"
 ```
+
+Pass the sysbuild **top-level** build directory (the one containing
+`domains.yaml`), not the nested per-domain directory
+(`.../reference-product-baseline/reference-product-baseline`). Passing the
+nested directory silently flashes only the application image and skips
+MCUboot, leaving stale or absent boot firmware on the device.
 
 Flashing this baseline writes normal flash only. Do not run any eFuse, secure boot, flash encryption, or debug-disable command.
 
-The user confirmed that no physical ESP32-C6 is available. Validation therefore stops at the successful build and configuration checks. Physical flashing, serial output inspection, and all hardware behavior remain pending. This result makes no hardware-dependent claim.
+### Validated on physical hardware
+
+Validated using the repo's dev container (`.devcontainer/`, Podman) against a
+**nanoESP32-C6 1.0 board (Muse Lab)**, identified by esptool as an ESP32-C6
+(QFN40, chip revision v0.1), connected over its onboard USB-Serial/JTAG
+adapter at a stable path under `/dev/serial/by-id/` (host-specific serial
+number redacted).
+
+Build and flash commands were exactly the two shown above, run from
+`ZEPHYR_WORKSPACE=/opt/zephyr-workspace` inside the container. Both MCUboot
+(64 KiB at offset `0x000000`) and the application (at `0x020000`) were
+written and verified by esptool.
+
+Serial capture after a board reset showed the expected boot sequence:
+
+```
+ESP-ROM:esp32c6-20220919
+...
+I (soc_init): MCUboot 2nd stage bootloader
+...
+I (boot): Loading image 0 - slot 0 from flash, area id: 2
+*** Booting Zephyr OS build v4.4.2 ***
+ESP32-C6 Reference product: intentionally unsecured Tier 0
+Board: esp32c6_devkitc/esp32c6/hpcore
+Tier 0 boot mode: unsigned MCUboot with swap using scratch
+Synthetic shared device identifier: beacon-development-shared
+Prepared HTTP assignment endpoint: /v1/releases/current
+Prepared HTTP status endpoint: /v1/devices/beacon-development-shared/events
+Beacon state: steady, toggle period: 0 ms
+Hardware note: Wi-Fi, HTTP transfer, flash, serial, and LED output require physical validation
+```
+
+This confirms the unsigned MCUboot baseline boots the Reference product
+application on real hardware.
+
+**Console fix required.** The `esp32c6_devkitc/esp32c6/hpcore` board's
+default console is the physical `uart0` pins, which are not wired to the
+DevKitC's/nanoESP32's onboard USB connector, so the application's `printk`
+output was not visible over it (only the ROM/MCUboot's own early boot
+messages appeared, since those print unconditionally over
+USB-Serial/JTAG). Fixed by adding a board overlay
+(`firmware/reference-product-baseline/boards/esp32c6_devkitc_esp32c6_hpcore.overlay`)
+that enables the chip's built-in `usb_serial` (USB-Serial/JTAG) UART node and
+routes `zephyr,console`/`zephyr,shell-uart` to it, so logs are visible on the
+same connector already used to build and flash. No extra USB-UART adapter is
+needed.
+
+**LED hardware mapping.** Zephyr's `esp32c6_devkitc_hpcore` board devicetree
+defines no LED node at all (only a user button and a watchdog alias). The
+nanoESP32-C6 1.0 board has an onboard RGB LED, but on this board revision it
+is wired to the 3V3 rail instead of 5V, so **the onboard LED does not work on
+this hardware regardless of firmware**; this is a board wiring limitation,
+not something a Zephyr driver or devicetree overlay can fix. No LED
+implementation ticket is warranted against this board revision. A different
+ESP32-C6 board (or an external LED wired correctly) would be needed to
+validate the beacon LED behavior described in `firmware/reference-product-baseline/src/main.c`.
+
+**Wi-Fi, HTTP, and OTA remain unimplemented, not just untested.** The
+checked-in application (`main.c`) only prints its intended Wi-Fi/HTTP
+endpoints and a beacon state name; it contains no actual Wi-Fi connection,
+HTTP client, or OTA download code to exercise. Physical validation of Wi-Fi
+association, the HTTP assignment/status exchange, OTA image download, and
+execution of an altered (updated) image all remain pending until that
+functionality is implemented — this is a gap in the firmware, not a hardware
+limitation. The smallest next step is an implementation ticket to add Wi-Fi
+connection and the HTTP client calls the log lines already advertise, before
+any of those hardware claims can be validated.
+

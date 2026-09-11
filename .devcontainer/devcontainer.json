@@ -1,0 +1,45 @@
+{
+  "name": "Tier 0 Zephyr/ESP32-C6 toolchain",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  // The repo checkout is the default bind-mounted workspace folder. The
+  // Zephyr workspace (west modules, SDK, build output) is large, slow to
+  // provision, and explicitly kept outside the repo (see
+  // docs/esp32c6-build-baseline.md), so it lives on its own named volume
+  // instead: it survives `Rebuild Container` and image updates.
+  "mounts": [
+    "source=zephyr-workspace,target=/opt/zephyr-workspace,type=volume"
+  ],
+  "containerEnv": {
+    "ZEPHYR_WORKSPACE": "/opt/zephyr-workspace",
+    "WORKSPACE_ROOT": "${containerWorkspaceFolder}"
+  },
+  // Grants access to the ESP32-C6's USB-JTAG/serial device. `keep-groups` is
+  // a Podman-only flag (see .devcontainer/README.md for the Docker
+  // equivalent) that keeps the invoking host user's supplementary groups
+  // (e.g. dialout/plugdev), so no in-container group juggling is needed.
+  // Plug the board in *before* opening/rebuilding the container: Podman
+  // resolves --device at container start and fails if the path is absent.
+  //
+  // The device path is host-specific (it embeds this board's serial
+  // number), so it is never hard-coded here. Export ESP32_SERIAL_DEVICE in
+  // your shell before launching VS Code, pointed at your board's stable
+  // path under /dev/serial/by-id/ (see docs/esp32c6-build-baseline.md).
+  // Defaults to /dev/ttyACM0 when unset, which is fine when only one board
+  // is ever attached.
+  "runArgs": [
+    "--group-add=keep-groups",
+    "--device=${localEnv:ESP32_SERIAL_DEVICE:/dev/ttyACM0}"
+  ],
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-vscode.cpptools",
+        "golang.go",
+        "marus25.cortex-debug"
+      ]
+    }
+  }
+}
