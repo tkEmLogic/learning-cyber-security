@@ -74,7 +74,7 @@ Zephyr 4.4.2 selects a 2 MiB esptool image header by default even though this bo
 
 ## Validated result
 
-The baseline was validated on Fedora Linux 44 because that was the available host. The release environment remains Ubuntu 24.04 as specified by the course.
+The baseline was validated on Fedora Linux 44 because that was the available host. The first release supports current Linux distributions. Ubuntu 24.04 is the CI and reference environment, not the only supported host.
 
 The exact build command was:
 

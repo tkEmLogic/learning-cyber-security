@@ -265,7 +265,7 @@ The device sends periodic `status.observed` events and update events for assignm
 
 ### Local classroom setup
 
-**Implementation requirement.** The OTA service runs locally in a container on the Learner's computer. The Learner's computer and the ESP32-C6 join the same Wi-Fi network. Setup includes a course-local certificate authority, server certificate, sample releases, and deterministic test data. The service binds only to the configured classroom interface by default. After dependencies and container images are installed, the core update exercises do not depend on an external cloud service. Test cases include a corrupted image, modified release manifest, expired or untrusted server certificate, interrupted download, replayed release, failed health check, and successful revert.
+**Implementation requirement.** The OTA service runs locally in a container on the Learner's computer. The first release supports current Linux distributions with either Docker or Podman. Ubuntu 24.04 is the CI and reference environment, not the only supported host. The Learner's computer and the ESP32-C6 join the same Wi-Fi network. Setup includes a course-local certificate authority, server certificate, sample releases, and deterministic test data. The service binds only to the configured classroom interface by default. After dependencies and container images are installed, the core update exercises do not depend on an external cloud service. Test cases include a corrupted image, modified release manifest, expired or untrusted server certificate, interrupted download, replayed release, failed health check, and successful revert.
 
 ### Production features intentionally omitted
 
@@ -817,7 +817,7 @@ Source: resolved decision ticket [#16](https://github.com/tkEmLogic/learning-cyb
 
 ## 16. Command interface
 
-**Fixed decision.** Provide one repository-root command named `./course`. It is a thin, documented wrapper around existing ecosystem tools such as West, CMake, Docker Compose, certificate tools, and test runners.
+**Fixed decision.** Provide one repository-root command named `./course`. It is a thin, documented wrapper around existing ecosystem tools such as West, CMake, the selected Docker or Podman compose command, certificate tools, and test runners.
 
 **Implementation requirement.** Required command groups are:
 
