@@ -31,9 +31,13 @@ be native English speakers.
   blocks.
 - Use simple pipe tables.
 - Avoid raw HTML, MDX, GitHub alert syntax, and deeply nested lists.
-- Use standard fenced Mermaid blocks only after testing import into Docmost.
+- Do not rely on Mermaid rendering. In the tested Docmost sandbox, a fenced
+  Mermaid block survived export but rendered as source code. Use a plain-text
+  diagram, a simple table, or an imported image instead.
 - Put essential meaning in text, even when a diagram also shows it.
 - Use descriptive link text and relative links for repository content.
+- Keep each prose paragraph on one source line. The tested Docmost importer
+  preserves source line wraps as visible hard breaks.
 
 ## Review
 

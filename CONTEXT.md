@@ -35,3 +35,87 @@ _Avoid_: Demo app, blinky, access controller
 A reviewable result that shows what the learner designed, implemented,
 observed, or concluded during a lab.
 _Avoid_: Homework, deliverable
+
+**Release manifest**:
+Immutable, manufacturer-signed metadata that describes one firmware release,
+including its compatible hardware, version, security counter, image size, and
+image digest.
+_Avoid_: Update file, version record
+
+**Update assignment**:
+The OTA service's choice of which release, if any, a specific device should
+install. It refers to a release manifest but does not change the signed release.
+_Avoid_: Manifest, deployment
+
+**OTA service**:
+The service that provides update assignments, release manifests, firmware
+images, and update event records. It does not hold firmware release-signing
+keys.
+_Avoid_: Signing server, firmware authority
+
+**Factory identity**:
+A persistent, manufacturer-issued identity that identifies one physical device.
+It is issued by Bootstrap-authorized enrollment and is then used only for
+claiming and controlled recovery, not for routine owner access.
+_Avoid_: Device password, owner identity
+
+**Operational identity**:
+A rotatable, per-device identity used for normal mutual TLS access to services.
+It belongs to the device's current ownership context.
+_Avoid_: Factory identity, user account
+
+**Bootstrap credential**:
+A unique, short-lived or one-time credential that permits only initial
+enrollment. It cannot authorize normal device operation or firmware download.
+_Avoid_: Default password, device identity
+
+**Claim window**:
+A short period opened by physical action during which a device may be assigned
+to a new owner and receive a new operational identity.
+_Avoid_: Pairing mode, maintenance mode
+
+**Secure element**:
+A separate security component that generates or stores private keys and
+performs cryptographic operations without exporting those private keys. In this
+course, the selected secure element is STSAFE-A120.
+_Avoid_: Hardware root of trust, key vault
+
+**Security evidence pack**:
+The versioned set of engineering artifacts that connects security claims,
+requirements, controls, tests, results, residual risks, and source references
+for the reference product.
+_Avoid_: Compliance pack, final report
+
+**Security claim**:
+A specific, reviewable statement about a security property or lifecycle
+behavior of the reference product. A claim is supported, partly supported,
+unsupported, or not applicable based on linked evidence.
+_Avoid_: Guarantee, compliance claim
+
+**Residual risk**:
+A known security risk that remains after the selected controls are applied,
+including its rationale, owner, and planned treatment or acceptance.
+_Avoid_: Accepted vulnerability, limitation
+
+**Hardening tier**:
+A runnable state of the reference product created by adding one focused
+security control or lifecycle capability to the preceding state. Each tier
+preserves the earlier behavior, demonstrates the new boundary, and adds
+evidence to the security evidence pack.
+_Avoid_: Course level, release version
+
+**Weakness ledger**:
+The per-tier record of known weaknesses, demonstrated attack vectors, controls
+that close or reduce them, evidence of the changed behavior, and weaknesses
+that remain for later tiers.
+_Avoid_: Bug list, vulnerability scan
+
+**Tier checkpoint**:
+An immutable, annotated Git tag that identifies a tested runnable state at the
+start or completion of a hardening tier.
+_Avoid_: Tier branch, solution folder
+
+**Course workspace**:
+A learner-owned Git branch or worktree created from a tier checkpoint. It holds
+the learner's code and evidence without changing the published checkpoint.
+_Avoid_: Tier checkpoint, shared working directory

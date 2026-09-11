@@ -69,7 +69,7 @@ Terms in this document follow `CONTEXT.md` in the repository root. Use `Learner`
 
 **Fixed decision.** The whole course is organized as cumulative hardening tiers. Tier 0 is a completely unsecured but functional reference product. Each later tier adds one focused security control or lifecycle capability and keeps the product runnable. See section 11.
 
-Source: resolved map [#1](https://github.com/tkEmLogic/learning-cyber-security/issues/1), decision ticket [#2](https://github.com/tkEmLogic/learning-cyber-security/issues/2).
+Source: Wayfinder map [#1](https://github.com/tkEmLogic/learning-cyber-security/issues/1), resolved decision ticket [#2](https://github.com/tkEmLogic/learning-cyber-security/issues/2).
 
 ## 2. Reference product and scenario
 
@@ -145,12 +145,12 @@ Source: resolved decision ticket [#2](https://github.com/tkEmLogic/learning-cybe
 
 | Date | Legal effect |
 | --- | --- |
-| 11 September 2026 | Article 14 manufacturer reporting duty applies. It uses 24-hour, 72-hour, and final-report deadlines for actively exploited vulnerabilities and severe incidents. |
+| 11 September 2026 | Article 14 manufacturer reporting duty applies. Both reportable event types require an early warning within 24 hours and a notification within 72 hours after awareness. An actively exploited vulnerability has a final report no later than 14 days after a corrective or mitigating measure becomes available. A severe incident has a final report within one month after the 72-hour incident notification. |
 | 11 December 2027 | The main product, lifecycle, conformity, support, and user-information duties apply. |
 
 **Implementation requirement.** Support must match expected use and is at least five years unless expected use is shorter. Security fixes must be free. Issued updates need long-term availability. The course reference product uses the five-year scenario stated in section 2.
 
-**Implementation requirement.** The course must produce, as learner artifacts: a risk assessment, an Annex I control map, an SBOM, test evidence, update records, a coordinated vulnerability disclosure process, a timed Article 14 reporting exercise, user instructions, and draft conformity records. These are defined in full in section 10 and exercised in Hardening Tier 9.
+**Implementation requirement.** The course must produce, as learner artifacts: a risk assessment, an Annex I control map, an SBOM, test evidence, update records, a coordinated vulnerability disclosure process, two timed Article 14 reporting exercises, user instructions, and draft conformity records. One exercise covers an actively exploited vulnerability and one covers a severe incident. Each records the awareness time, classification rationale, competent-CSIRT assumption, 24-hour early warning, 72-hour notification, user communication, mitigation, event-specific final-report deadline, and points that require legal review. These artifacts are defined in full in section 10 and exercised in Hardening Tier 9.
 
 **Known platform uncertainty.** The finished product's legal scope, manufacturer role, product class, support period, interaction with other EU regimes, and reportability decisions all need product-specific legal review. The course states this boundary every time it touches CRA content and never resolves it on the learner's behalf.
 
@@ -175,7 +175,7 @@ Source: resolved research ticket [#3](https://github.com/tkEmLogic/learning-cybe
 
 **Validation gate.** Secure boot, flash encryption, key protection, debug disable, and download-mode eFuse changes include irreversible steps. Test recovery on disposable hardware first. Advanced Tier A cannot be published as a supported hands-on module until the checklist in section 17 passes on the pinned physical board.
 
-**Implementation requirement.** Before production-style claims, close these upstream gaps: pin one exact Zephyr commit rather than a moving branch, confirm the unsigned ESP32 board default is overridden, reproduce the complete boot chain on physical ESP32-C6-DevKitC hardware, confirm flash encryption across every partition, test that old signed images are rejected under the intended threat model, decide whether software downgrade prevention is sufficient or an eFuse-backed counter is required, add a secure-storage key provider based on a protected device secret, verify entropy while radios are off and during early boot, test Zephyr userspace and memory domains on the real board, test the recovery path after a failed and interrupted update, measure bootloader size with every enabled security feature, and define a key rotation and revocation procedure.
+**Implementation requirement.** Before production-style claims, close these upstream gaps: pin one exact Zephyr commit rather than a moving branch, confirm the unsigned ESP32 board default is overridden, reproduce the complete boot chain on physical ESP32-C6-DevKitC hardware, confirm flash encryption across every partition, test that old signed images are rejected under the intended threat model, decide whether software downgrade prevention is sufficient or an eFuse-backed counter is required, replace the core course's deliberately limited device-ID-derived secure-storage key provider with a provider based on a protected device secret, verify entropy while radios are off and during early boot, test Zephyr userspace and memory domains on the real board, test the recovery path after a failed and interrupted update, measure bootloader size with every enabled security feature, and validate both bootloader-signing-key and firmware-release-key rotation procedures.
 
 Full report: [`research/platform-security-support.md`](https://github.com/tkEmLogic/learning-cyber-security/blob/research/platform-security/research/platform-security-support.md) on branch `research/platform-security`.
 
@@ -191,9 +191,19 @@ Source: resolved research ticket [#4](https://github.com/tkEmLogic/learning-cybe
 
 The manufacturer owns an offline firmware release-signing key. The OTA service stores signed releases but never holds the release-signing key. MCUboot contains the trusted firmware-verification public key and accepts only correctly signed Zephyr application images. Standard Zephyr MCUboot on ESP32-C6 is not authenticated by a hardware root of trust, and course material must state this limitation every time it describes the core chain. The core model protects the update path from corrupted images, an untrusted OTA host, and remote replacement of the application image. It does not protect against a physical attacker who can replace the bootloader or its embedded verification key. The device identity key is separate from every firmware-signing and boot key and is never used to sign firmware.
 
+### Pinned core boot configuration
+
+**Implementation requirement.** Use the Zephyr 4.4.2 default 4 MiB ESP32-C6 partition map as the core-course flash contract, even when the board module has 8 MiB: 64 KiB MCUboot at `0x000000`, 64 KiB system data at `0x010000`, a 1,792 KiB primary slot at `0x020000`, a 1,792 KiB secondary slot at `0x1e0000`, two reserved 32 KiB LP-core image slots at `0x3a0000` and `0x3a8000`, 192 KiB storage at `0x3b0000`, 124 KiB scratch at `0x3e0000`, and 4 KiB coredump at `0x3ff000`. The course does not use the LP-core slots and must not repurpose them. Keep this map in one checked-in devicetree include and assert every offset and size in CI. A bootloader larger than 64 KiB or an application that does not fit its slot is a build failure, not a reason to change the map inside a tier.
+
+**Implementation requirement.** Use MCUboot swap-with-scratch, not overwrite-only or direct-XIP mode. Enable `BOOT_SWAP_USING_SCRATCH`, `BOOT_VALIDATE_SLOT0`, and one updateable image. Starting in Tier 3, use ECDSA P-256 image signatures. Starting in Tier 4, enable `MCUBOOT_DOWNGRADE_PREVENTION` and `MCUBOOT_DOWNGRADE_PREVENTION_SECURITY_COUNTER`. Put the same security-counter value in the signed MCUboot image TLV and the signed Release manifest. The human-readable firmware version stays separate. A candidate counter may equal the confirmed image counter for an ordinary feature release, but it may never be lower. This is software downgrade prevention because a physical attacker can replace boot state.
+
+**Implementation requirement.** The application writes only to the secondary slot, requests `BOOT_UPGRADE_TEST`, and never requests a permanent upgrade. MCUboot owns the scratch swap, trial boot, and revert state. The application calls `boot_write_img_confirmed()` only after the local health gate passes. There is no separate application-managed accepted-counter database, so a failed trial can revert to the previously confirmed image without a newer counter making that image ineligible. Power-cut tests cover download, trailer update, every swap phase, first boot, health checking, confirmation, and the first reboot after confirmation.
+
 ### Advanced hardware-rooted model
 
-**Validation gate.** ESP32-C6 Secure Boot v2 authenticates the manually integrated MCUboot Espressif bootloader, and MCUboot authenticates the signed Zephyr application image. The exact ROM-to-application chain must be tested on the selected physical board before the course calls it supported rather than experimental. Secure Boot v2 key digest slots and revocation are taught as the hardware-root key lifecycle. Firmware release-key rotation is demonstrated with a signed transition release before an old trusted key is retired. Flash encryption uses a separate hardware key and is an advanced confidentiality control that does not replace image signing or secure boot.
+**Validation gate.** ESP32-C6 Secure Boot v2 authenticates the manually integrated MCUboot Espressif bootloader, and MCUboot authenticates the signed Zephyr application image. The exact ROM-to-application chain must be tested on the selected physical board before the course calls it supported rather than experimental. Flash encryption uses a separate hardware key and is an advanced confidentiality control that does not replace image signing or secure boot.
+
+**Implementation requirement.** Advanced Tier A treats bootloader signing keys and firmware release-signing keys as two independent rotation exercises. For the Secure Boot v2 bootloader key, provision current and next public-key digests in separate unused eFuse slots, boot a MCUboot image signed by the next key, prove signed recovery with that key, and only then revoke the old digest. For the release key, use a reviewed custom Zephyr `keys.c` that contains the old and next ECDSA P-256 image-verification public keys. First install a Secure Boot v2-authenticated transition MCUboot that accepts images signed by either release key. Then install and confirm a transition application signed by the old key that trusts both old and next Release-manifest verification keys. Publish a migration Release manifest signed by the old key that points to an image signed by the next key. After that image confirms and proves it accepts a manifest signed by the next key, install a Secure Boot v2-authenticated MCUboot that accepts only the next image key and a later application that trusts only the next manifest key. The old key is not revoked from either verifier before both next-key paths pass. These procedures are hands-on only after physical-board validation proves power-loss recovery at each step. Otherwise the module uses captured evidence as a guided analysis and makes no successful-rotation claim.
 
 ### Firmware confidentiality
 
@@ -205,11 +215,11 @@ Every release has a monotonically increasing security counter that is separate f
 
 ### Image installation and confirmation
 
-A new image is downloaded to the secondary slot and verified before it is selected for test boot. MCUboot starts it as an unconfirmed test image. The application confirms the image only after boot-time integrity checks, required configuration and credentials, reference-product state handling, and a bounded health period succeed. Reset, crash, failed self-test, or expiry of the health period before confirmation causes revert to the last confirmed image. Loss of network service alone must not cause an endless revert loop, because local application health is separated from optional backend reachability.
+A new image is downloaded to the secondary slot and verified before it is selected for test boot. MCUboot starts it as an unconfirmed test image. The application confirms the image only after boot-time integrity checks, required configuration and credentials, reference-product state handling, and a 60-second local health period succeed. A failed check or expired health timer leaves the image unconfirmed and triggers a controlled reboot. A watchdog resets a trial image that hangs before it can report failure. On the next boot, MCUboot reports the revert swap type and restores the last confirmed image. Loss of network service alone must not fail the local health gate or cause an endless revert loop, because local application health is separated from optional backend reachability.
 
 ### Recovery
 
-The last confirmed image remains the normal recovery path. A physically present operator may use the documented serial recovery procedure. In the hardware-rooted model, recovery accepts only correctly signed artifacts and never requires disabling secure boot. Debug and ROM download restrictions are applied only after signed recovery has been demonstrated on the same disposable board. Signing-key backup and custody are manufacturer responsibilities, not a device feature.
+The last confirmed image remains the normal recovery path. Configure MCUboot serial recovery on a dedicated UART with `MCUBOOT_SERIAL`, GPIO entry, `MCUBOOT_SERIAL_DIRECT_IMAGE_UPLOAD`, image-state commands, and no unrestricted network transport. The normal recovery exercise uploads a signed image to the secondary slot, marks it for test boot, and keeps the confirmed primary image available for revert. If no valid primary image remains, allow a physically present operator to upload a signed image to the primary slot; `BOOT_VALIDATE_SLOT0` must authenticate it before execution, and an interrupted upload must leave serial recovery re-enterable so the same operation can be retried. In the hardware-rooted model, recovery accepts only correctly signed artifacts and never requires disabling secure boot. Debug and ROM download restrictions are applied only after signed recovery has been demonstrated on the same disposable board. Signing-key backup and custody are manufacturer responsibilities, not a device feature.
 
 ### Irreversible controls
 
@@ -231,6 +241,12 @@ The manufacturer creates a versioned firmware image on a release workstation. Th
 
 **Fixed decision.** The final course path uses mutual TLS with one credential per device. The server certificate chains to a course-specific root installed during provisioning. The device certificate identifies the device to the service. A limited Bootstrap credential may be used only during the earlier enrollment exercise and is never the normal OTA credential. The service hostname and trust anchor are configured during provisioning. Certificate or hostname validation failures stop the update, and examples must never disable TLS verification.
 
+### Status reporting path
+
+**Implementation requirement.** The status beacon and update client use the same local service and one explicit event endpoint: `POST /v1/devices/{device_id}/events`. The JSON body contains `device_id`, `event_type`, `boot_id`, `event_sequence`, firmware version, security counter, simulated machine state, result, reason code, release identifier when applicable, and device-observed time when available. `boot_id` is a fresh random value for each boot and `event_sequence` increases during that boot. The service stores the authenticated identity, service receive time, and duplicate or out-of-order result with the append-only JSON Lines record. Device time is evidence, not an authorization input.
+
+**Implementation requirement.** The status path hardens with the rest of the product. Tier 0 sends plaintext HTTP and the service trusts the body `device_id`, so interception and identity spoofing are demonstrable. Tier 2 adds server-authenticated HTTPS but still has no client identity. After Tier 6, the Factory identity is accepted only by claiming and controlled-recovery endpoints, not by normal status or update endpoints. Tier 7 requires an Operational identity for assignments, image downloads, and event submission. The service derives the authenticated device from the client certificate, requires it to equal the path and body identifier, checks the certificate and device record are active and in the expected ownership context, and rejects mismatches, revoked identities, replayed event tuples, and factory-only credentials with distinct reason codes.
+
 ### Release manifest
 
 **Implementation requirement.** The release manifest is JSON. Its exact downloaded bytes are verified against a detached signature before parsing, avoiding a custom JSON canonicalization scheme. It contains at least a unique release identifier, the target board and hardware revision range, the human-readable firmware version, the monotonically increasing security counter, the image size and SHA-256 digest, the immutable image path, the release channel, and creation and support information needed by later evidence work. The device rejects an invalid signature, incompatible hardware, a lower security counter, an unexpected size, a digest mismatch, or an image it has already confirmed. The human-readable version never overrides the security counter.
@@ -245,7 +261,7 @@ The image is streamed directly to the secondary slot and is not buffered fully i
 
 ### Status and audit records
 
-The device sends events for assignment received, download started, resumed, verified, rejected, test boot started, confirmed, and reverted. Each record includes the device identity, release identifier, current and target versions, result, reason code, and device-observed time when available. The local service stores append-only JSON Lines records for teaching and lab review. These records support investigation and course evidence, but the course does not claim they are tamper-proof production audit logs.
+The device sends periodic `status.observed` events and update events for assignment received, download started, resumed, verified, rejected, test boot started, confirmed, and reverted. The local service stores append-only JSON Lines records for teaching and lab review. These records support investigation and course evidence, but the course does not claim they are tamper-proof production audit logs or a source of trusted device time.
 
 ### Local classroom setup
 
@@ -279,7 +295,7 @@ Source: resolved research ticket [#5](https://github.com/tkEmLogic/learning-cybe
 
 | Role | Purpose |
 | --- | --- |
-| Factory identity | Identifies one physical device to the manufacturer. Used only for enrollment and controlled recovery. |
+| Factory identity | Identifies one physical device to the manufacturer after Bootstrap-authorized enrollment. Used only for claiming and controlled recovery. |
 | Operational identity | Authenticates the device to the OTA service with mutual TLS. Belongs to the current ownership context and can be rotated without changing the Factory identity. |
 | Bootstrap credential | Authorizes only initial enrollment. Cannot download firmware or use normal device APIs. |
 | Firmware signing key, boot key, server TLS key, CA key | Separate roles from every device identity key. |
@@ -293,7 +309,11 @@ Source: resolved research ticket [#5](https://github.com/tkEmLogic/learning-cybe
 
 ### Key generation and storage
 
-Factory and operational private keys are generated on the device, and only public keys and certificate requests leave it. The core course stores private keys in encrypted NVS. Course material must state the limit clearly: application code that can use a software-held key may also be able to extract or misuse it. Private keys are marked non-exportable at the course API boundary even when the underlying storage cannot enforce that property against compromised privileged firmware. No private key, Bootstrap secret, or reusable development credential is written to source control, course pages, OTA logs, or manufacturing records.
+Factory and operational private keys are generated on the device, and only public keys and certificate requests leave it. The core course stores them through Zephyr 4.4.2 PSA Secure Storage. Enable `SECURE_STORAGE`, `SECURE_STORAGE_ITS_IMPLEMENTATION_ZEPHYR`, `SECURE_STORAGE_ITS_TRANSFORM_IMPLEMENTATION_AEAD`, `SECURE_STORAGE_ITS_TRANSFORM_AEAD_SCHEME_AES_GCM`, `SECURE_STORAGE_ITS_TRANSFORM_AEAD_KEY_PROVIDER_DEVICE_ID_HASH`, `SECURE_STORAGE_ITS_STORE_IMPLEMENTATION_SETTINGS`, `SETTINGS`, and `SETTINGS_NVS`, and size `SECURE_STORAGE_ITS_MAX_DATA_SIZE` for the encoded P-256 private key and metadata. Use the fixed `storage` partition from section 6. NVS supplies persistence; the Secure Storage transform supplies encryption and authentication. The course never calls NVS itself encrypted.
+
+**Fixed limitation.** On ESP32-C6, the default device-ID-hash provider derives from a readable MAC-based identifier. It can deter casual offline inspection and detect unauthenticated record changes, but it is not a protected root secret, does not prevent record replay, and does not protect keys from privileged firmware, a debugger, or a capable flash attacker. The Tier 6 Weakness ledger keeps these risks open. Private keys are marked non-exportable at the course API boundary even though the core storage cannot enforce that property against compromised privileged firmware. Advanced Tier B replaces this boundary with STSAFE-A120 key isolation. A production design must instead validate a custom provider rooted in protected device-specific hardware or another reviewed secure-storage design.
+
+No private key, Bootstrap secret, or reusable development credential is written to source control, course pages, OTA logs, or manufacturing records.
 
 ### Trust anchors and certificate authorities
 
@@ -307,7 +327,9 @@ The provisioning record contains the device identifier and hardware revision, th
 
 ### Initial enrollment and claiming
 
-Each device receives a unique, high-entropy Bootstrap credential through a channel separate from its normal network traffic. The service stores only the verifier needed to check it. The credential is limited to one device, one enrollment purpose, a short validity period, and one successful use. The device proves possession of the generated private key by signing its certificate request. A claim window opens only after a documented physical action or local serial command. Successful claiming consumes the Bootstrap credential, issues the operational certificate, closes the claim window, and records the owner association. Repeated failures trigger bounded backoff and a visible error rather than a silent fallback to a shared credential.
+Each device receives a unique, high-entropy Bootstrap credential through a channel separate from its normal network traffic. The service stores only the verifier needed to check it. The credential is limited to one device, the Factory-enrollment purpose, a short validity period, and one successful use. At the provisioning station, the device generates its Factory key and submits a certificate request with the Bootstrap credential. The station checks physical connection and device metadata, verifies proof of possession, issues the Factory certificate, and atomically marks the Bootstrap credential consumed. A consumed Bootstrap credential can never authorize claiming, recovery, firmware download, or a second enrollment.
+
+**Implementation requirement.** Claiming is a separate two-party transition. A documented physical action opens a ten-minute Claim window and causes the device to generate a random one-use claim nonce and a new Operational key. The device authenticates to the claim endpoint with its Factory identity and submits the Operational certificate request plus the nonce. The Customer operator authenticates to the local service with an Owner credential and submits the matching device identifier and nonce. The service binds the nonce to the Factory certificate, device lifecycle state, and owner session, rejects expired, replayed, mismatched, already-owned, revoked, or decommissioned claims, and records every result. Only when both halves match does it issue the owner-scoped Operational certificate, record the owner association, and close the Claim window. Repeated failures trigger bounded backoff and a visible error rather than a silent fallback to a shared credential.
 
 ### Rotation and renewal
 
@@ -349,7 +371,7 @@ The secure element lets the operational identity private key be generated and us
 
 ### Prerequisites
 
-A Learner starts this module only after completing the software-protected identity path with a working operational identity in encrypted NVS, mutual TLS authentication to the local OTA service, a documented identity lifecycle covering enrollment, rotation, revocation, recovery, transfer, and decommissioning, and an explanation of the software-held key's security boundary. The advanced module reuses the same operational identity lifecycle and changes only the private-key provider.
+A Learner starts this module only after completing the software-protected identity path with a working Operational identity in the limited PSA Secure Storage configuration from section 8, mutual TLS authentication to the local OTA service, a documented identity lifecycle covering enrollment, rotation, revocation, recovery, transfer, and decommissioning, and an explanation of the software-held key's security boundary. The advanced module reuses the same Operational identity lifecycle and changes only the private-key provider.
 
 ### Required hardware and scaffold
 
@@ -432,7 +454,9 @@ Source: resolved decision ticket [#12](https://github.com/tkEmLogic/learning-cyb
 
 ### Progression rules
 
-**Implementation requirement.** Every hardening tier follows the same loop: start from the runnable result of the previous tier; predict one or more attacks or failures that should still succeed; run the attack and capture the insecure behavior; add one focused control or lifecycle capability; rerun the original attack and verify the new rejection or recovery behavior; try at least one bypass, misuse, or operational failure; state what the control does not protect; update the security claim, requirement, test evidence, and residual risk in the security evidence pack. Each tier is a stable runnable state, not a collection of unrelated exercises. Later tiers retain the controls from earlier tiers unless the lab explicitly demonstrates a rollback or misconfiguration.
+**Implementation requirement.** Control tiers use this loop: start from the runnable result of the previous tier; predict one or more attacks or failures that should still succeed; run the attack and capture the insecure behavior; add one focused control or lifecycle capability; rerun the original attack and verify the new rejection or recovery behavior; try at least one bypass, misuse, or operational failure; state what the control does not protect; update the security claim, requirement, test evidence, and residual risk in the security evidence pack. Each tier is a stable runnable state, not a collection of unrelated exercises. Later tiers retain the controls from earlier tiers unless the lab explicitly demonstrates a rollback or misconfiguration.
+
+**Fixed decision.** Tier 0 is the baseline variant: it builds the insecure product and proves that the selected attacks succeed, without claiming an after-hardening result. Tier 1 is the analysis variant: it reruns selected Tier 0 observations, converts them into threats, requirements, claims, and planned controls, and records no runtime security improvement. Tiers 2 through 9 and Advanced Tiers A and B are control or lifecycle variants and use the full before-and-after loop. Tier 10 is the integration variant: it validates and repairs the accumulated controls rather than introducing one new control. The module and acceptance rules in sections 12, 14, and 22 use these four variants explicitly.
 
 ### Core hardening tiers
 
@@ -515,8 +539,8 @@ Source: resolved decision ticket [#12](https://github.com/tkEmLogic/learning-cyb
 | Prerequisites | Tier 4. |
 | Learning result | Treat update availability and safe recovery as security properties. |
 | Threat shown | Power loss, network loss, corrupted partial download, crashing release, premature confirmation, and unrecoverable installation. |
-| Hands-on task | Add resumable range downloads to the secondary slot, persisted progress, bounded retry, MCUboot test boot, bounded health checks, confirmation, revert, and serial recovery instructions. |
-| Success criteria | Interrupted downloads resume safely. A healthy release confirms. A crashing or failed-health release reverts to the last confirmed image. Network loss alone does not cause an endless revert loop. |
+| Hands-on task | Add resumable range downloads to the secondary slot, persisted progress, bounded retry, MCUboot test boot, a 60-second local health gate, watchdog reset for a hung trial image, controlled reboot on failed or expired health, confirmation, revert, and serial recovery instructions. |
+| Success criteria | Interrupted downloads resume safely. A healthy release confirms. A crashing, hung, failed-health, or health-timeout release reboots and then reverts to the last confirmed image. Network loss alone does not cause an endless revert loop. |
 | Failure criteria | Partial data is accepted, an image confirms before required checks, or recovery disables signature checks. |
 | Mentor review gate | Required update-recovery gate. |
 | Lab artifact | Update state diagram, interruption matrix, confirmation and revert logs, recovery record, and residual availability risks. |
@@ -529,7 +553,7 @@ Source: resolved decision ticket [#12](https://github.com/tkEmLogic/learning-cyb
 | Prerequisites | Tier 5. |
 | Learning result | Show why a shared fleet credential permits cloning and why possession must be device-specific. |
 | Threat shown | One extracted shared credential impersonates every device. |
-| Hands-on task | First clone the shared development identity. Then generate a device key on the ESP32-C6, enroll a Factory certificate with a unique Bootstrap credential, store it in encrypted NVS, and record the manufacturing state without private-key material. |
+| Hands-on task | First clone the shared development identity. Then generate a device key on the ESP32-C6, enroll a Factory certificate with a unique Bootstrap credential, store the key through the limited PSA Secure Storage configuration in section 8, consume the Bootstrap credential, and record the manufacturing state without private-key material. |
 | Success criteria | The cloned shared identity works before hardening. After hardening, the duplicate is rejected and the enrolled device proves possession of its unique key. |
 | Failure criteria | The backend stores the private key, a reusable default credential remains active, or failed enrollment silently falls back to shared identity. |
 | Mentor review gate | None. |
@@ -543,8 +567,8 @@ Source: resolved decision ticket [#12](https://github.com/tkEmLogic/learning-cyb
 | Prerequisites | Tier 6. |
 | Learning result | Separate manufacturer recovery identity, routine device identity, and human authorization. |
 | Threat shown | Factory credentials are overused for normal service access, or an unclaimed device joins the OTA service without physical authorization. |
-| Hands-on task | Open a physical claim window, generate an operational key, issue an owner-scoped operational certificate, configure mutual TLS, and restrict the normal OTA endpoint to valid operational identities. |
-| Success criteria | The claimed device receives update assignments. An unclaimed device, revoked certificate, factory-only identity, and wrong-owner identity are rejected. |
+| Hands-on task | Authenticate the Customer operator with an Owner credential, open a physical Claim window, match the owner request to the device's one-use claim nonce and Factory-authenticated request, generate an Operational key, issue an owner-scoped Operational certificate, configure mutual TLS, and restrict assignment, image-download, and status-event endpoints to valid Operational identities. |
+| Success criteria | The claimed device receives update assignments and submits status events. An unclaimed device, replayed or expired claim nonce, revoked certificate, Factory-only identity, body or path identifier mismatch, and wrong-owner claim are rejected. |
 | Failure criteria | The Factory identity can use the ordinary download endpoint or certificate and hostname validation are disabled. |
 | Mentor review gate | Required identity-boundary gate. |
 | Lab artifact | Claim sequence, certificate-role inventory, mutual TLS evidence, authorization tests, and updated lifecycle model. |
@@ -571,8 +595,8 @@ Source: resolved decision ticket [#12](https://github.com/tkEmLogic/learning-cyb
 | Prerequisites | Tier 8. |
 | Learning result | Connect product security to dependencies, vulnerability response, security updates, support commitments, and CRA-related engineering evidence. |
 | Threat shown | Unknown components, unreviewed vulnerabilities, delayed reporting, unsupported devices, and unavailable fixes. |
-| Hands-on task | Generate and review the firmware and OTA-service SBOMs, scan known vulnerabilities, triage a prepared report, create a signed remediation release, exercise release withdrawal and canary rollout, draft the coordinated vulnerability disclosure process, run the timed Article 14 reporting scenario, and complete support and user-security statements. |
-| Success criteria | The release links to source, build manifest, SBOM, tests, signatures, and approval. The Learner distinguishes 2026 reporting duties from 2027 product duties and marks legal-review boundaries. |
+| Hands-on task | Generate and review the firmware and OTA-service SBOMs, scan known vulnerabilities, triage a prepared report, create a signed remediation release, exercise release withdrawal and canary rollout, draft the coordinated vulnerability disclosure process, run separate timed Article 14 scenarios for an actively exploited vulnerability and a severe incident, and complete support and user-security statements. |
+| Success criteria | The release links to source, build manifest, SBOM, tests, signatures, and approval. For both reporting scenarios, the Learner records awareness and classification, produces the 24-hour and 72-hour submissions, selects the correct event-specific final deadline, drafts user communication, and marks legal-review boundaries. |
 | Failure criteria | Scanner output is accepted without triage, a fix is shipped outside the signed release path, or the evidence claims conformity. |
 | Mentor review gate | Required lifecycle and evidence gate. |
 | Lab artifact | SBOM review, vulnerability record, remediation release evidence, reporting exercise, support statement, user information, and CRA traceability update. |
@@ -603,8 +627,8 @@ Source: resolved decision ticket [#12](https://github.com/tkEmLogic/learning-cyb
 | Prerequisites | Core Tier 10 and disposable hardware. |
 | Learning result | Compare software-rooted image verification with ESP32-C6 Secure Boot v2 and flash encryption. |
 | Threat shown | A physical attacker replaces the software-rooted bootloader or reads flash contents. |
-| Hands-on task | Use virtual eFuses first, then the validated manually integrated MCUboot Espressif port on labelled disposable hardware. Enable signed recovery before restricting debug or download modes. Add flash encryption as a separate confidentiality control. |
-| Success criteria | The exact ROM-to-application chain and signed recovery pass on physical hardware. Invalid boot components fail. Flash contents are not directly readable as plaintext through the tested path. |
+| Hands-on task | Use virtual eFuses first, then the validated manually integrated MCUboot Espressif port on labelled disposable hardware. Enable signed recovery before restricting debug or download modes. Add flash encryption as a separate confidentiality control. Run the separate bootloader-signing-key and firmware-release-key rotation sequences from section 6. |
+| Success criteria | The exact ROM-to-application chain and signed recovery pass on physical hardware. Invalid boot components fail. Flash contents are not directly readable as plaintext through the tested path. Both key rotations preserve a bootable signed recovery path, and the retired key is rejected only after the next key is proven. |
 | Failure criteria | Irreversible controls are applied before recovery is proven or the course claims unvalidated upstream support. |
 | Mentor review gate | Mandatory before and after physical eFuse changes. |
 | Lab artifact | Pre-change eFuse state, approved checklist, boot-chain evidence, recovery proof, confidentiality test, and remaining physical-attack limits. |
@@ -626,7 +650,7 @@ Source: resolved decision ticket [#12](https://github.com/tkEmLogic/learning-cyb
 
 ### Course and repository implications
 
-**Implementation requirement.** Course pages, code states, fixtures, tests, and evidence templates use the same hardening-tier names and order. The Learner can reset any software-only tier to a known starting state without exposing production credentials. Unsafe Tier 0 material is visually marked, bound to the isolated local environment, and separated from final configuration examples. Each tier states the starting state, exact delta, expected insecure observation, expected hardened observation, and residual risk. Solutions never skip directly to the final architecture and preserve the reasoning and evidence transition between adjacent tiers. Optional advanced tiers never block core-course completion.
+**Implementation requirement.** Course pages, code states, fixtures, tests, and evidence templates use the same hardening-tier names and order. The Learner can reset any software-only tier to a known starting state without exposing production credentials. Unsafe Tier 0 material is visually marked, bound to the isolated local environment, and separated from final configuration examples. Each control or lifecycle tier states the starting state, exact delta, expected insecure observation, expected hardened observation, and residual risk. Tier 0 states the observed insecure baseline. Tier 1 states the analysis and evidence delta. Tier 10 states the integrated response and regression result. Solutions never skip directly to the final architecture and preserve the reasoning and evidence transition between adjacent tiers. Optional advanced tiers never block core-course completion.
 
 Source: resolved decision ticket [#13](https://github.com/tkEmLogic/learning-cyber-security/issues/13).
 
@@ -634,7 +658,7 @@ Source: resolved decision ticket [#13](https://github.com/tkEmLogic/learning-cyb
 
 **Fixed decision.** Every hardening tier maintains a weakness ledger. It records weaknesses inherited from the preceding tier, the attack vectors that expose each weakness, the controlled attack demonstration used in the lab, the observable insecure result before the new control, the control introduced by the tier, the observable result after hardening, whether the weakness is closed, reduced, transferred, accepted, or deliberately left for a later tier, and evidence links and residual risk.
 
-**Implementation requirement.** Each tier demonstrates at least one realistic attack or failure where this can be done safely and repeatably. The Learner performs the attack, observes why it works, predicts which control should stop it, applies that control, and reruns the same attack. Later tiers repeat relevant earlier attacks to detect regressions.
+**Implementation requirement.** Each tier demonstrates at least one realistic attack or failure where this can be done safely and repeatably. Tier 0 records the successful baseline attack. Tier 1 reuses selected Tier 0 evidence to build the threat model and planned controls without pretending that analysis alone blocks the attack. Control and lifecycle tiers perform the attack, observe why it works, predict which control should stop it, apply that control, and rerun the same attack. Tier 10 reruns the integrated fixture set and records diagnosis, repair, recovery, and regression results. Later tiers repeat relevant earlier attacks to detect regressions.
 
 **Fixed decision.** Attack fixtures run only in the isolated course environment against the reference product and synthetic services. Instructions define the permitted target, expected effect, reset procedure, and safety boundary, and they never direct Learners toward third-party or production systems. The security evidence pack carries the weakness ledger across tiers so Learners can see the security posture change from the unsecured baseline to the integrated hardened product.
 
@@ -650,7 +674,7 @@ Source: resolved decision ticket [#13](https://github.com/tkEmLogic/learning-cyb
 
 ### Purpose of a Mentor review gate
 
-Each gate helps the Learner demonstrate the current reference-product behavior, show one attack that succeeds before hardening and the same or equivalent attack after hardening, walk through the weakness ledger entries changed by the tier, explain what the new control protects and what it does not protect, present the linked lab artifact and security evidence pack updates, diagnose a prepared failure or unexpected observation with the Mentor, and identify gaps and agree on the smallest useful next action. The Mentor asks questions and supplies hints. The review is not designed to catch the Learner out.
+Each gate helps the Learner demonstrate the current reference-product behavior, show the relevant attack or failure evidence, walk through the weakness ledger entries changed by the tier, explain what the current control or analysis protects and what it does not protect, present the linked lab artifact and security evidence pack updates, diagnose a prepared failure or unexpected observation with the Mentor, and identify gaps and agree on the smallest useful next action. For a control tier, the Learner shows the attack before and after hardening. For Tier 1, the Learner shows how Tier 0 evidence became requirements and claims. For Tier 10, the Learner shows integrated diagnosis, repair, recovery, and regression evidence. The Mentor asks questions and supplies hints. The review is not designed to catch the Learner out.
 
 ### Informal review outcome
 
@@ -676,7 +700,9 @@ Source: resolved decision ticket [#14](https://github.com/tkEmLogic/learning-cyb
 
 ## 14. Course module format
 
-**Fixed decision.** Each hardening-tier module uses an incident-driven opening, a linear hardening procedure, and an evidence-first close, in this exact order: tier title; incident brief; learning result; safety boundary; starting state; weakness ledger before hardening; controlled attack reproduction; investigation questions and trust-boundary explanation; ordered hardening procedure with commands and expected results; replay of the original attack; bypass and failure tests; weakness ledger after hardening; security claim and evidence status; security evidence pack update; troubleshooting; informal Mentor conversation; transition and attack preview for the next tier; primary references.
+**Fixed decision.** Each hardening-tier module uses an incident-driven opening, a linear work procedure, and an evidence-first close, in this exact order: tier title; incident brief; learning result; safety boundary; starting state; weakness ledger before the work; controlled attack or failure reproduction; investigation questions and trust-boundary explanation; ordered work procedure with commands and expected results; replay or re-analysis of the original observation; bypass and failure tests where applicable; weakness ledger after the work; security claim and evidence status; security evidence pack update; troubleshooting; informal Mentor conversation; transition and attack preview for the next tier; primary references.
+
+**Implementation requirement.** The headings stay consistent, but their expected content follows the tier variant from section 11. Tier 0 uses the procedure to build the baseline and records the successful attack as its result; its replay section says that no control exists yet and links forward to Tier 1. Tier 1 uses the procedure to create analysis artifacts and reclassifies the same observation against threats, requirements, and planned controls; it does not claim technical rejection. Tiers 2 through 9 and Advanced Tiers A and B use the full attack, control, replay, and bypass sequence. Tier 10 uses the procedure for integrated diagnosis and remediation, then reruns the affected fixture set as regression evidence.
 
 **Implementation requirement.** Use plain English, one source line per prose paragraph, simple pipe tables, fenced text blocks, and descriptive links. Use plain-text diagrams or imported images rather than relying on Mermaid rendering.
 
@@ -832,7 +858,7 @@ The repository contains `.example` files, schemas, and generation scripts, not l
 
 ### Attack fixtures
 
-**Implementation requirement.** Each `attack-fixtures/tiers/<tier>/` fixture includes the weakness and attack vector it demonstrates, the permitted target and network boundary, preconditions and expected insecure effect, the command to run it, the expected hardened result, evidence to capture, a reset procedure, and a machine-readable identifier used by `course.yml` and tests. Fixtures default to local addresses and synthetic data. They fail closed when the target does not identify itself as the course environment. No fixture scans arbitrary networks or accepts an unrestricted target range. Later tier verification reruns relevant earlier fixtures, and the weakness ledger records whether each result is closed, reduced, transferred, accepted, or still open.
+**Implementation requirement.** Each `attack-fixtures/tiers/<tier>/` fixture includes the weakness and attack vector it demonstrates, the permitted target and network boundary, preconditions and expected insecure effect, the command to run it, the expected result for that tier variant, evidence to capture, a reset procedure, and a machine-readable identifier used by `course.yml` and tests. Tier 0 expects the insecure effect. Tier 1 links selected Tier 0 fixtures to analysis artifacts. Control and lifecycle tiers define both the before-control and after-control results. Tier 10 defines integrated diagnosis, recovery, and regression results. Fixtures default to local addresses and synthetic data. They fail closed when the target does not identify itself as the course environment. No fixture scans arbitrary networks or accepts an unrestricted target range. Later tier verification reruns relevant earlier fixtures, and the weakness ledger records whether each result is closed, reduced, transferred, accepted, or still open.
 
 ### Mentor material
 
@@ -851,6 +877,8 @@ Source: resolved decision ticket [#16](https://github.com/tkEmLogic/learning-cyb
 **Implementation requirement.** A checkpoint-validation workflow reads `course.yml`, checks out each published checkpoint, and runs that tier's declared host-side build and verification commands. This proves that historical states remain reproducible without duplicating their source trees.
 
 **Implementation requirement.** Hardware jobs run separately because runners and boards are limited. They include ESP32-C6 flash and smoke tests; interrupted OTA, test boot, confirmation, and revert; physical recovery; mutual TLS and credential lifecycle tests; and advanced secure-boot, flash-encryption, and STSAFE-A120 validation on dedicated disposable hardware. Hardware results attach the board identifier, firmware revision, configuration, and logs to the security evidence pack. A skipped hardware job cannot support a hardware-dependent security claim.
+
+**Implementation requirement.** The core boot matrix verifies the fixed flash map, swap-with-scratch mode, primary-slot signature validation, software security-counter downgrade prevention, secondary-slot test upgrade, confirmation, health failure and timeout reset, watchdog reset of a hung trial image, revert, and signed serial recovery. Power is cut at each download, swap, first-boot, and confirmation transition. The device must either boot the last confirmed image or remain in the documented serial-recovery state. Advanced Tier A separately verifies bootloader-signing-key rotation and firmware-release-key rotation, including both image and Release-manifest verification; passing one never counts as evidence for the other.
 
 ### Documentation and evidence checks
 
@@ -927,19 +955,23 @@ Source: resolved decision tickets [#2](https://github.com/tkEmLogic/learning-cyb
 | Area | Acceptance criterion |
 | --- | --- |
 | Reference product | The status beacon builds and runs on the pinned ESP32-C6 target with the behavior in section 2. |
+| Boot state machine | The fixed flash map and swap-with-scratch configuration in section 6 pass power-cut, test-boot, confirmation, revert, downgrade, and signed serial-recovery tests without accepting an unsigned image or losing the documented recovery path. |
+| Status path | The event endpoint in section 7 shows plaintext interception and identifier spoofing at Tier 0, server-authenticated transport at Tier 2, and Operational-identity binding, authorization, and replay detection at Tier 7. |
+| Identity lifecycle | Factory enrollment consumes its unique Bootstrap credential once. Claiming separately requires Factory authentication, physical presence, a fresh claim nonce, and an authenticated Owner credential. Replay, wrong-owner, revoked, and decommissioned cases are rejected. |
+| Credential storage | Tier 6 uses the exact PSA Secure Storage configuration and records all limitations in section 8. Course material never describes the default device-ID-derived key provider as hardware-backed or sufficient against privileged software or a capable flash attacker. |
 | Tier progression | All eleven core tiers, Tier 0 through Tier 10, are implemented in the exact order and content of section 11, each with a passing `./course verify <tier>` run. |
 | Tier checkpoints | Every tier has a published, immutable, annotated checkpoint tag, and the checkpoint-validation workflow in section 18 passes for every tag. |
-| Attack fixtures | Every tier has at least one working attack fixture that reproduces the stated insecure behavior before hardening and the stated rejection or recovery after hardening. |
+| Attack fixtures | Tier 0 has a working fixture that produces the insecure baseline. Tier 1 links at least one Tier 0 fixture to its threat, requirement, and claim analysis. Every control or lifecycle tier has a fixture that reproduces the insecure behavior before hardening and the stated rejection or recovery after hardening. Tier 10 reruns the integrated fixture set and records diagnosis, recovery, and regression results. |
 | Weakness ledger | Every tier has a starting and ending weakness ledger, and later tiers rerun relevant earlier fixtures with recorded results. |
 | Security evidence pack | Every artifact group in section 10 exists with a stable path, required metadata, and passing automated quality checks. |
 | Mentor material | Published review prompts and prepared failures exist for every required gate in section 13. |
-| Module format | Every tier module follows the eighteen-step order in section 14 and passes a Docmost import and export check with no loss of headings, tables, code blocks, links, or paragraph structure. |
+| Module format | Every tier module follows the eighteen-step order and the correct baseline, analysis, control, lifecycle, or integration variant in section 14, and passes a Docmost import and export check with no loss of headings, tables, code blocks, links, or paragraph structure. |
 | Readings | Every tier has a `references.md` populated from the pointer in section 19, with required readings present. |
 | Command interface | Every command listed in section 16 is implemented, documented, and prints its underlying mechanism. |
 | Secrets and fixtures | No secret pattern, private key, or live credential exists in the committed repository, confirmed by the CI secret scan in section 18. |
-| Advanced Tier A | Either published as hands-on after passing the validation gate in section 6, or clearly marked experimental with the specific failing checks named. |
+| Advanced Tier A | Either published as hands-on after passing the validation gate in section 6, including separate bootloader-signing-key and firmware-release-key rotation tests for both image and Release-manifest verification, or clearly marked experimental with the specific failing checks named. |
 | Advanced Tier B | Either published as hands-on after passing the validation gate in section 9, or published as the guided comparison fallback. |
-| CRA evidence | The Tier 9 artifacts distinguish the 11 September 2026 reporting duties from the 11 December 2027 product duties and state the product-specific legal review boundary from section 4. |
+| CRA evidence | The Tier 9 artifacts distinguish the 11 September 2026 reporting duties from the 11 December 2027 product duties, include separate actively-exploited-vulnerability and severe-incident scenarios with the correct 24-hour, 72-hour, and event-specific final deadlines, and state the product-specific legal review boundary from section 4. |
 | Formatting | No em dash, no raw HTML, no Mermaid fence, and no multi-line prose paragraph exists in any learner-facing or mentor-facing Markdown file. |
 
 Source: synthesized from resolved decision tickets [#2](https://github.com/tkEmLogic/learning-cyber-security/issues/2) through [#16](https://github.com/tkEmLogic/learning-cyber-security/issues/16) and [#18](https://github.com/tkEmLogic/learning-cyber-security/issues/18).
@@ -950,8 +982,8 @@ Source: synthesized from resolved decision tickets [#2](https://github.com/tkEmL
 
 1. Create the repository scaffold in section 15, including `course.yml` with placeholder entries for every tier named in section 11.
 2. Set up the reference firmware and bootloader source tree with the Tier 0 insecure baseline from section 11, using the platform baseline in section 5.
-3. Implement the local OTA service described in section 7, starting with the HTTP-only Tier 0 shape, then adding HTTPS, signed images, and signed manifests as later tiers require them.
-4. Implement the provisioning tools and identity lifecycle described in section 8, starting with the shared-credential exercise in Tier 6 and ending with the full lifecycle in Tier 8.
+3. Implement the local OTA service described in section 7, including the status-event endpoint, starting with the HTTP-only Tier 0 shape, then adding HTTPS, signed images, signed manifests, and Operational-identity authorization as later tiers require them.
+4. Implement the provisioning tools and identity lifecycle described in section 8, starting with the shared-credential exercise in Tier 6, consuming the Bootstrap credential during Factory enrollment, and ending with the separate owner-authorized claiming and full lifecycle in Tier 8.
 5. Implement the `./course` command wrapper from section 16, backed by the tier manifest and checkpoint tags from section 15.
 6. Write each tier module using the format in section 14 and the validated prototype at `prototypes/docmost-hardening-tier/selected-cab.md` on branch `prototype/docmost-hardening-tier` as the structural reference.
 7. Build the attack fixtures and weakness ledger entries for each tier from section 11 and section 12, and verify each fixture fails closed outside the isolated lab network.
@@ -1007,7 +1039,3 @@ Source: all resolved research and decision tickets referenced above.
 **No unresolved conflict was found between issue 13's tier list, issue 14's gate cadence, issue 15's module format, issue 16's `course.yml` tier identifiers, and issue 18's per-tier reading list.** All five use the same Tier 0 through Tier 10 and Advanced A and B structure, and this specification preserves that alignment throughout.
 
 The map's "Not yet specified" section was empty at assembly time, and no child ticket left an open question that this specification could not resolve using its resolution comment. The single remaining open item is Wayfinder ticket [#17](https://github.com/tkEmLogic/learning-cyber-security/issues/17) itself, which the parent agent closes after reviewing this document.
-
-
-
-
