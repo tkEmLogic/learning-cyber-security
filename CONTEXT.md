@@ -119,3 +119,9 @@ _Avoid_: Tier branch, solution folder
 A learner-owned Git branch or worktree created from a tier checkpoint. It holds
 the learner's code and evidence without changing the published checkpoint.
 _Avoid_: Tier checkpoint, shared working directory
+
+**Course environment marker**:
+A disposable, setup-generated identifier shared by the local course service,
+fixtures, and Course workspace. An attack fixture must match it before causing
+the intended insecure effect.
+_Avoid_: Authentication token, production environment flag
