@@ -13,7 +13,9 @@
   "environment": {
     "course_id": "learning-cyber-security",
     "tier": "00",
-    "synthetic_data": true
+    "synthetic_data": true,
+    "environment_id": null,
+    "marker_fingerprint": null
   },
   "limitations": [],
   "content": {

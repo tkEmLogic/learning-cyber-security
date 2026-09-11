@@ -33,7 +33,7 @@ Every fixture is a dry run unless you provide `--execute` with the exact fixture
 
 ## Starting state
 
-You need a current Linux host with Go, Git, curl, and Docker Compose or Podman Compose.
+You need a current Linux host with Go, Git, curl, Python 3 with virtual environment support, and Docker Compose or Podman Compose.
 
 Ubuntu 24.04 is the CI reference environment.
 
@@ -109,6 +109,17 @@ No authenticated trust boundary exists in this Tier 0 path.
 ## Build and run the baseline
 
 ### Check the host
+
+Install the pinned Python packages in generated state:
+
+```text
+python3 -m venv build/python
+build/python/bin/pip install -r requirements.txt
+```
+
+The Tier 0 verification command uses these packages to validate JSON and YAML files.
+
+Then run:
 
 ```text
 ./course doctor
@@ -264,7 +275,15 @@ Physical flash, serial output, LED behavior, Wi-Fi behavior, and altered-image e
 
 ## Update the Security evidence pack
 
-Copy the four files from `evidence/templates/tier-00/` to `evidence/learner/tier-00/`.
+Create the Learner evidence directory and copy the four templates:
+
+```text
+mkdir -p evidence/learner/tier-00
+cp evidence/templates/tier-00/*.json evidence/learner/tier-00/
+./course evidence context
+```
+
+The context command prints the current source revision, Course environment identifier, marker fingerprint, and latest fixture evidence paths.
 
 Do not edit the files under `evidence/examples/`.
 
@@ -274,8 +293,10 @@ Update:
 - The captured HTTP exchange.
 - The accepted-image record with hardware fields still pending when not observed.
 - The deliberately absent controls.
-- The source revision and Course environment marker fingerprint.
+- `created_at`, `source_revision`, `environment.environment_id`, and `environment.marker_fingerprint` in every record.
 - The fixture evidence paths.
+
+Set the architecture, HTTP exchange, and absent-controls records to `observed`. Keep the accepted-image record `pending` when no physical ESP32-C6 was used. Do not replace a pending hardware field with a host-only result.
 
 Run:
 
@@ -286,7 +307,7 @@ Run:
 Expected result:
 
 ```text
-Tier 0 evidence templates and generated examples satisfy required metadata
+Learner Tier 0 evidence is complete and bound to the current revision and Course environment
 ```
 
 ## Troubleshooting

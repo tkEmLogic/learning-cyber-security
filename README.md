@@ -6,7 +6,7 @@ Tier 0 is intentionally unsecured. It uses synthetic data, a local HTTP OTA serv
 
 ## Supported host
 
-Use a current Linux distribution with Go, Git, curl, and either Docker Compose or Podman Compose.
+Use a current Linux distribution with Go, Git, curl, Python 3 with virtual environment support, and either Docker Compose or Podman Compose.
 
 Ubuntu 24.04 is the CI reference environment. It is not the only supported Linux host.
 
@@ -17,6 +17,8 @@ The firmware build uses the external pinned workspace described in [`docs/esp32c
 Run:
 
 ```text
+python3 -m venv build/python
+build/python/bin/pip install -r requirements.txt
 ./course doctor
 ./course setup --runtime docker
 ./course service start
@@ -27,6 +29,8 @@ Run:
 Use `--runtime podman` when Podman is the selected runtime.
 
 If both runtimes qualify, setup requires an explicit choice.
+
+The Python packages are required by `./course verify 00`. The doctor command reports them as missing when they are not installed.
 
 Read [`course-material/tiers/tier-00-unsecured/index.md`](course-material/tiers/tier-00-unsecured/index.md) before executing a fixture.
 

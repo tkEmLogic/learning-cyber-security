@@ -74,6 +74,12 @@
         },
         "synthetic_data": {
           "const": true
+        },
+        "environment_id": {
+          "type": ["string", "null"]
+        },
+        "marker_fingerprint": {
+          "type": ["string", "null"]
         }
       }
     },

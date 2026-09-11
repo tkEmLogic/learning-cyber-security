@@ -263,6 +263,19 @@ func (a *app) doctor() error {
 			fmt.Fprintln(a.out, "  available")
 		}
 	}
+	python := "python3"
+	venvPython := filepath.Join(a.root, a.manifest.Paths.Build, "python", "bin", "python")
+	if info, err := os.Stat(venvPython); err == nil && info.Mode().IsRegular() {
+		python = venvPython
+	}
+	fmt.Fprintf(a.out, "+ %s -c \"import jsonschema, yaml\"\n", python)
+	if err := runProbe(a.root, []string{python, "-c", "import jsonschema, yaml"}); err != nil {
+		fmt.Fprintln(a.out, "  missing: Python packages from requirements.txt are unavailable")
+		fmt.Fprintln(a.out, "  install: python3 -m venv build/python && build/python/bin/pip install -r requirements.txt")
+		problems++
+	} else {
+		fmt.Fprintln(a.out, "  available")
+	}
 	available := a.availableRuntimes()
 	for _, runtime := range []string{"docker", "podman"} {
 		probe := a.manifest.Runtime.Compose.Probes[runtime]
@@ -277,6 +290,7 @@ func (a *app) doctor() error {
 		for _, entry := range entries {
 			fmt.Fprintf(a.out, "  candidate: %s\n", entry)
 		}
+		fmt.Fprintln(a.out, "  hardware: pending, serial candidates do not prove that an ESP32-C6 is connected")
 	}
 	if len(available) > 1 {
 		fmt.Fprintln(a.out, "Result: both runtimes qualify; setup requires --runtime docker or --runtime podman")
@@ -1010,10 +1024,33 @@ func (a *app) verify(args []string) error {
 }
 
 func (a *app) evidence(args []string) error {
-	if len(args) != 1 || args[0] != "check" {
-		return errors.New("evidence supports only: evidence check")
+	if len(args) != 1 {
+		return errors.New("evidence requires context or check")
 	}
-	return a.validateEvidence()
+	switch args[0] {
+	case "context":
+		env, fingerprint, revision, err := a.currentEvidenceContext()
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(a.out, "Source revision: %s\nEnvironment ID: %s\nMarker fingerprint: %s\n", revision, env.EnvironmentID, fingerprint)
+		fmt.Fprintln(a.out, "Fixture evidence:")
+		for _, fixture := range a.manifest.Tiers["00"].Fixtures {
+			matches, _ := filepath.Glob(filepath.Join(a.root, a.manifest.Paths.GeneratedArtifacts, "attacks", filepath.FromSlash(fixture), "*.json"))
+			sort.Strings(matches)
+			if len(matches) == 0 {
+				fmt.Fprintf(a.out, "  %s: pending\n", fixture)
+				continue
+			}
+			relative, _ := filepath.Rel(a.root, matches[len(matches)-1])
+			fmt.Fprintf(a.out, "  %s: %s\n", fixture, relative)
+		}
+		return nil
+	case "check":
+		return a.validateLearnerEvidence()
+	default:
+		return fmt.Errorf("unknown evidence command %q", args[0])
+	}
 }
 
 func (a *app) validateRepository() error {
@@ -1031,10 +1068,10 @@ func (a *app) validateRepository() error {
 		}
 	}
 	fmt.Fprintln(a.out, "Result: course.yml and required Tier 0 repository paths are valid")
-	return a.validateEvidence()
+	return a.validateBundledEvidence()
 }
 
-func (a *app) validateEvidence() error {
+func (a *app) validateBundledEvidence() error {
 	roots := []string{"evidence/templates/tier-00", "evidence/examples/tier-00"}
 	required := map[string]bool{"baseline-architecture": false, "http-exchange": false, "accepted-image-record": false, "absent-controls": false}
 	for _, root := range roots {
@@ -1066,6 +1103,149 @@ func (a *app) validateEvidence() error {
 	return nil
 }
 
+func (a *app) validateLearnerEvidence() error {
+	root := filepath.Join(a.root, a.manifest.Paths.LearnerEvidence, "tier-00")
+	entries, err := filepath.Glob(filepath.Join(root, "*.json"))
+	if err != nil || len(entries) != 4 {
+		return errors.New("evidence/learner/tier-00 must contain the four completed Tier 0 JSON records")
+	}
+
+	env, expectedFingerprint, expectedRevision, err := a.currentEvidenceContext()
+	if err != nil {
+		return err
+	}
+
+	required := map[string]bool{"baseline-architecture": false, "http-exchange": false, "accepted-image-record": false, "absent-controls": false}
+	for _, path := range entries {
+		var record map[string]any
+		if err := readJSON(path, &record); err != nil {
+			return err
+		}
+		artifactType, _ := record["artifact_type"].(string)
+		if _, ok := required[artifactType]; !ok {
+			return fmt.Errorf("%s has unsupported artifact_type %q", path, artifactType)
+		}
+		if required[artifactType] {
+			return fmt.Errorf("Learner evidence contains duplicate artifact_type %s", artifactType)
+		}
+		required[artifactType] = true
+		status, _ := record["status"].(string)
+		if status == "" || status == "template" || status == "example" {
+			return fmt.Errorf("%s must have a completed Learner status", path)
+		}
+		if value, _ := record["created_at"].(string); value == "" {
+			return fmt.Errorf("%s must set created_at", path)
+		}
+		if value, _ := record["source_revision"].(string); value != expectedRevision {
+			return fmt.Errorf("%s source_revision must match HEAD %s", path, expectedRevision)
+		}
+		recordEnv, ok := record["environment"].(map[string]any)
+		if !ok {
+			return fmt.Errorf("%s must contain environment metadata", path)
+		}
+		if value, _ := recordEnv["environment_id"].(string); value != env.EnvironmentID {
+			return fmt.Errorf("%s environment_id must match the current Course environment", path)
+		}
+		if value, _ := recordEnv["marker_fingerprint"].(string); value != expectedFingerprint {
+			return fmt.Errorf("%s marker_fingerprint must match the current Course environment", path)
+		}
+		content, ok := record["content"].(map[string]any)
+		if !ok {
+			return fmt.Errorf("%s must contain evidence content", path)
+		}
+		if err := validateLearnerEvidenceContent(path, artifactType, status, record, content); err != nil {
+			return err
+		}
+	}
+	for id, found := range required {
+		if !found {
+			return fmt.Errorf("Learner evidence artifact type %s is missing", id)
+		}
+	}
+	for _, fixture := range a.manifest.Tiers["00"].Fixtures {
+		matches, _ := filepath.Glob(filepath.Join(a.root, a.manifest.Paths.GeneratedArtifacts, "attacks", filepath.FromSlash(fixture), "*.json"))
+		if len(matches) == 0 {
+			return fmt.Errorf("run fixture %s with --execute before checking evidence", fixture)
+		}
+	}
+	fmt.Fprintln(a.out, "Result: Learner Tier 0 evidence is complete and bound to the current revision and Course environment")
+	return nil
+}
+
+func (a *app) currentEvidenceContext() (environment, string, string, error) {
+	var env environment
+	if err := readJSON(filepath.Join(a.root, a.manifest.Safety.MarkerPath), &env); err != nil {
+		return env, "", "", errors.New("run ./course setup before using Learner evidence")
+	}
+	envData, _ := json.Marshal(env)
+	envDigest := sha256.Sum256(envData)
+	fingerprint := "sha256:" + hex.EncodeToString(envDigest[:])
+	revision, err := gitOutput(a.root, "rev-parse", "HEAD")
+	if err != nil {
+		return env, "", "", err
+	}
+	return env, fingerprint, strings.TrimSpace(revision), nil
+}
+
+func validateLearnerEvidenceContent(path, artifactType, status string, record, content map[string]any) error {
+	requireString := func(key string) error {
+		if value, _ := content[key].(string); strings.TrimSpace(value) == "" {
+			return fmt.Errorf("%s content.%s must be set", path, key)
+		}
+		return nil
+	}
+	requireList := func(key string) error {
+		if value, _ := content[key].([]any); len(value) == 0 {
+			return fmt.Errorf("%s content.%s must contain at least one item", path, key)
+		}
+		return nil
+	}
+	switch artifactType {
+	case "baseline-architecture":
+		for _, key := range []string{"components", "data_flows", "trust_boundaries"} {
+			if err := requireList(key); err != nil {
+				return err
+			}
+		}
+		return requireString("notes")
+	case "http-exchange":
+		for _, key := range []string{"request_line", "response_status", "fixture_evidence_path"} {
+			if err := requireString(key); err != nil {
+				return err
+			}
+		}
+		if err := requireList("readable_fields"); err != nil {
+			return err
+		}
+		if readable, _ := content["firmware_bytes_readable"].(bool); !readable {
+			return fmt.Errorf("%s content.firmware_bytes_readable must record the Tier 0 observation", path)
+		}
+	case "accepted-image-record":
+		for _, key := range []string{"image_sha256", "service_delivery", "mcuboot_mode", "device_flash", "device_boot", "led_behavior", "serial_record"} {
+			if err := requireString(key); err != nil {
+				return err
+			}
+		}
+		if status == "pending" {
+			for _, key := range []string{"device_flash", "device_boot", "led_behavior", "serial_record"} {
+				if content[key] != "pending" {
+					return fmt.Errorf("%s content.%s must stay pending when the artifact status is pending", path, key)
+				}
+			}
+			if limitations, _ := record["limitations"].([]any); len(limitations) == 0 {
+				return fmt.Errorf("%s must explain the pending hardware limitation", path)
+			}
+		}
+	case "absent-controls":
+		for _, key := range []string{"absent", "observed_effects", "next_tier_questions"} {
+			if err := requireList(key); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func (a *app) clean(args []string) error {
 	confirmation := ""
 	if len(args) == 2 && args[0] == "--confirm" {
@@ -1085,6 +1265,14 @@ func (a *app) clean(args []string) error {
 	fmt.Fprintf(a.out, "Existing targets: %s\n", strings.Join(existing, ", "))
 	if confirmation != a.manifest.Safety.CleanupConfirmation {
 		return fmt.Errorf("typed confirmation required: %s", a.manifest.Safety.CleanupConfirmation)
+	}
+	if target, err := a.serviceURL(); err == nil {
+		if response, err := a.client.Get(target + "/health"); err == nil {
+			response.Body.Close()
+			if response.StatusCode == http.StatusOK {
+				return errors.New("the OTA service is still healthy; run ./course service stop before cleanup")
+			}
+		}
 	}
 	for _, relative := range existing {
 		clean := filepath.Clean(relative)

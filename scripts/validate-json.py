@@ -22,7 +22,11 @@ Draft202012Validator(manifest_schema).validate(manifest)
 with (root / "evidence/schemas/tier-00-evidence.schema.json").open(encoding="utf-8") as handle:
     evidence_schema = json.load(handle)
 validator = Draft202012Validator(evidence_schema)
-for base in ("evidence/templates/tier-00", "evidence/examples/tier-00"):
+for base in (
+    "evidence/templates/tier-00",
+    "evidence/examples/tier-00",
+    "evidence/learner/tier-00",
+):
     for path in sorted((root / base).glob("*.json")):
         with path.open(encoding="utf-8") as handle:
             validator.validate(json.load(handle))

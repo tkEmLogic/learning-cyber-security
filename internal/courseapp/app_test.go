@@ -5,8 +5,10 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -152,6 +154,116 @@ func TestExecuteIdentifierAndCleanupRefuseUnsafeInput(t *testing.T) {
 	}
 }
 
+func TestCleanupRefusesWhileServiceIsHealthy(t *testing.T) {
+	root := testRepository(t)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/health" {
+			http.NotFound(w, r)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+	host, port, _ := strings.Cut(strings.TrimPrefix(server.URL, "http://"), ":")
+	if err := os.MkdirAll(filepath.Join(root, ".course-state"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	serviceEnv := "COURSE_BIND=" + host + "\nCOURSE_PORT=" + port + "\n"
+	if err := os.WriteFile(filepath.Join(root, ".course-state", "service.env"), []byte(serviceEnv), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "build", "keep"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"--repo", root, "clean", "--confirm", "REMOVE COURSE GENERATED STATE"}, &stdout, &stderr)
+	if code == 0 || !strings.Contains(stderr.String(), "service stop") {
+		t.Fatalf("clean did not refuse a healthy service: code=%d stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	if _, err := os.Stat(filepath.Join(root, "build", "keep")); err != nil {
+		t.Fatal("clean removed data while the service was healthy")
+	}
+}
+
+func TestEvidenceCheckRejectsMissingLearnerRecords(t *testing.T) {
+	root := testRepository(t)
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"--repo", root, "evidence", "check"}, &stdout, &stderr)
+	if code == 0 || !strings.Contains(stderr.String(), "four completed Tier 0 JSON records") {
+		t.Fatalf("missing Learner evidence was not rejected: code=%d stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+}
+
+func TestEvidenceCheckAcceptsCompletedPendingHardwareRecords(t *testing.T) {
+	root := testRepository(t)
+	initializeGitRepository(t, root)
+	env := environment{1, "learning-cyber-security", "evidence-test", "00", true, time.Now().UTC(), time.Now().UTC().Add(time.Hour)}
+	writeJSON(filepath.Join(root, ".course-state", "environment.json"), env, 0o600)
+	envData, _ := json.Marshal(env)
+	envDigest := sha256.Sum256(envData)
+	fingerprint := "sha256:" + hex.EncodeToString(envDigest[:])
+	revisionBytes, err := exec.Command("git", "-C", root, "rev-parse", "HEAD").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	revision := strings.TrimSpace(string(revisionBytes))
+
+	records := map[string]map[string]any{
+		"baseline-architecture": {
+			"components": []any{"device", "service"}, "data_flows": []any{"HTTP"},
+			"trust_boundaries": []any{"local network"}, "notes": "No authenticated boundary.",
+		},
+		"http-exchange": {
+			"request_line": "GET /v1/releases/current HTTP/1.1", "response_status": "200 OK",
+			"readable_fields": []any{"version"}, "firmware_bytes_readable": true,
+			"fixture_evidence_path": "artifacts/generated/attacks/tier-00/plaintext-inspection/run.json",
+		},
+		"accepted-image-record": {
+			"image_sha256": "sha256:synthetic", "service_delivery": "observed in host fixture",
+			"mcuboot_mode": "unsigned", "device_flash": "pending", "device_boot": "pending",
+			"led_behavior": "pending", "serial_record": "pending",
+		},
+		"absent-controls": {
+			"absent": []any{"TLS"}, "observed_effects": []any{"plaintext readable"},
+			"next_tier_questions": []any{"Which asset is exposed?"},
+		},
+	}
+	for artifactType, content := range records {
+		status := "observed"
+		limitations := []any{}
+		if artifactType == "accepted-image-record" {
+			status = "pending"
+			limitations = []any{"No physical ESP32-C6 was available."}
+		}
+		record := map[string]any{
+			"schema_version": 1, "artifact_id": "test-" + artifactType, "artifact_type": artifactType,
+			"owner": "Learner", "reviewer": nil, "scope": "tier-00", "revision": 1, "status": status,
+			"created_at": time.Now().UTC().Format(time.RFC3339), "last_reviewed_at": nil,
+			"source_revision": revision,
+			"environment": map[string]any{
+				"course_id": "learning-cyber-security", "tier": "00", "synthetic_data": true,
+				"environment_id": env.EnvironmentID, "marker_fingerprint": fingerprint,
+			},
+			"limitations": limitations, "content": content,
+		}
+		writeJSON(filepath.Join(root, "evidence", "learner", "tier-00", artifactType+".json"), record, 0o600)
+	}
+	for _, fixture := range []string{
+		"tier-00/plaintext-inspection",
+		"tier-00/device-id-spoofing",
+		"tier-00/service-impersonation",
+		"tier-00/altered-image",
+	} {
+		writeJSON(filepath.Join(root, "artifacts", "generated", "attacks", fixture, "run.json"), map[string]any{"result": "passed"}, 0o600)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"--repo", root, "evidence", "check"}, &stdout, &stderr)
+	if code != 0 || !strings.Contains(stdout.String(), "bound to the current revision") {
+		t.Fatalf("completed Learner evidence failed: code=%d stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+}
+
 func testRepository(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
@@ -164,6 +276,21 @@ func testRepository(t *testing.T) string {
 		t.Fatal(err)
 	}
 	return root
+}
+
+func initializeGitRepository(t *testing.T, root string) {
+	t.Helper()
+	commands := [][]string{
+		{"init", "--quiet"},
+		{"add", "course.yml"},
+		{"-c", "user.name=Course Test", "-c", "user.email=course-test@example.invalid", "commit", "--quiet", "-m", "test"},
+	}
+	for _, args := range commands {
+		command := exec.Command("git", append([]string{"-C", root}, args...)...)
+		if output, err := command.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, output)
+		}
+	}
 }
 
 func TestEnvironmentJSONShape(t *testing.T) {
