@@ -8,6 +8,12 @@ Track planning work and specifications in GitHub Issues for
 `tkEmLogic/learning-cyber-security`. See
 `docs/agents/issue-tracker.md`.
 
+### Triage labels
+
+Uses the five default canonical triage labels (`needs-triage`, `needs-info`,
+`ready-for-agent`, `ready-for-human`, `wontfix`). See
+`docs/agents/triage-labels.md`.
+
 ### Domain docs
 
 Use the single-context glossary in `CONTEXT.md` and decisions in `docs/adr/`.
