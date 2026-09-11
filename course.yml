@@ -1,0 +1,322 @@
+schema_version: 1
+
+course:
+  id: learning-cyber-security
+  version: "1.0"
+  minimum_wrapper_version: "1.0.0"
+  environment_marker_ttl_hours: 24
+
+runtime:
+  selection: explicit_if_ambiguous
+  bind_default: 127.0.0.1
+  private_bind_allowed: true
+  ota_port: 8080
+  impersonation_port: 18080
+  compose:
+    file: services/ota/compose.yml
+    choices:
+      docker: [docker, compose]
+      podman: [podman, compose]
+    probes:
+      docker: [docker, info]
+      podman: [podman, info]
+
+paths:
+  state: .course-state
+  secrets: .course-secrets
+  build: build
+  generated_artifacts: artifacts/generated
+  learner_evidence: evidence/learner
+  cleanup_allowlist:
+    - .course-state
+    - .course-secrets
+    - build
+    - artifacts/generated
+
+components:
+  course_helper:
+    path: tools/course
+    build: [go, build, ./tools/course]
+  ota_service:
+    path: services/ota
+    build: [go, build, ./services/ota/cmd/ota]
+  firmware:
+    path: firmware/reference-product-baseline
+    build: [./scripts/build-zephyr-baseline.sh]
+    target: esp32c6_devkitc/esp32c6/hpcore
+    zephyr: 4.4.2
+    mcuboot: 2.4.0
+    image_mode: unsigned
+
+services:
+  ota:
+    protocol: http
+    bind: 127.0.0.1
+    port: 8080
+    compose_file: services/ota/compose.yml
+    health: /health
+    marker: /.well-known/course-environment
+    state_path: .course-state/ota
+    release_path: artifacts/generated/releases
+  impersonation:
+    protocol: http
+    bind: 127.0.0.1
+    port: 18080
+    lifecycle: fixture-scoped
+
+devices:
+  reference_beacon:
+    synthetic_id: beacon-development-shared
+    spoof_id: beacon-development-clone
+    board: esp32c6_devkitc/esp32c6/hpcore
+    stable_serial_prefix: /dev/serial/by-id/
+    states:
+      steady: normal
+      fast: fictional_error_1
+      slow: fictional_error_2
+    hardware_required:
+      - flash
+      - logs
+      - update
+      - recover
+
+fixtures:
+  tier-00/plaintext-inspection:
+    tier: "00"
+    target: http://127.0.0.1:8080
+    interface: loopback
+    expected_effect: HTTP release fields and firmware bytes are readable.
+    changes:
+      - artifacts/generated/attacks/tier-00/plaintext-inspection
+    reset: ./course attack reset tier-00/plaintext-inspection
+    hardware_required: false
+  tier-00/device-id-spoofing:
+    tier: "00"
+    target: http://127.0.0.1:8080
+    interface: loopback
+    expected_effect: The service accepts a status body that names the second synthetic device.
+    changes:
+      - .course-state/ota/events.jsonl
+      - artifacts/generated/attacks/tier-00/device-id-spoofing
+    reset: ./course attack reset tier-00/device-id-spoofing
+    hardware_required: false
+  tier-00/service-impersonation:
+    tier: "00"
+    target: http://127.0.0.1:8080
+    interface: loopback
+    expected_effect: Generated device configuration accepts a marker-matching HTTP impersonation service.
+    changes:
+      - .course-state/device-config.json
+      - artifacts/generated/attacks/tier-00/service-impersonation
+    reset: ./course attack reset tier-00/service-impersonation
+    hardware_required: false
+  tier-00/altered-image:
+    tier: "00"
+    target: http://127.0.0.1:8080
+    interface: loopback
+    expected_effect: The service delivers the manifest-owned altered unsigned image. Device acceptance remains pending without hardware.
+    changes:
+      - .course-state/ota/current-release.json
+      - artifacts/generated/releases/tier-00-altered.bin
+      - artifacts/generated/attacks/tier-00/altered-image
+    reset: ./course attack reset tier-00/altered-image
+    hardware_required: true
+
+evidence:
+  schema_version: 1
+  tier_00:
+    - id: baseline-architecture
+      template: evidence/templates/tier-00/baseline-architecture.json
+      schema: evidence/schemas/tier-00-evidence.schema.json
+      learner_path: evidence/learner/tier-00/baseline-architecture.json
+    - id: http-exchange
+      template: evidence/templates/tier-00/http-exchange.json
+      schema: evidence/schemas/tier-00-evidence.schema.json
+      learner_path: evidence/learner/tier-00/http-exchange.json
+    - id: accepted-image-record
+      template: evidence/templates/tier-00/accepted-image-record.json
+      schema: evidence/schemas/tier-00-evidence.schema.json
+      learner_path: evidence/learner/tier-00/accepted-image-record.json
+    - id: absent-controls
+      template: evidence/templates/tier-00/absent-controls.json
+      schema: evidence/schemas/tier-00-evidence.schema.json
+      learner_path: evidence/learner/tier-00/absent-controls.json
+
+safety:
+  synthetic_data_only: true
+  marker_required: true
+  marker_path: .course-state/environment.json
+  dry_run_default: true
+  execute_identifier_required: true
+  refuse_after_failed_reset: true
+  target_rules:
+    localhost: true
+    rfc1918_ipv4: true
+    ipv6_unique_local: true
+    ipv6_link_local: true
+    dns_names: false
+    redirects: false
+    discovery: false
+  cleanup_confirmation: REMOVE COURSE GENERATED STATE
+
+checkpoints:
+  publication_owner_issue: 28
+  publication_status: pending
+
+verification:
+  tier_00:
+    command: [./scripts/verify-tier-00.sh]
+    receipt: .course-state/receipts/tier-00.json
+    revision_bound: true
+    hardware:
+      flash: pending
+      serial: pending
+      altered_image_execution: pending
+
+tiers:
+  "00":
+    title: Build the unsecured reference product
+    kind: baseline
+    track: core
+    status: implemented
+    start_checkpoint: course-v1.0-tier-00-start
+    complete_checkpoint: course-v1.0-tier-00-complete
+    module: course-material/tiers/tier-00-unsecured/index.md
+    prerequisites: []
+    components: [course_helper, ota_service, firmware]
+    services: [ota]
+    devices: [reference_beacon]
+    fixtures:
+      - tier-00/plaintext-inspection
+      - tier-00/device-id-spoofing
+      - tier-00/service-impersonation
+      - tier-00/altered-image
+    evidence:
+      - baseline-architecture
+      - http-exchange
+      - accepted-image-record
+      - absent-controls
+    mentor_review: not_required
+    destructive: false
+    irreversible: false
+  "01":
+    title: Model the product and its risks
+    kind: analysis
+    track: core
+    status: planned
+    start_checkpoint: course-v1.0-tier-00-complete
+    complete_checkpoint: course-v1.0-tier-01-complete
+    module: course-material/tiers/tier-01-threat-model/index.md
+    prerequisites: ["00"]
+    continue_same_workspace: true
+    components: []
+    services: []
+    devices: []
+    fixtures:
+      - tier-00/plaintext-inspection
+      - tier-00/device-id-spoofing
+    evidence: []
+    mentor_review: required
+    destructive: false
+    irreversible: false
+  "02":
+    title: Authenticate and encrypt the server connection
+    kind: control
+    track: core
+    status: planned
+    start_checkpoint: course-v1.0-tier-01-complete
+    complete_checkpoint: course-v1.0-tier-02-complete
+    module: course-material/tiers/tier-02-authenticated-https/index.md
+    prerequisites: ["01"]
+  "03":
+    title: Require authentic firmware images
+    kind: control
+    track: core
+    status: planned
+    start_checkpoint: course-v1.0-tier-02-complete
+    complete_checkpoint: course-v1.0-tier-03-complete
+    module: course-material/tiers/tier-03-signed-images/index.md
+    prerequisites: ["02"]
+  "04":
+    title: Protect release metadata and block downgrade
+    kind: control
+    track: core
+    status: planned
+    start_checkpoint: course-v1.0-tier-03-complete
+    complete_checkpoint: course-v1.0-tier-04-complete
+    module: course-material/tiers/tier-04-release-policy/index.md
+    prerequisites: ["03"]
+  "05":
+    title: Make installation recoverable
+    kind: control
+    track: core
+    status: planned
+    start_checkpoint: course-v1.0-tier-04-complete
+    complete_checkpoint: course-v1.0-tier-05-complete
+    module: course-material/tiers/tier-05-recovery/index.md
+    prerequisites: ["04"]
+  "06":
+    title: Replace shared identity with per-device factory identity
+    kind: lifecycle
+    track: core
+    status: planned
+    start_checkpoint: course-v1.0-tier-05-complete
+    complete_checkpoint: course-v1.0-tier-06-complete
+    module: course-material/tiers/tier-06-factory-identity/index.md
+    prerequisites: ["05"]
+  "07":
+    title: Add owner-scoped operational identity and mutual TLS
+    kind: lifecycle
+    track: core
+    status: planned
+    start_checkpoint: course-v1.0-tier-06-complete
+    complete_checkpoint: course-v1.0-tier-07-complete
+    module: course-material/tiers/tier-07-operational-identity/index.md
+    prerequisites: ["06"]
+  "08":
+    title: Operate the credential lifecycle
+    kind: lifecycle
+    track: core
+    status: planned
+    start_checkpoint: course-v1.0-tier-07-complete
+    complete_checkpoint: course-v1.0-tier-08-complete
+    module: course-material/tiers/tier-08-credential-lifecycle/index.md
+    prerequisites: ["07"]
+  "09":
+    title: Manage dependencies, vulnerabilities, and support
+    kind: lifecycle
+    track: core
+    status: planned
+    start_checkpoint: course-v1.0-tier-08-complete
+    complete_checkpoint: course-v1.0-tier-09-complete
+    module: course-material/tiers/tier-09-vulnerability-support/index.md
+    prerequisites: ["08"]
+  "10":
+    title: Defend the integrated product
+    kind: integration
+    track: core
+    status: planned
+    start_checkpoint: course-v1.0-tier-09-complete
+    complete_checkpoint: course-v1.0-tier-10-complete
+    module: course-material/tiers/tier-10-integrated-defense/index.md
+    prerequisites: ["09"]
+  "A":
+    title: Add ESP32-C6 hardware-rooted security
+    kind: control
+    track: advanced
+    status: planned
+    start_checkpoint: course-v1.0-tier-10-complete
+    complete_checkpoint: course-v1.0-tier-A-complete
+    module: course-material/advanced/tier-a-hardware-root/index.md
+    prerequisites: ["10"]
+    destructive: true
+    irreversible: true
+  "B":
+    title: Isolate keys with STSAFE-A120
+    kind: control
+    track: advanced
+    status: planned
+    start_checkpoint: course-v1.0-tier-10-complete
+    complete_checkpoint: course-v1.0-tier-B-complete
+    module: course-material/advanced/tier-b-secure-element/index.md
+    prerequisites: ["10"]

@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "artifact_id": "T0-CONTROLS-EXAMPLE",
+  "artifact_type": "absent-controls",
+  "owner": "Course example",
+  "reviewer": null,
+  "scope": "tier-00",
+  "revision": 1,
+  "status": "example",
+  "created_at": "2026-09-11T00:00:00Z",
+  "last_reviewed_at": "2026-09-11T00:00:00Z",
+  "source_revision": "example-only",
+  "environment": {
+    "course_id": "learning-cyber-security",
+    "tier": "00",
+    "synthetic_data": true
+  },
+  "limitations": [
+    "This list describes the intentional Tier 0 design and is not a production recommendation."
+  ],
+  "content": {
+    "absent": ["TLS", "server authentication", "device authentication", "signed images", "signed release metadata", "anti-rollback", "test-boot confirmation", "security event integrity"],
+    "observed_effects": ["plaintext is readable", "body device_id is trusted", "service can be impersonated", "altered image is delivered"],
+    "next_tier_questions": ["Which assets are exposed?", "Which actors can cross each trust boundary?", "Which observable requirements should later controls meet?"]
+  }
+}

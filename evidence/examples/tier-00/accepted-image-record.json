@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "artifact_id": "T0-IMAGE-EXAMPLE",
+  "artifact_type": "accepted-image-record",
+  "owner": "Course example",
+  "reviewer": null,
+  "scope": "tier-00",
+  "revision": 1,
+  "status": "pending",
+  "created_at": "2026-09-11T00:00:00Z",
+  "last_reviewed_at": "2026-09-11T00:00:00Z",
+  "source_revision": "example-only",
+  "environment": {
+    "course_id": "learning-cyber-security",
+    "tier": "00",
+    "synthetic_data": true
+  },
+  "limitations": [
+    "No physical ESP32-C6 was available.",
+    "Image acceptance, execution, LED behavior, and serial output remain pending."
+  ],
+  "content": {
+    "image_sha256": "example-not-an-observation",
+    "service_delivery": "observed in host test",
+    "mcuboot_mode": "unsigned",
+    "device_flash": "pending",
+    "device_boot": "pending",
+    "led_behavior": "pending",
+    "serial_record": "pending"
+  }
+}

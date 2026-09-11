@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/tkEmLogic/learning-cyber-security/evidence/schemas/course-manifest.schema.json",
+  "title": "Learning Cyber Security course manifest",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "course",
+    "runtime",
+    "paths",
+    "components",
+    "services",
+    "devices",
+    "fixtures",
+    "evidence",
+    "safety",
+    "checkpoints",
+    "verification",
+    "tiers"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "course": {
+      "type": "object",
+      "required": ["id", "version", "minimum_wrapper_version"],
+      "properties": {
+        "id": {
+          "const": "learning-cyber-security"
+        },
+        "version": {
+          "type": "string"
+        },
+        "minimum_wrapper_version": {
+          "type": "string"
+        }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "required": ["selection", "bind_default", "compose"],
+      "properties": {
+        "selection": {
+          "const": "explicit_if_ambiguous"
+        },
+        "bind_default": {
+          "const": "127.0.0.1"
+        }
+      }
+    },
+    "paths": {
+      "type": "object",
+      "required": ["state", "secrets", "build", "generated_artifacts", "cleanup_allowlist"],
+      "properties": {
+        "cleanup_allowlist": {
+          "const": [".course-state", ".course-secrets", "build", "artifacts/generated"]
+        }
+      }
+    },
+    "fixtures": {
+      "type": "object",
+      "required": [
+        "tier-00/plaintext-inspection",
+        "tier-00/device-id-spoofing",
+        "tier-00/service-impersonation",
+        "tier-00/altered-image"
+      ]
+    },
+    "tiers": {
+      "type": "object",
+      "required": ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "A", "B"],
+      "properties": {
+        "00": {
+          "type": "object",
+          "required": ["title", "status", "start_checkpoint", "complete_checkpoint", "module"],
+          "properties": {
+            "status": {
+              "const": "implemented"
+            }
+          }
+        }
+      }
+    }
+  }
+}

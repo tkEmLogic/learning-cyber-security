@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "artifact_id": "T0-ARCH-EXAMPLE",
+  "artifact_type": "baseline-architecture",
+  "owner": "Course example",
+  "reviewer": null,
+  "scope": "tier-00",
+  "revision": 1,
+  "status": "example",
+  "created_at": "2026-09-11T00:00:00Z",
+  "last_reviewed_at": "2026-09-11T00:00:00Z",
+  "source_revision": "example-only",
+  "environment": {
+    "course_id": "learning-cyber-security",
+    "tier": "00",
+    "synthetic_data": true
+  },
+  "limitations": [
+    "This generated example is not Learner evidence.",
+    "Physical device behavior is not represented."
+  ],
+  "content": {
+    "components": ["ESP32-C6 status beacon", "local HTTP OTA service", "mutable release storage"],
+    "data_flows": ["HTTP status event", "HTTP release lookup", "HTTP firmware download"],
+    "trust_boundaries": ["device to local network", "device to OTA service", "MCUboot to Zephyr application"],
+    "notes": "Tier 0 has no authenticated network or firmware boundary."
+  }
+}

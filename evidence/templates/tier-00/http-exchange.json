@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "artifact_id": "T0-HTTP-LEARNER",
+  "artifact_type": "http-exchange",
+  "owner": "Learner",
+  "reviewer": null,
+  "scope": "tier-00",
+  "revision": 1,
+  "status": "template",
+  "created_at": null,
+  "last_reviewed_at": null,
+  "source_revision": null,
+  "environment": {
+    "course_id": "learning-cyber-security",
+    "tier": "00",
+    "synthetic_data": true
+  },
+  "limitations": [],
+  "content": {
+    "request_line": "",
+    "response_status": "",
+    "readable_fields": [],
+    "firmware_bytes_readable": null,
+    "fixture_evidence_path": ""
+  }
+}

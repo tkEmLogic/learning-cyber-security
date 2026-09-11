@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "artifact_id": "T0-CONTROLS-LEARNER",
+  "artifact_type": "absent-controls",
+  "owner": "Learner",
+  "reviewer": null,
+  "scope": "tier-00",
+  "revision": 1,
+  "status": "template",
+  "created_at": null,
+  "last_reviewed_at": null,
+  "source_revision": null,
+  "environment": {
+    "course_id": "learning-cyber-security",
+    "tier": "00",
+    "synthetic_data": true
+  },
+  "limitations": [],
+  "content": {
+    "absent": [],
+    "observed_effects": [],
+    "next_tier_questions": []
+  }
+}

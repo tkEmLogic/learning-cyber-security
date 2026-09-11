@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "artifact_id": "T0-IMAGE-LEARNER",
+  "artifact_type": "accepted-image-record",
+  "owner": "Learner",
+  "reviewer": null,
+  "scope": "tier-00",
+  "revision": 1,
+  "status": "pending",
+  "created_at": null,
+  "last_reviewed_at": null,
+  "source_revision": null,
+  "environment": {
+    "course_id": "learning-cyber-security",
+    "tier": "00",
+    "synthetic_data": true
+  },
+  "limitations": [
+    "Physical ESP32-C6 image acceptance and execution must stay pending until observed on hardware."
+  ],
+  "content": {
+    "image_sha256": "",
+    "service_delivery": "",
+    "mcuboot_mode": "unsigned",
+    "device_flash": "pending",
+    "device_boot": "pending",
+    "led_behavior": "pending",
+    "serial_record": "pending"
+  }
+}

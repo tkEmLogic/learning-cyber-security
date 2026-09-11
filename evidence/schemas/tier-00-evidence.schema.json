@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/tkEmLogic/learning-cyber-security/evidence/schemas/tier-00-evidence.schema.json",
+  "title": "Tier 0 evidence record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_id",
+    "artifact_type",
+    "owner",
+    "reviewer",
+    "scope",
+    "revision",
+    "status",
+    "created_at",
+    "last_reviewed_at",
+    "source_revision",
+    "environment",
+    "limitations",
+    "content"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "artifact_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "artifact_type": {
+      "enum": [
+        "baseline-architecture",
+        "http-exchange",
+        "accepted-image-record",
+        "absent-controls"
+      ]
+    },
+    "owner": {
+      "type": "string",
+      "minLength": 1
+    },
+    "reviewer": {
+      "type": ["string", "null"]
+    },
+    "scope": {
+      "const": "tier-00"
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "status": {
+      "enum": ["template", "example", "draft", "observed", "pending"]
+    },
+    "created_at": {
+      "type": ["string", "null"]
+    },
+    "last_reviewed_at": {
+      "type": ["string", "null"]
+    },
+    "source_revision": {
+      "type": ["string", "null"]
+    },
+    "environment": {
+      "type": "object",
+      "required": ["course_id", "tier", "synthetic_data"],
+      "properties": {
+        "course_id": {
+          "const": "learning-cyber-security"
+        },
+        "tier": {
+          "const": "00"
+        },
+        "synthetic_data": {
+          "const": true
+        }
+      }
+    },
+    "limitations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "content": {
+      "type": "object"
+    }
+  }
+}

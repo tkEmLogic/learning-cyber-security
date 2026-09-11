@@ -1,0 +1,6 @@
+.course-secrets/
+.course-state/
+build/
+artifacts/generated/
+evidence/learner/*
+!evidence/learner/README.md

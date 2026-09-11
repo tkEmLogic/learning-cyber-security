@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "artifact_id": "T0-HTTP-EXAMPLE",
+  "artifact_type": "http-exchange",
+  "owner": "Course example",
+  "reviewer": null,
+  "scope": "tier-00",
+  "revision": 1,
+  "status": "example",
+  "created_at": "2026-09-11T00:00:00Z",
+  "last_reviewed_at": "2026-09-11T00:00:00Z",
+  "source_revision": "example-only",
+  "environment": {
+    "course_id": "learning-cyber-security",
+    "tier": "00",
+    "synthetic_data": true
+  },
+  "limitations": [
+    "The values are generated examples and not a Learner observation."
+  ],
+  "content": {
+    "request_line": "GET /v1/releases/current HTTP/1.1",
+    "response_status": "200 OK",
+    "readable_fields": ["release_id", "version", "image_path", "image_sha256"],
+    "firmware_bytes_readable": true,
+    "fixture_evidence_path": "artifacts/generated/attacks/tier-00/plaintext-inspection/example.json"
+  }
+}

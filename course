@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+printf '+ go run ./tools/course %s\n' "$*" >&2
+cd "$repo_root"
+exec go run ./tools/course --repo "$repo_root" "$@"
