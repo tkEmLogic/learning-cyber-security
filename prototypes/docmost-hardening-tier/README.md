@@ -1,0 +1,43 @@
+# Docmost hardening-tier prototype
+
+This is a throwaway prototype for
+[Prototype the Docmost course module](https://github.com/tkEmLogic/learning-cyber-security/issues/15).
+
+It compares three structures for Tier 3, **Require authentic firmware images**.
+The technical content is intentionally the same. The information order and
+learner flow are different.
+
+## Open the comparison
+
+Open `index.html` in a browser.
+
+Use the bottom switcher, the left and right arrow keys, or these URLs:
+
+- `index.html?variant=A` for the linear procedure
+- `index.html?variant=B` for the evidence-first review sheet
+- `index.html?variant=C` for the incident-driven mission
+
+## Test the Markdown in Docmost
+
+Import these files separately:
+
+- `variant-a-linear-procedure.md`
+- `variant-b-evidence-first.md`
+- `variant-c-incident-mission.md`
+
+Export each page back to Markdown. Check headings, tables, code blocks, links,
+and the Mermaid diagram. Record any changes caused by import or export.
+
+## Prototype question
+
+Which structure best helps a learner:
+
+1. Understand the inherited weakness.
+2. Run a safe attack demonstration.
+3. Add one focused control.
+4. Compare the behavior before and after hardening.
+5. Update the weakness ledger and security evidence pack.
+6. Prepare for an informal mentor review.
+
+The final course module will be rewritten from the selected structure. This
+prototype is not production course material.
