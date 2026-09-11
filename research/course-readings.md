@@ -47,6 +47,8 @@ These readings support the whole course. Introduce them early and return to them
 | [CRA, Regulation (EU) 2024/2847, Annex I](https://eur-lex.europa.eu/eli/reg/2024/2847/oj/eng#anx_I) | Recommended | Normative and legal | Which security properties and vulnerability-handling duties does EU law expect? | Annex I, Part I for product properties and Part II for vulnerability handling. |
 | [Latacora, Cryptographic Right Answers: Post-Quantum Edition](https://www.latacora.com/blog/post-quantum-cryptographic-right-answers/) | Optional | Explanatory | Why should signature and key choices stay replaceable across a five-year product life? | Whole post. Use only as a discussion of cryptographic agility and product lifetime. Do not use it to add post-quantum cryptography to the course. |
 
+The cumulative weakness ledger, the security evidence pack, the attack-and-retest cycle, and the residual-risk review are course-owned processes defined by the course itself, so they need no external reading.
+
 ## T0. Unsecured reference product
 
 The learner runs the insecure baseline and observes weaknesses. The baseline has HTTP OTA, an unsigned MCUboot, and no TLS, device authentication, metadata signing, anti-rollback, or security event records.
@@ -109,6 +111,16 @@ The learner adds a resumable download, a MCUboot test boot, a health confirmatio
 | [MCUboot design document, swap and revert](https://docs.mcuboot.com/design.html) | Required | Explanatory | How do test boot, confirm, and automatic revert work? | The "Swap" and "High-level operation" sections on swap types and confirmation. |
 | [MCUboot serial recovery](https://github.com/mcu-tools/mcuboot/blob/v2.4.0/docs/serial_recovery.md) | Required | Explanatory | How can a device recover when a new image fails to confirm? | Whole document. Pinned to v2.4.0. |
 | [Zephyr device management, mcumgr](https://docs.zephyrproject.org/4.4.2/services/device_mgmt/mcumgr.html) | Recommended | Explanatory | How does the device receive and manage images over the SMP protocol? | The image management and transport sections. |
+
+### Comparison: Eclipse hawkBit, Mender MCU, and Golioth
+
+The resolved OTA architecture decision uses the course-owned HTTPS pull service for every lab in this course. These three readings are comparison references only, so the learner can see where a maintained fleet platform adds operational capability that the small course service intentionally omits. No lab in this course requires an account with, or a deployment to, any of these three services.
+
+| Reading | Level | Type | Learning question it answers | Where to read |
+| --- | --- | --- | --- | --- |
+| [Eclipse hawkBit, Rollout management](https://hawkbit.eclipse.dev/#/rollout-management) | Recommended | Explanatory | How does a self-hosted fleet platform stage a rollout across groups and stop it automatically on errors, compared with the course's single canary-then-remaining-devices step? | The "Cascading Deployment Group Execution" section. |
+| [Mender, Microcontroller tutorial](https://docs.mender.io/get-started/microcontroller-preview) | Recommended | Explanatory | How does a self-hosted or hosted fleet client support MCU devices, and which guarantees does it still leave to MCUboot rather than provide itself? | The paragraph on the MCU device tier and its unsupported features, including artifact signing. |
+| [Golioth, Over-the-Air (OTA) updates](https://docs.golioth.io/device-management/ota/) | Recommended | Explanatory | How does a managed free-usage OTA service model packages, artifacts, deployments, and cohorts, compared with the course's single signed release manifest? | The "Concepts" section, covering packages, artifacts, deployments, and cohorts. |
 
 ## T6. Unique per-device factory identity and provisioning
 
@@ -247,6 +259,9 @@ All sources were accessed and reviewed on 11 September 2026.
 | [Zephyr OTA overview](https://docs.zephyrproject.org/4.4.2/services/device_mgmt/ota.html) | 4.4.2 docs. | Explanatory | Zephyr Project, Apache-2.0 documentation. Free to read. |
 | [Zephyr DFU with MCUboot](https://docs.zephyrproject.org/4.4.2/services/device_mgmt/dfu.html) | 4.4.2 docs. | Explanatory | Zephyr Project, Apache-2.0. Free to read. |
 | [Zephyr mcumgr](https://docs.zephyrproject.org/4.4.2/services/device_mgmt/mcumgr.html) | 4.4.2 docs. | Explanatory | Zephyr Project, Apache-2.0. Free to read. |
+| [Eclipse hawkBit, Rollout management](https://hawkbit.eclipse.dev/#/rollout-management) | Living documentation. Server release 1.1.0 current on access date. | Explanatory | Eclipse Foundation project, EPL-2.0. Free to read. Comparison reference only. |
+| [Mender, Microcontroller tutorial](https://docs.mender.io/get-started/microcontroller-preview) | Mender MCU 1.0.0, stable release, 20 April 2026. | Explanatory | Northern.tech AS documentation. Free to read. Comparison reference only. |
+| [Golioth, Over-the-Air (OTA) updates](https://docs.golioth.io/device-management/ota/) | Web page current on access date. | Explanatory | Golioth, Inc. documentation. Free to read. Comparison reference only. |
 | [Zephyr sockets and TLS](https://docs.zephyrproject.org/4.4.2/connectivity/networking/api/sockets.html) | 4.4.2 docs. | Explanatory | Zephyr Project, Apache-2.0. Free to read. |
 | [MCUboot design](https://docs.mcuboot.com/design.html) | 2.4.0. | Explanatory | MCUboot project, Apache-2.0. Free to read. |
 | [MCUboot imgtool](https://docs.mcuboot.com/imgtool.html) | 2.4.0. | Explanatory | MCUboot project, Apache-2.0. Free to read. |
