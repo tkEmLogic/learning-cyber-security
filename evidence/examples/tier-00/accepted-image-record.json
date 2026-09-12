@@ -16,8 +16,8 @@
     "synthetic_data": true
   },
   "limitations": [
-    "No physical ESP32-C6 was available.",
-    "Image acceptance, execution, LED behavior, and serial output remain pending."
+    "This generated example is not Learner evidence.",
+    "Every hardware field is shown in its pending form."
   ],
   "content": {
     "image_sha256": "example-not-an-observation",
@@ -25,6 +25,10 @@
     "mcuboot_mode": "unsigned",
     "device_flash": "pending",
     "device_boot": "pending",
+    "wifi_association": "pending",
+    "http_exchange": "pending",
+    "ota_download": "pending",
+    "altered_image_execution": "pending",
     "led_behavior": "pending",
     "serial_record": "pending"
   }

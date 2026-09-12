@@ -28,8 +28,11 @@ fi
 cd "${ZEPHYR_WORKSPACE}"
 
 if [ ! -f "${ZEPHYR_WORKSPACE}/.west-update.done" ]; then
-    echo "==> west update (hal_espressif mcuboot mbedtls)"
-    "${WEST}" update hal_espressif mcuboot mbedtls
+    # tf-psa-crypto is a separate west project, not an mbedtls submodule. The
+    # ESP32-C6 Wi-Fi driver selects MBEDTLS and PSA_CRYPTO, and the mbedtls
+    # module fails to configure without it.
+    echo "==> west update (hal_espressif mcuboot mbedtls tf-psa-crypto)"
+    "${WEST}" update hal_espressif mcuboot mbedtls tf-psa-crypto
     touch "${ZEPHYR_WORKSPACE}/.west-update.done"
 fi
 
@@ -41,6 +44,20 @@ fi
 
 echo "==> west zephyr-export"
 "${WEST}" zephyr-export
+
+# OpenOCD for on-chip debugging over the board's built-in USB-Serial/JTAG.
+# The Zephyr SDK ships an OpenOCD with Xtensa ESP32 targets only, so the
+# RISC-V ESP32-C6 needs Espressif's fork.
+OPENOCD_VERSION="v0.12.0-esp32-20260831"
+OPENOCD_DIR="${ZEPHYR_WORKSPACE}/openocd-esp32"
+if [ ! -x "${OPENOCD_DIR}/bin/openocd" ]; then
+    echo "==> installing openocd-esp32 ${OPENOCD_VERSION}"
+    OPENOCD_TARBALL="openocd-esp32-linux-amd64-${OPENOCD_VERSION#v}.tar.gz"
+    curl -fsSL -o /tmp/openocd-esp32.tar.gz \
+        "https://github.com/espressif/openocd-esp32/releases/download/${OPENOCD_VERSION}/${OPENOCD_TARBALL}"
+    tar -xzf /tmp/openocd-esp32.tar.gz -C "${ZEPHYR_WORKSPACE}"
+    rm -f /tmp/openocd-esp32.tar.gz
+fi
 
 if [ ! -f "${ZEPHYR_WORKSPACE}/.west-blobs.done" ]; then
     echo "==> west blobs fetch hal_espressif"

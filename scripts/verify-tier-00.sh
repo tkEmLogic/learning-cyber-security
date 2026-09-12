@@ -34,6 +34,7 @@ printf '+ scripts/check-secrets.sh\n'
 scripts/check-secrets.sh
 
 printf 'Tier 0 host verification passed.\n'
-printf 'Hardware flash: pending\n'
-printf 'Hardware serial: pending\n'
-printf 'Altered-image device execution: pending\n'
+
+# course.yml owns the hardware claims, so this script reports them instead of
+# repeating them. A host check can never raise a hardware claim by itself.
+go run ./tools/course --repo "$repo_root" device status

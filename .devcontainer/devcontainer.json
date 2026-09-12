@@ -28,9 +28,25 @@
   // path under /dev/serial/by-id/ (see docs/esp32c6-build-baseline.md).
   // Defaults to /dev/ttyACM0 when unset, which is fine when only one board
   // is ever attached.
+  //
+  // /dev/bus/usb is mounted whole because on-chip debugging talks to the
+  // board's USB-Serial/JTAG interface through libusb, not through the serial
+  // node, and the device path changes whenever the board re-enumerates.
+  //
+  // /dev/serial/by-id is mounted rather than passed with --device because a
+  // by-id name that contains colons (an Espressif USB-JTAG serial number is a
+  // MAC address) cannot be expressed in podman's host:container --device
+  // syntax.
+  //
+  // label=disable is needed on SELinux hosts such as Fedora. Without it the
+  // container is denied access to tty_device_t and every flash attempt fails
+  // with a permission error that looks like a missing group.
   "runArgs": [
     "--group-add=keep-groups",
-    "--device=${localEnv:ESP32_SERIAL_DEVICE:/dev/ttyACM0}"
+    "--security-opt=label=disable",
+    "--device=${localEnv:ESP32_SERIAL_DEVICE:/dev/ttyACM0}",
+    "--volume=/dev/bus/usb:/dev/bus/usb",
+    "--volume=/dev/serial/by-id:/dev/serial/by-id:ro"
   ],
   "postCreateCommand": "bash .devcontainer/post-create.sh",
   "customizations": {

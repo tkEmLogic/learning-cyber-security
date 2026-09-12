@@ -42,11 +42,21 @@ components:
     build: [go, build, ./services/ota/cmd/ota]
   firmware:
     path: firmware/reference-product-baseline
-    build: [./scripts/build-zephyr-baseline.sh]
+    build: [./course, build, firmware]
     target: esp32c6_devkitc/esp32c6/hpcore
     zephyr: 4.4.2
     mcuboot: 2.4.0
     image_mode: unsigned
+    upgrade_mode: overwrite_only
+    variants:
+      baseline:
+        release_id: tier-00-baseline
+        beacon_state: steady
+        image: artifacts/generated/releases/tier-00-baseline.bin
+      altered:
+        release_id: tier-00-altered
+        beacon_state: fast
+        image: artifacts/generated/releases/tier-00-altered.bin
 
 services:
   ota:
@@ -114,12 +124,13 @@ fixtures:
     tier: "00"
     target: http://127.0.0.1:8080
     interface: loopback
-    expected_effect: The service delivers the manifest-owned altered unsigned image. Device acceptance remains pending without hardware.
+    expected_effect: The service delivers the manifest-owned altered unsigned image. An attached device installs and runs it.
     changes:
       - .course-state/ota/current-release.json
       - artifacts/generated/releases/tier-00-altered.bin
       - artifacts/generated/attacks/tier-00/altered-image
     reset: ./course attack reset tier-00/altered-image
+    reset_keeps_built_image: true
     hardware_required: true
 
 evidence:
@@ -169,9 +180,13 @@ verification:
     receipt: .course-state/receipts/tier-00.json
     revision_bound: true
     hardware:
-      flash: pending
-      serial: pending
-      altered_image_execution: pending
+      flash: validated
+      serial: validated
+      wifi_association: validated
+      http_exchange: validated
+      ota_download: validated
+      altered_image_execution: validated
+      led_behavior: unavailable_on_validated_board
 
 tiers:
   "00":

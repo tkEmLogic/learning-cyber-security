@@ -221,6 +221,8 @@ func TestEvidenceCheckAcceptsCompletedPendingHardwareRecords(t *testing.T) {
 		"accepted-image-record": {
 			"image_sha256": "sha256:synthetic", "service_delivery": "observed in host fixture",
 			"mcuboot_mode": "unsigned", "device_flash": "pending", "device_boot": "pending",
+			"wifi_association": "pending", "http_exchange": "pending",
+			"ota_download": "pending", "altered_image_execution": "pending",
 			"led_behavior": "pending", "serial_record": "pending",
 		},
 		"absent-controls": {

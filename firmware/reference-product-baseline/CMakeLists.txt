@@ -7,4 +7,9 @@ project(reference_product_baseline)
 
 test_sysbuild()
 
-target_sources(app PRIVATE src/main.c)
+target_sources(app PRIVATE
+	src/main.c
+	src/beacon.c
+	src/net_link.c
+	src/ota_client.c
+)

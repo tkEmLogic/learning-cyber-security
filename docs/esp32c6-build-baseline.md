@@ -6,6 +6,8 @@ It uses Zephyr 4.4.2, MCUboot 2.4.0, Zephyr SDK 1.0.1, and board target `esp32c6
 
 The build uses unsigned MCUboot because this is the Tier 0 baseline. It does not enable image signatures, downgrade prevention, serial recovery, secure boot, flash encryption, or any eFuse change.
 
+MCUboot runs in overwrite-only mode. An update replaces the running image with whatever the OTA service supplied. There is no test boot and no way back. Recoverable installation belongs to a later Hardening tier.
+
 ## External workspace
 
 Keep the Zephyr workspace outside this Git repository because it contains large third-party source trees and toolchains.
@@ -76,6 +78,8 @@ The application contains compile-time checks for every flash partition offset an
 
 The checked-in map is `firmware/reference-product-baseline/dts/esp32c6_4m_flash_map.dtsi`.
 
+The scratch partition stays reserved but is unused. Overwrite-only mode needs no scratch area. Keeping the partition leaves room for a later tier to move to a swap mode without changing the flash map.
+
 Zephyr 4.4.2 selects a 2 MiB esptool image header by default even though this board includes an 8 MiB module and the course uses a 4 MiB partition contract. The baseline explicitly selects the 4 MiB header for both MCUboot and the application.
 
 ## Validated result
@@ -94,7 +98,7 @@ The supporting tool versions were west 1.5.0, Python 3.14.7, CMake 4.3.0, Ninja 
 
 The MCUboot binary was 39,600 bytes in its 64 KiB partition. The application binary was 133,364 bytes. The unsigned MCUboot image with its header and hash trailer was 133,404 bytes in the 1,792 KiB primary slot.
 
-The resolved MCUboot configuration includes `CONFIG_BOOT_SIGNATURE_TYPE_NONE=y`, `CONFIG_BOOT_SWAP_USING_SCRATCH=y`, `CONFIG_BOOT_VALIDATE_SLOT0=y`, and `CONFIG_UPDATEABLE_IMAGE_NUMBER=1`.
+The resolved MCUboot configuration includes `CONFIG_BOOT_SIGNATURE_TYPE_NONE=y`, `CONFIG_BOOT_UPGRADE_ONLY=y`, `CONFIG_BOOT_VALIDATE_SLOT0=y`, and `CONFIG_UPDATEABLE_IMAGE_NUMBER=1`.
 
 The resolved application configuration includes `CONFIG_MCUBOOT_GENERATE_UNSIGNED_IMAGE=y`, `CONFIG_FLASH_LOAD_OFFSET=0x20000`, and `CONFIG_FLASH_LOAD_SIZE=0x1c0000`.
 
@@ -141,20 +145,19 @@ ESP-ROM:esp32c6-20220919
 ...
 I (soc_init): MCUboot 2nd stage bootloader
 ...
-I (boot): Loading image 0 - slot 0 from flash, area id: 2
+I: Starting bootloader
+I: Bootloader chainload address offset: 0x20000
+I: Jumping to the first image slot
 *** Booting Zephyr OS build v4.4.2 ***
 ESP32-C6 Reference product: intentionally unsecured Tier 0
+Image label: baseline
+Running release: tier-00-baseline
 Board: esp32c6_devkitc/esp32c6/hpcore
-Tier 0 boot mode: unsigned MCUboot with swap using scratch
+Tier 0 boot mode: unsigned MCUboot, overwrite only, no rollback
 Synthetic shared device identifier: beacon-development-shared
-Prepared HTTP assignment endpoint: /v1/releases/current
-Prepared HTTP status endpoint: /v1/devices/beacon-development-shared/events
+OTA service: http://192.168.68.81:8080
 Beacon state: steady, toggle period: 0 ms
-Hardware note: Wi-Fi, HTTP transfer, flash, serial, and LED output require physical validation
 ```
-
-This confirms the unsigned MCUboot baseline boots the Reference product
-application on real hardware.
 
 **Console fix required.** The `esp32c6_devkitc/esp32c6/hpcore` board's
 default console is the physical `uart0` pins, which are not wired to the
@@ -168,24 +171,152 @@ routes `zephyr,console`/`zephyr,shell-uart` to it, so logs are visible on the
 same connector already used to build and flash. No extra USB-UART adapter is
 needed.
 
-**LED hardware mapping.** Zephyr's `esp32c6_devkitc_hpcore` board devicetree
-defines no LED node at all (only a user button and a watchdog alias). The
-nanoESP32-C6 1.0 board has an onboard RGB LED, but on this board revision it
-is wired to the 3V3 rail instead of 5V, so **the onboard LED does not work on
-this hardware regardless of firmware**; this is a board wiring limitation,
-not something a Zephyr driver or devicetree overlay can fix. No LED
-implementation ticket is warranted against this board revision. A different
-ESP32-C6 board (or an external LED wired correctly) would be needed to
-validate the beacon LED behavior described in `firmware/reference-product-baseline/src/main.c`.
+MCUboot needed the same treatment separately
+(`firmware/reference-product-baseline/sysbuild/mcuboot-console.overlay`,
+passed to the mcuboot image by `scripts/build-zephyr-baseline.sh`). MCUboot
+also logs nothing by default, so its config enables info-level logging in
+minimal mode. The deferred default buffers messages and loses them if the
+bootloader stops, which is exactly when they are needed.
 
-**Wi-Fi, HTTP, and OTA remain unimplemented, not just untested.** The
-checked-in application (`main.c`) only prints its intended Wi-Fi/HTTP
-endpoints and a beacon state name; it contains no actual Wi-Fi connection,
-HTTP client, or OTA download code to exercise. Physical validation of Wi-Fi
-association, the HTTP assignment/status exchange, OTA image download, and
-execution of an altered (updated) image all remain pending until that
-functionality is implemented — this is a gap in the firmware, not a hardware
-limitation. The smallest next step is an implementation ticket to add Wi-Fi
-connection and the HTTP client calls the log lines already advertise, before
-any of those hardware claims can be validated.
+## Validated network and update behavior
 
+The following was observed on the same nanoESP32-C6 1.0 board, with the local
+OTA service bound to the host's private address on the same Wi-Fi network.
+
+| Behavior | Result |
+| --- | --- |
+| Wi-Fi station association, WPA2-PSK, 2.4 GHz | Observed |
+| DHCP address assignment | Observed |
+| `POST /v1/devices/<id>/events` accepted by the service | Observed |
+| `GET /v1/releases/current` read and parsed | Observed |
+| `GET /v1/firmware/<name>` written to the secondary slot | Observed, 590,396 bytes |
+| MCUboot installing the downloaded image | Observed |
+| Altered image running after the install | Observed |
+| Downgrade back to the baseline release | Observed |
+| Onboard LED | Not available on this board |
+
+The device joined a 2.4 GHz WPA2 network. The ESP32-C6 radio does not support
+5 GHz. A network that publishes the same name on both bands works, because the
+driver scans every channel and associates on the band it can use.
+
+A complete update looked like this on the console:
+
+```
+ota.assignment release_id=tier-00-altered version=0.0.0-altered image=tier-00-altered.bin
+ota.assignment differs from running release tier-00-baseline, installing without any check
+ota.install starting release_id=tier-00-altered version=0.0.0-altered size=590396
+ota.install declared_sha256=... (Tier 0 does not check it)
+ota.install wrote 590396 bytes to the secondary slot
+ota.upgrade requested permanent overwrite, no test boot, no rollback
+Rebooting into the newly installed image
+...
+I: Image index: 0, Swap type: perm
+I: Image 0 upgrade secondary slot -> primary slot
+I: Erasing the primary slot
+I: Image 0 copying the secondary slot to the primary slot: 0x90240 bytes
+I: Jumping to the first image slot
+...
+Image label: altered
+Running release: tier-00-altered
+Beacon state: fast, toggle period: 200 ms
+```
+
+The device accepted firmware from an unauthenticated service with no
+signature and no publisher identity. That is the Tier 0 weakness `T0-W-04`.
+Resetting the fixture returns the service to the baseline release, and the
+device installs the older release just as readily, which is `T0-W-06`.
+
+### A software reset hangs MCUboot on this SoC
+
+The first working download did not produce a working update. MCUboot printed
+its flash banner and stopped, and the board recovered only by a manual reset
+back into the old image.
+
+An on-chip debug session found the cause. Attaching OpenOCD over the board's
+built-in USB-Serial/JTAG and halting the hung bootloader gave this stack:
+
+```
+regi2c_write_mask_impl
+clk_ll_bbpll_set_config
+rtc_clk_bbpll_configure
+rtc_clk_cpu_freq_set_config
+esp32_cpu_clock_configure
+clock_control_esp32_init
+z_sys_init_run_level (INIT_LEVEL_PRE_KERNEL_1)
+```
+
+MCUboot was not in its update path at all. It hung while configuring the CPU
+clock, before reaching any of its own code.
+
+Zephyr's `sys_reboot()` on this SoC ends in `esp_restart()`, which resets the
+processor but deliberately leaves the BBPLL running so the ROM can keep
+logging. MCUboot then tries to configure a PLL that is already on, and the
+register write never completes. Every hang followed `rst:0xc (SW_CPU)`, and
+every clean boot followed a hard reset from esptool.
+
+The fix is in the application. It calls `esp_rom_software_reset_system()`,
+which resets the whole digital system and returns the clocks to their
+power-on state, so MCUboot starts exactly as it does after a power cycle.
+See `course_reset_system()` in
+`firmware/reference-product-baseline/src/main.c`.
+
+Three MCUboot upgrade modes were tried before the debug session, and all three
+hung identically, which is what pointed away from the upgrade path. The
+baseline now uses overwrite-only because it is the simplest mode and it
+matches the Tier 0 posture, not because the others were broken.
+
+### Debugging the board
+
+The dev container installs Espressif's OpenOCD fork, because the Zephyr SDK
+ships an OpenOCD with Xtensa ESP32 targets only and the ESP32-C6 is RISC-V.
+Start a debug session with:
+
+```bash
+"$ZEPHYR_WORKSPACE/openocd-esp32/bin/openocd" \
+  -s "$ZEPHYR_WORKSPACE/openocd-esp32/share/openocd/scripts" \
+  -f board/esp32c6-builtin.cfg
+```
+
+Then attach from another shell, choosing the ELF for whichever image you are
+debugging:
+
+```bash
+"$ZEPHYR_WORKSPACE/zephyr-sdk-1.0.1/gnu/riscv64-zephyr-elf/bin/riscv64-zephyr-elf-gdb" \
+  -ex "target extended-remote :3333" -ex "monitor halt" -ex "bt" \
+  "$ZEPHYR_WORKSPACE/build/reference-product-baseline/mcuboot/zephyr/zephyr.elf"
+```
+
+This uses the same USB connector as flashing and the serial console. No extra
+probe is needed.
+
+### Host access to the board
+
+Two host-side problems block the container from reaching the board, and both
+look like a missing group at first.
+
+The invoking user must be able to open the serial device. On a host where the
+user is not in `dialout`, add the user to that group, or grant access for the
+current session with `setfacl -m u:$USER:rw /dev/ttyACM0`.
+
+On an SELinux host such as Fedora, the container is denied access to
+`tty_device_t` even when the user has permission. The dev container passes
+`--security-opt=label=disable` for this reason. The alternative is the
+`container_use_devices` SELinux boolean on the host.
+
+The stable `/dev/serial/by-id` path is mounted into the container rather than
+passed with `--device`, because an Espressif USB-JTAG serial number is a MAC
+address and the colons in it cannot be expressed in podman's `host:container`
+device syntax.
+
+### LED hardware mapping
+
+Zephyr's `esp32c6_devkitc_hpcore` board devicetree defines no LED node at all
+(only a user button and a watchdog alias). The nanoESP32-C6 1.0 board has an
+onboard RGB LED, but on this board revision it is wired to the 3V3 rail
+instead of 5V, so **the onboard LED does not work on this hardware regardless
+of firmware**; this is a board wiring limitation, not something a Zephyr
+driver or devicetree overlay can fix. No LED implementation ticket is
+warranted against this board revision. A different ESP32-C6 board (or an
+external LED wired correctly) would be needed to validate the beacon LED
+behavior. The Reference product reports its simulated machine state on the
+serial console instead.
