@@ -17,7 +17,7 @@ After this tier, you can:
 - Build the ESP32-C6 Reference product with unsigned MCUboot.
 - Run the local HTTP OTA service.
 - Explain why functional behavior is not secure behavior.
-- Demonstrate four controlled Tier 0 weaknesses.
+- Demonstrate seven controlled Tier 0 weaknesses with four fixtures.
 - Keep hardware-only results pending when no physical board is available.
 - Create the first Lab artifacts and Weakness ledger.
 
@@ -27,57 +27,82 @@ Run this tier only against the disposable Course environment created by `./cours
 
 Use only synthetic identifiers and generated firmware.
 
-The fixtures default to loopback and refuse public addresses, ranges, wildcards, discovery, redirects, and DNS names other than `localhost`.
+The fixtures target loopback inside the dev container and refuse public addresses, ranges, wildcards, discovery, redirects, and DNS names other than `localhost`.
 
 Every fixture is a dry run unless you provide `--execute` with the exact fixture identifier.
 
 ## Starting state
 
-You need a current Linux host with Go, Git, curl, Python 3 with virtual environment support, and Docker Compose or Podman Compose.
+You need the dev container running, as described on the course landing page. All commands in this tier run inside it, from the repository root.
 
-Ubuntu 24.04 is the CI reference environment.
-
-The pinned Zephyr workspace uses Zephyr 4.4.2, MCUboot 2.4.0, and Zephyr SDK 1.0.1.
-
-A physical ESP32-C6 is optional for host work and required for flash, serial, LED, Wi-Fi, and altered-image execution evidence.
-
-## Weakness ledger before the work
-
-| Weakness | Attack vector | Expected Tier 0 result | Later treatment |
-| --- | --- | --- | --- |
-| HTTP has no confidentiality | Read the local release and firmware response | Fields and bytes are readable | Tier 2 |
-| The service trusts the body device identifier | Submit the second manifest-owned identifier | Spoofed status is accepted | Tier 7 |
-| The device has no authenticated service | Use the marker-matching local impersonation service | Hostile release data is accepted | Tier 2 |
-| MCUboot accepts unsigned images | Serve the generated altered image | The device installs and runs the altered image | Tier 3 |
-| Release metadata is mutable | Replace the current release record | New record is served | Tier 4 |
-
-## Reproduce the controlled attacks
-
-### Predict
-
-Write down which asset is exposed by each fixture.
-
-State which observation needs a physical device.
-
-### Inspect the fixture plan
-
-Run from the repository root:
+You need the local update service running. Check it:
 
 ```text
-./course attack list
-./course attack run tier-00/plaintext-inspection
-./course attack run tier-00/device-id-spoofing
-./course attack run tier-00/service-impersonation
-./course attack run tier-00/altered-image
+./course service status
 ```
 
 Expected result:
 
 ```text
-Marker matched
-Result: dry run only
-Execute: ./course attack run <fixture> --execute <fixture>
+Process: ota running as pid <number>
++ curl --fail http://127.0.0.1:8080/health
+Result: OTA service is healthy
+Reachable by the Reference product at http://192.168.0.10:8080
 ```
+
+The address on the last line is the one you gave to `./course setup --bind`. It is the address a physical board will use.
+
+The pinned toolchain is Zephyr 4.4.2, MCUboot 2.4.0, and Zephyr SDK 1.0.1. The container provides all three.
+
+A physical ESP32-C6 is optional for the host work and required for flash, serial, LED, Wi-Fi, and altered-image execution evidence. A board needs a Linux machine.
+
+## Weakness ledger before the work
+
+| Identifier | Weakness | Attack vector | Expected Tier 0 result | Planned tier |
+| --- | --- | --- | --- | --- |
+| T0-W-01 | HTTP has no confidentiality | Read the local release record and firmware response | Fields and bytes are readable | Tier 2 |
+| T0-W-02 | The service trusts the device identifier in the request body | Submit the second manifest-owned identifier | Spoofed status is accepted | Tier 7 |
+| T0-W-03 | The device trusts an unauthenticated service | Use the marker-matching local impersonation service | Hostile release data is accepted | Tier 2 |
+| T0-W-04 | MCUboot accepts unsigned images | Serve the generated altered image | The device installs and runs it | Tier 3 |
+| T0-W-05 | The release record is mutable | Replace the current release record | The new record is served | Tier 4 |
+| T0-W-06 | No anti-rollback policy exists | Assign an older release after a newer one | The device installs the older release | Tier 4 |
+| T0-W-07 | No test boot or recovery proof exists | Install any image | The install is a permanent overwrite with no revert | Tier 5 |
+
+Seven weaknesses, four fixtures. One fixture can expose more than one weakness, and two of them are shown by the reset step rather than the attack step.
+
+## Reproduce the controlled attacks
+
+### Predict
+
+Before you run anything, write down:
+
+1. Which asset does each fixture expose?
+2. Which component decides whether downloaded firmware may run?
+3. Which observation cannot be made without a physical device?
+
+### Inspect the fixture plan
+
+Every fixture is a dry run until you add `--execute`. Look before you act:
+
+```text
+./course attack list
+./course attack run tier-00/plaintext-inspection
+```
+
+Expected result ends with:
+
+```text
+Marker matched: course_id=learning-cyber-security environment_id=<identifier> tier=00 synthetic_data=true
+Expected insecure effect: HTTP release fields and firmware bytes are readable.
+Changes: artifacts/generated/attacks/tier-00/plaintext-inspection
+Reset: ./course attack reset tier-00/plaintext-inspection
+Result: dry run only
+Execute: ./course attack run tier-00/plaintext-inspection --execute tier-00/plaintext-inspection
+```
+
+The marker line matters. A fixture refuses to run unless the target announces the same disposable Course environment that your own `./course setup` created. That is what keeps these attacks pointed at your own lab.
+
+Repeat the dry run for the other three fixtures.
 
 ## Investigate the missing boundaries
 
@@ -90,139 +115,60 @@ Answer:
 5. What proves the firmware publisher identity?
 6. Which result cannot be claimed without physical hardware?
 
-Use this baseline architecture:
+This is the Tier 0 path:
 
-```text
-Synthetic device status
-        |
-        | plaintext HTTP with shared identifier
-        v
-Local OTA service <---- mutable release record
-        |
-        | plaintext HTTP firmware bytes
-        v
-ESP32-C6 secondary slot ---> unsigned MCUboot ---> Zephyr application
+```mermaid
+flowchart TD
+    S[Synthetic device status] -->|plaintext HTTP with shared identifier| O[Local OTA service]
+    R[Mutable release record] --> O
+    O -->|plaintext HTTP firmware bytes| F[ESP32-C6 secondary slot]
+    F --> M[Unsigned MCUboot]
+    M --> Z[Zephyr application]
 ```
 
-No authenticated trust boundary exists in this Tier 0 path.
+Read the diagram as a list of decisions nobody makes. Nothing proves who the service is. Nothing proves who the device is. Nothing proves who built the firmware. MCUboot runs whatever arrives.
+
+No authenticated trust boundary exists anywhere in this path.
 
 ## Build and run the baseline
 
-### Check the host
+### The network address is compiled in
 
-Install the pinned Python packages in generated state:
+The Reference product joins one Wi-Fi network and talks to one service address. You supplied both to `./course setup` on the landing page.
 
-```text
-python3 -m venv build/python
-build/python/bin/pip install -r requirements.txt
-```
+Both values are compiled into the firmware image. Tier 0 has no way to change them on the device. That is itself a limitation worth noticing: a device that cannot be reconfigured also cannot be recovered by reconfiguring it.
 
-The Tier 0 verification command uses these packages to validate JSON and YAML files.
-
-Then run:
-
-```text
-./course doctor
-```
-
-Expected result:
-
-```text
-Go, Git, and curl are available
-At least one compose runtime qualifies
-Hardware is pending when no stable serial path exists
-```
-
-### Create generated state
-
-If both runtimes qualify, choose one explicitly:
-
-```text
-./course setup --runtime docker
-```
-
-Use `podman` instead of `docker` when needed.
-
-Expected result:
-
-```text
-created synthetic Tier 0 environment
-Next: ./course service start
-```
-
-### Start the OTA service
-
-```text
-./course service start
-./course service status
-```
-
-Expected result:
-
-```text
-OTA service is healthy
-```
-
-### Build the host components
-
-```text
-./course build host
-```
-
-Expected result:
-
-```text
-Go helper and OTA service build successfully
-```
-
-### Give the device a network and a service address
-
-The Reference product joins one Wi-Fi network and talks to one OTA service address. Both values are compiled into the firmware image. Tier 0 has no way to change them on the device.
-
-A physical board cannot reach a service bound to loopback. Run setup again with the private address of this host, and name the course Wi-Fi network at the same time:
-
-```text
-./course setup --runtime podman --bind 192.168.0.10 --wifi-ssid course-lab --wifi-psk <passphrase>
-```
-
-Use your own values. The network must meet these conditions:
-
-| Condition | Reason |
-| --- | --- |
-| 2.4 GHz | The ESP32-C6 radio used here does not support 5 GHz |
-| WPA2-PSK | Tier 0 supports no other Wi-Fi security type |
-| Same Layer 2 network as this host | The device connects to the host by address, with no routing |
-| Client isolation switched off | The device must be allowed to reach the host |
-
-The passphrase is written to `.course-secrets/wifi.conf`. Git ignores that directory. Never commit it.
-
-Do not use a network that carries real traffic. Use a disposable lab network or a phone hotspot.
+If you gave a loopback address, a physical board cannot reach the service. Run setup again with your machine's private address before you build.
 
 ### Build the pinned firmware
 
 ```text
-ZEPHYR_WORKSPACE=/path/to/zephyr-v4.4.2 ./course build firmware
+./course build firmware
 ```
 
 Expected result:
 
 ```text
 Generated: .course-state/firmware/baseline.conf for 192.168.0.10:8080, network "course-lab"
-Build completed: /path/to/zephyr-v4.4.2/build/reference-product-baseline
++ COURSE_FIRMWARE_CONF=<path> ZEPHYR_BUILD_DIR=<path> ./scripts/build-zephyr-baseline.sh
 Result: built baseline release tier-00-baseline, 590396 bytes
 ```
 
+`ZEPHYR_WORKSPACE` needs no prefix. The container already sets it.
+
 The build copies the finished image to `artifacts/generated/releases/tier-00-baseline.bin` and makes it the release the service assigns.
 
-The firmware models steady, fast-blink, and slow-blink states. It reports the state on the serial console. The onboard LED of the validated board cannot be driven, so there is no LED output to observe.
+The firmware models steady, fast-blink, and slow-blink states and reports the state on the serial console. The onboard LED of the validated board cannot be driven, so there is no LED output to observe.
 
 The firmware joins the Wi-Fi network, reports its status over plain HTTP, reads its update assignment, and installs any release the service names.
 
-Flash, serial logs, and OTA installation remain pending until tested on a physical ESP32-C6.
+Flash, serial logs, and OTA installation stay pending until you test them on a physical ESP32-C6.
 
 ### Flash the board and watch it work
 
-Attach one ESP32-C6 board. Then run:
+This step needs a physical ESP32-C6 on a Linux machine. Skip it otherwise and keep the hardware fields pending.
+
+Attach one board, then run:
 
 ```text
 ./course device flash
@@ -230,7 +176,7 @@ Attach one ESP32-C6 board. Then run:
 
 The command refuses to continue when no board is attached, or when more than one Espressif board is attached. It writes normal flash only. It runs no eFuse, secure boot, or flash encryption command.
 
-Watch the device with:
+Watch the device:
 
 ```text
 ./course device logs
@@ -255,7 +201,7 @@ The device repeats this exchange every 30 seconds. Every status report crosses t
 
 ## Run the fixtures
 
-Run:
+Run each one:
 
 ```text
 ./course attack run tier-00/plaintext-inspection --execute tier-00/plaintext-inspection
@@ -264,18 +210,18 @@ Run:
 ./course attack run tier-00/altered-image --execute tier-00/altered-image
 ```
 
-Expected host results:
+Expected final line of each:
 
-| Fixture | Expected result |
+| Fixture | Expected result line |
 | --- | --- |
-| Plaintext inspection | Release fields and firmware bytes are readable |
-| Device-ID spoofing | The service accepts the second synthetic identifier from the body |
-| Service impersonation | Generated device configuration accepts the marker-matching HTTP service |
-| Altered image | The altered unsigned image is generated and served |
+| `tier-00/plaintext-inspection` | `Result: plaintext release version 0.0.0-insecure and 47 firmware bytes were readable` |
+| `tier-00/device-id-spoofing` | `Result: service accepted the spoofed manifest-owned device identifier` |
+| `tier-00/service-impersonation` | `Result: marker-matching HTTP service impersonation supplied a hostile mutable release record` |
+| `tier-00/altered-image` | `Result: altered unsigned image was built for the board and delivered by the service` |
 
-Each run writes JSON under `artifacts/generated/attacks/`.
+Each run prints `Reset result: passed` and writes a JSON record under `artifacts/generated/attacks/`.
 
-Each run resets the service to the Tier 0 seed.
+Each run resets the service to the Tier 0 seed when it finishes. The insecure state does not persist by accident.
 
 Without a board, the altered-image record must state that physical acceptance and execution are pending.
 
@@ -295,7 +241,7 @@ Start the log view in a second terminal:
 ./course device logs
 ```
 
-Then publish the altered image as the current release:
+Then publish the altered image as the current release. The fixture holds the insecure state only while it runs, so give the device time to poll:
 
 ```text
 ./course attack run tier-00/altered-image --execute tier-00/altered-image --hold 200
@@ -331,7 +277,9 @@ Running release: tier-00-altered
 Beacon state: fast, toggle period: 200 ms
 ```
 
-The device accepted firmware from an unauthenticated service, with no signature and no publisher identity. Nothing in Tier 0 could have stopped it.
+The device accepted firmware from an unauthenticated service, with no signature and no publisher identity. Nothing in Tier 0 could have stopped it. That is `T0-W-04`.
+
+The permanent overwrite is `T0-W-07`. There was no test boot and no way back.
 
 Return the device to the baseline:
 
@@ -339,9 +287,9 @@ Return the device to the baseline:
 ./course attack reset tier-00/altered-image
 ```
 
-The service assigns the baseline release again. The device installs it on its next poll and reports `Image label: baseline`. Note what this shows: Tier 0 also accepts an older release, because it has no anti-rollback policy. That weakness is `T0-W-06`.
+The service assigns the baseline release again. The device installs it on its next poll and reports `Image label: baseline`.
 
-The fixture holds the insecure state only while it runs. Give the device time to poll by adding `--hold <seconds>`, for example `--hold 200`. Without a hold, the fixture restores the baseline release before any device can read the altered one.
+Notice what the reset just proved. The device accepted an older release over a newer one without complaint, because Tier 0 has no anti-rollback policy. That is `T0-W-06`, and you demonstrated it by undoing your own attack.
 
 Record what you observed in the accepted-image record. Set `device_flash`, `device_boot`, and `serial_record` to your observation. Keep `led_behavior` pending, because the validated board cannot drive its onboard LED.
 
@@ -349,13 +297,15 @@ Record what you observed in the accepted-image record. Set `device_flash`, `devi
 
 No security control is added in Tier 0.
 
-The same host fixtures still produce the insecure effects after reset.
+The same fixtures still produce the same insecure effects after reset. Nothing you did in this tier changed that, because this tier adds nothing to change it.
 
-Tier 1 will turn these observations into threats, requirements, claims, and planned controls.
+Tier 1 will turn these observations into threats, requirements, Security claims, and planned controls. It will not make the attacks fail either. The first tier that stops an attack is Tier 2.
 
 ## Test safety and failure behavior
 
-Run:
+The fixtures are supposed to refuse unsafe instructions. Confirm that they do.
+
+Point a fixture at a third-party address:
 
 ```text
 ./course attack run tier-00/plaintext-inspection --target http://example.com --execute tier-00/plaintext-inspection
@@ -367,7 +317,11 @@ Expected result:
 refused: DNS names other than localhost are refused
 ```
 
-Run a fixture with the wrong execution identifier.
+Run a fixture with the wrong execution identifier:
+
+```text
+./course attack run tier-00/plaintext-inspection --execute tier-00/altered-image
+```
 
 Expected result:
 
@@ -375,27 +329,33 @@ Expected result:
 refused: --execute value must exactly match the fixture identifier
 ```
 
-If reset fails, the fixture is blocked.
+If a reset fails, the fixture is blocked and refuses to run again. Run the exact reset command it names before another attempt.
 
-Run the exact reset command before another attempt.
+Record these three refusals. A control that refuses correctly is evidence, exactly like an attack that succeeds.
 
 ## Weakness ledger after the work
 
-| Weakness | Observed result | Status | Evidence |
+| Identifier | Observed result | Status | Evidence |
 | --- | --- | --- | --- |
-| HTTP has no confidentiality | Metadata and image bytes are readable | Open | Plaintext fixture JSON |
-| Body device identifier is trusted | Spoofed identifier is accepted | Open | Device-ID fixture JSON |
-| Service is not authenticated | Impersonation record is accepted | Open | Impersonation fixture JSON |
-| Firmware has no authenticity check | Altered image is delivered | Open | Altered-image fixture JSON |
-| Physical altered-image execution | The board ran the altered image | Open | Accepted-image record |
+| T0-W-01 | Metadata and image bytes were readable | Open | Plaintext fixture JSON |
+| T0-W-02 | The spoofed identifier was accepted | Open | Device-ID fixture JSON |
+| T0-W-03 | The impersonation record was accepted | Open | Impersonation fixture JSON |
+| T0-W-04 | The altered image was delivered and run | Open | Altered-image fixture JSON, accepted-image record |
+| T0-W-05 | The replaced release record was served | Open | Altered-image fixture JSON |
+| T0-W-06 | The device installed the older release | Open | Serial record after reset |
+| T0-W-07 | The install overwrote the running image with no revert | Open | Serial record during install |
+
+Every weakness stays open. Tier 0 closes nothing, by design.
+
+This table states the result you should expect to observe. If you observed something different, record what you actually saw and raise it with a Mentor. Do not edit the observation to match the table.
 
 ## Security claim and evidence status
 
-Tier 0 makes no positive security claim.
+Tier 0 makes no positive Security claim.
 
 The supported statement is limited to what you observed: the local service and fixtures reproduce the intended insecure effects.
 
-Without a board, the firmware build supports only a build claim for the pinned target, and physical flash, serial output, Wi-Fi behavior, and altered-image execution stay pending.
+Without a board, the firmware build supports only a build claim for the pinned target. Physical flash, serial output, Wi-Fi behavior, and altered-image execution stay pending.
 
 With a board, you can record flash, serial output, Wi-Fi association, the HTTP exchange, the OTA download, and altered-image execution as observed. LED behavior stays pending, because the validated board cannot drive its onboard LED.
 
@@ -413,20 +373,20 @@ cp evidence/templates/tier-00/*.json evidence/learner/tier-00/
 
 The context command prints the current source revision, Course environment identifier, marker fingerprint, and latest fixture evidence paths.
 
-Do not edit the files under `evidence/examples/`.
+Do not edit the files under `evidence/examples/`. They show the shape only.
 
 Update:
 
 - The baseline architecture.
 - The captured HTTP exchange.
-- The accepted-image record with hardware fields still pending when not observed.
+- The accepted-image record, with hardware fields still pending when not observed.
 - The deliberately absent controls.
 - `created_at`, `source_revision`, `environment.environment_id`, and `environment.marker_fingerprint` in every record.
 - The fixture evidence paths.
 
-Set the architecture, HTTP exchange, and absent-controls records to `observed`. Keep the accepted-image record `pending` when no physical ESP32-C6 was used. Do not replace a pending hardware field with a host-only result.
+Set the architecture, HTTP exchange, and absent-controls records to `observed`. Keep the accepted-image record `pending` when no physical ESP32-C6 was used. Never replace a pending hardware field with a host-only result.
 
-Run:
+Then run:
 
 ```text
 ./course evidence check
@@ -442,12 +402,13 @@ Learner Tier 0 evidence is complete and bound to the current revision and Course
 
 | Observation | First check |
 | --- | --- |
-| Both runtimes qualify | Repeat setup with `--runtime docker` or `--runtime podman` |
-| The service does not start | Run `./course service status` and inspect the printed compose command |
-| Marker mismatch | Stop the service, run setup again, then start the service |
-| A fixture stays blocked | Run `./course attack reset <fixture>` |
-| Firmware build cannot find West | Set `ZEPHYR_WORKSPACE` to the pinned external workspace |
+| The service does not start | Run `./course service status`, then read `.course-state/ota.log` |
+| The service is already running | Run `./course service stop` first |
+| Marker mismatch | Stop the service, run `./course setup` again, then start the service |
+| A fixture stays blocked | Run `./course attack reset <fixture>` exactly as the fixture printed it |
+| The board never reaches the service | Confirm `./course setup --bind` used your machine's private address, not loopback |
 | No serial device exists | Keep hardware results pending |
+| The container refuses to start | Attach the board before opening the editor, or remove the `--device` line |
 
 ## Informal Mentor conversation
 
@@ -455,22 +416,22 @@ Tier 0 has no required Mentor review gate.
 
 You may still ask a Mentor to review the architecture and one uncomfortable limitation.
 
-Show the host fixture evidence and explain why it does not prove physical device behavior.
+Show the fixture evidence and explain why it does not prove physical device behavior.
 
-## Transition to Tier 1
+Explain which of the seven weaknesses you demonstrated directly, and which you inferred from a reset.
 
-Keep this Course workspace.
+## Continue
 
-Tier 1 will continue on the same Learner branch and workspace after the Tier 0 completion checkpoint is published.
+Keep this Course workspace. Tier 1 continues on the same branch.
 
-The checkpoint names are `course-v1.0-tier-00-start` and `course-v1.0-tier-00-complete`.
+Next: **Tier 1: Model the product and its risks**.
 
-Issue 28 owns checkpoint publication, so this implementation does not create or move those tags.
-
-Next: **Model the product and its risks**.
+Tier 1 adds no control and changes no code. It turns everything you just observed into a model of the product, its assets, its actors, and its risks, and it ends at the first Mentor review gate.
 
 ## Primary references
 
-- [Zephyr device management OTA overview](https://docs.zephyrproject.org/4.4.2/services/device_mgmt/ota.html), required explanatory reading, whole page.
-- [MCUboot readme for Zephyr](https://docs.mcuboot.com/readme-zephyr.html), required explanatory reading, the Building and Signing the application sections.
-- [Zephyr device firmware upgrade with MCUboot](https://docs.zephyrproject.org/4.4.2/services/device_mgmt/dfu.html), optional explanatory reading, the MCUboot and image management sections.
+| Reading | Level | Type | Learning question | Where to read |
+| --- | --- | --- | --- | --- |
+| [Zephyr device management, OTA overview](https://docs.zephyrproject.org/4.4.2/services/device_mgmt/ota.html) | Required | Explanatory | What are the parts of an OTA update path, and where can it fail when nothing is secured? | The whole page |
+| [MCUboot, readme for Zephyr](https://docs.mcuboot.com/readme-zephyr.html) | Required | Explanatory | How does MCUboot pick and run an image, and what does an unsigned configuration allow? | The Building and Signing the application sections |
+| [Zephyr device firmware upgrade with MCUboot](https://docs.zephyrproject.org/4.4.2/services/device_mgmt/dfu.html) | Optional | Explanatory | How does Zephyr hand a downloaded image to MCUboot? | The MCUboot and image management sections |

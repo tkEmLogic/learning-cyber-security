@@ -1585,8 +1585,8 @@ func (a *app) validateRepository() error {
 	for _, path := range []string{
 		"evidence/schemas/course-manifest.schema.json",
 		"evidence/schemas/tier-00-evidence.schema.json",
+		"course-material/index.md",
 		"course-material/tiers/tier-00-unsecured/index.md",
-		"course-material/tiers/tier-00-unsecured/weakness-ledger.md",
 	} {
 		if _, err := os.Stat(filepath.Join(a.root, path)); err != nil {
 			return fmt.Errorf("required path missing: %s", path)
