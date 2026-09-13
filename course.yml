@@ -198,6 +198,19 @@ evidence:
       template: evidence/templates/tier-01/mentor-review-record.md
       format: markdown
       learner_path: evidence/learner/tier-01/mentor-review-record.md
+  tier_02:
+    - id: packet-evidence
+      template: evidence/templates/tier-02/packet-evidence.md
+      format: markdown
+      learner_path: evidence/learner/tier-02/packet-evidence.md
+    - id: certificate-validation-tests
+      template: evidence/templates/tier-02/certificate-validation-tests.md
+      format: markdown
+      learner_path: evidence/learner/tier-02/certificate-validation-tests.md
+    - id: claim-and-residual-risk
+      template: evidence/templates/tier-02/claim-and-residual-risk.md
+      format: markdown
+      learner_path: evidence/learner/tier-02/claim-and-residual-risk.md
 
 safety:
   synthetic_data_only: true
@@ -306,6 +319,10 @@ tiers:
       - tier-02/plaintext-inspection
       - tier-02/service-impersonation
       - tier-02/name-mismatch
+    evidence:
+      - packet-evidence
+      - certificate-validation-tests
+      - claim-and-residual-risk
     mentor_review: not_required
     destructive: false
     irreversible: false

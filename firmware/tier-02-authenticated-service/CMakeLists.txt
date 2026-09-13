@@ -18,8 +18,13 @@ test_sysbuild()
 # repository then still builds standalone, and the resulting image refuses to
 # connect and says why. An image that trusts nothing is the right failure: the
 # alternative is an image that trusts anything.
-if(DEFINED COURSE_CA_INC_DIR)
-	zephyr_include_directories(${COURSE_CA_INC_DIR})
+# The directory arrives in the environment rather than as a CMake cache
+# variable. Sysbuild keeps an image-scoped -D<image>_VAR in its own cache and
+# does not forward an arbitrary one into the image build, so a cache variable
+# silently produced an image with no anchor. The environment reaches every
+# image's configure step.
+if(DEFINED ENV{COURSE_CA_INC_DIR})
+	zephyr_include_directories($ENV{COURSE_CA_INC_DIR})
 else()
 	zephyr_include_directories(anchor)
 endif()

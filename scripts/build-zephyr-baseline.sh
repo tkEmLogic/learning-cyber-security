@@ -68,8 +68,12 @@ if [[ -n "${COURSE_CA_INC_DIR:-}" ]]; then
 		printf 'Generated trust anchor is missing: %s/course_ca_der.inc\n' "$COURSE_CA_INC_DIR" >&2
 		exit 1
 	fi
-	anchor_abs="$(cd "$COURSE_CA_INC_DIR" && pwd)"
-	cmake_args+=("-D${app_name}_COURSE_CA_INC_DIR=$anchor_abs")
+	# Exported rather than passed as a CMake cache variable: sysbuild keeps an
+	# image-scoped -D<image>_VAR in its own cache and does not forward it into
+	# the image build, which produced an image with no trust anchor and no
+	# error. The environment reaches every image's configure step.
+	COURSE_CA_INC_DIR="$(cd "$COURSE_CA_INC_DIR" && pwd)"
+	export COURSE_CA_INC_DIR
 fi
 
 # MCUboot needs its console routed to the USB-Serial/JTAG peripheral too,

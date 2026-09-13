@@ -43,7 +43,7 @@ changes.
 | --- | --- | --- |
 | Baseline | Tier 0 | Builds the unsecured product. No control to add, no attack to defeat. Records the successful attack as its result. |
 | Analysis | Tier 1 | Produces analysis artifacts. Changes no code and adds no control. Reclassifies the Tier 0 observation against threats, requirements, and planned controls. |
-| Control | Tier 2 to Tier 9, Advanced Tier A, Advanced Tier B | Reproduces an attack, adds one focused control, replays the attack, tests bypasses. |
+| Control | Tier 2 to Tier 9, Advanced Tier A, Advanced Tier B | Reproduces an attack, adds one focused control, replays the attack, tests bypasses. Tier 2 is the worked example; see "What a control tier learned from Tier 2". |
 
 Tier 10 uses a fourth shape for integrated diagnosis and regression. It is not
 covered here, because nothing on the current map writes it.
@@ -231,6 +231,44 @@ Only these five sections differ between variants.
 An analysis tier must state in its Scenario and its Learning result that
 it changes no code and adds no control, so a Learner does not expect the device
 to behave differently afterwards.
+
+## What a control tier learned from Tier 2
+
+Tier 2 was the first tier to use the Control variant against a real control.
+Five things came out of it that the template did not say, and every control
+tier from Tier 3 onward should assume them.
+
+**Section 10 needs the point of refusal, and the fixture has to supply it.** A
+replay that prints `refused` has replaced one verdict with another. The fixture
+must print which check ran, what it compared, and what it rejected, and the
+module quotes those three lines. If the fixture cannot say them, fix the
+fixture before writing the module. That is the same rule as "show the
+mechanism", applied to a control instead of an attack.
+
+**One bypass per half of the control.** A control is rarely one check. Tier 2's
+is two, a chain check and a name check, and each bypass isolates one of them so
+the Learner sees that both are load bearing. A single bypass that fails both at
+once teaches neither. Write section 11 by asking what the control checks, then
+defeating each answer separately.
+
+**Section 13 usually moves a claim rather than supporting it.** Tier 2 moves
+`SC-03` from `unsupported` to `partly supported` and names the gap and the tier
+that closes it. A control tier that reports a claim as supported should be
+read twice: it usually means the claim was written too small, or a host result
+was allowed to stand for a device result.
+
+**A control tier inherits a control and must say what it did not touch.** Tier
+2's ledger marks one weakness reduced rather than closed, because something is
+still readable and that was a choice. Leaving a row honest is worth more than
+a page of closed rows. The Scenario and section 13 both have to state what the
+new control does not do, because a Learner who overreads a control is the
+specification's stated failure criterion for several tiers.
+
+**Predict and reveal did not carry over, and that is fine.** Tier 1's companion
+answers page suits a tier whose work is reasoning. A control tier's work is
+running and reading, and its answers arrive as real output rather than as a
+page to compare against. Do not add an answers page to a control tier unless
+the tier asks the Learner to design something.
 
 ## Companion answers page
 

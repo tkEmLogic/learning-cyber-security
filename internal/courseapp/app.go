@@ -1265,28 +1265,41 @@ func (a *app) fallbackSerialDevice(prefix string) (string, error) {
 
 func (a *app) deviceFlash(args []string) error {
 	name := "baseline"
+	tier := "00"
 	for len(args) > 0 {
-		if args[0] != "--variant" {
+		if len(args) < 2 {
+			return fmt.Errorf("option %s requires a value", args[0])
+		}
+		switch args[0] {
+		case "--variant":
+			name = args[1]
+		case "--tier":
+			tier = normalizeTier(args[1])
+		default:
 			return fmt.Errorf("unknown flash option %s", args[0])
 		}
-		if len(args) < 2 {
-			return errors.New("option --variant requires baseline or altered")
-		}
-		name = args[1]
 		args = args[2:]
 	}
-	variant, ok := firmwareVariants[name]
+	variants := firmwareVariants
+	if tier == "02" {
+		variants = tier02Variants
+	}
+	variant, ok := variants[name]
 	if !ok {
-		return fmt.Errorf("unknown firmware variant %q; use baseline or altered", name)
+		return fmt.Errorf("unknown firmware variant %q for tier %s", name, tier)
+	}
+	appDir, ok := firmwareApps[tier]
+	if !ok {
+		return fmt.Errorf("tier %s has no firmware application", tier)
 	}
 
 	device, err := a.selectSerialDevice()
 	if err != nil {
 		return err
 	}
-	buildDir := filepath.Join(a.zephyrWorkspace(), "build", "reference-product-"+variant.label)
+	buildDir := filepath.Join(a.zephyrWorkspace(), "build", filepath.Base(appDir)+"-"+variant.label)
 	if _, err := os.Stat(filepath.Join(buildDir, "domains.yaml")); err != nil {
-		return fmt.Errorf("no sysbuild output for the %s image; run ./course build firmware --variant %s first", variant.label, variant.label)
+		return fmt.Errorf("no sysbuild output for the tier %s %s image; run ./course build firmware --tier %s --variant %s first", tier, variant.label, tier, variant.label)
 	}
 
 	workspace := a.zephyrWorkspace()
@@ -2072,12 +2085,13 @@ func (a *app) validateRepository() error {
 		"course-material/tiers/tier-00-unsecured/index.md",
 		"course-material/tiers/tier-01-threat-model/index.md",
 		"course-material/tiers/tier-01-threat-model/answers.md",
+		"course-material/tiers/tier-02-authenticated-https/index.md",
 	} {
 		if _, err := os.Stat(filepath.Join(a.root, path)); err != nil {
 			return fmt.Errorf("required path missing: %s", path)
 		}
 	}
-	fmt.Fprintln(a.out, "Result: course.yml and the required Tier 0 and Tier 1 repository paths are valid")
+	fmt.Fprintln(a.out, "Result: course.yml and the required Tier 0, Tier 1, and Tier 2 repository paths are valid")
 	return a.validateBundledEvidence()
 }
 
