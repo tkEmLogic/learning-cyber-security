@@ -61,7 +61,7 @@ You need a Course environment with certificate material. Run setup again, from t
 Expected result includes these two lines:
 
 ```text
-Wrote: Course certificate authority 0618f9407f57e451 in .course-secrets/pki
+Wrote: Course certificate authority 9287bc8a7ad1339e in .course-secrets/pki
 Wrote: service certificate for ota.course.example, and the two certificates the Tier 2 bypass tests need
 ```
 
@@ -160,10 +160,10 @@ The Course certificate authority. Generated for this Course environment, and not
   Issuer:       Learning Cyber Security Course CA
   DNS names:    none
   IP addresses: none
-  Valid from:   2026-09-13T21:57:53Z
-  Valid until:  2036-09-10T22:57:53Z
+  Valid from:   2026-09-13T22:05:36Z
+  Valid until:  2036-09-10T23:05:36Z
   Key:          ECDSA
-  Fingerprint:  0618f9407f57e451
+  Fingerprint:  9287bc8a7ad1339e
 ```
 
 The subject and the issuer are the same, which is what makes it a root. Nothing signed it, so nothing vouches for it, and the only reason your device will ever believe it is that you are about to compile it into the image yourself.
@@ -176,10 +176,9 @@ The certificate the service presents:
   Issuer:       Learning Cyber Security Course CA
   DNS names:    [ota.course.example]
   IP addresses: none
-  Valid from:   2026-09-13T21:57:53Z
-  Valid until:  2036-09-10T22:57:53Z
+  Valid from:   2026-09-13T22:05:36Z
+  Valid until:  2036-09-10T23:05:36Z
   Key:          ECDSA
-  Fingerprint:  a71f33340f596203
 ```
 
 Two details in that block decide how the rest of this tier behaves.
@@ -237,11 +236,34 @@ Result: built baseline release tier-02-baseline, 663276 bytes
 
 Your size will be within a few bytes of that. Compare it with Tier 0's 590396: TLS costs about seventy thousand bytes of flash on this target, and takes static RAM from roughly 37 percent to roughly 50 percent. That is not free, it fits the existing flash map with room to spare, and it is worth knowing the number rather than guessing it.
 
-Then flash it:
+Then flash it and watch it start:
 
 ```text
 ./course device flash --tier 02
+./course device logs
 ```
+
+Press the board's reset button. Expected result:
+
+```text
+ESP32-C6 Reference product: Tier 2, authenticated service connection
+Image label: baseline
+Running release: tier-02-baseline
+Board: esp32c6_devkitc/esp32c6/hpcore
+Tier 2 boot mode: unsigned MCUboot, overwrite only, no rollback
+Tier 2 protects the connection. It does not make an image authentic.
+Synthetic shared device identifier: beacon-development-shared
+OTA service: https://ota.course.example:8443 at address 192.168.68.81
+Trust anchor: 9287bc8a7ad1339e
+```
+
+Two lines there are worth a second look.
+
+The service line names both: `ota.course.example` is what the certificate must say, and `192.168.68.81` is where the socket goes. They are different things and this device needs both.
+
+The trust anchor line is the fingerprint of the authority compiled into this image. Compare it with the one `./course service certificate` printed. If they ever differ, the board was built against a different Course environment, and every connection will fail for a reason that otherwise looks like a broken network.
+
+Leave the log view with Ctrl-].
 
 ### What the device does not check, and why
 
@@ -346,6 +368,27 @@ In Tier 0 this attack needed nothing but an address. Now it needs a private key 
 
 `T0-W-03` is closed.
 
+### Replay 3: watch the device itself
+
+The two replays above are the host checking a certificate. The check that matters runs on the device, and nothing on the host can stand in for it.
+
+With the service running normally, watch the board:
+
+```text
+./course device logs
+```
+
+Expected result:
+
+```text
+ota.tls verified ota.course.example at 192.168.68.81:8443, connection established
+ota.tls verified ota.course.example at 192.168.68.81:8443, connection established
+ota.assignment release_id=tier-02-baseline version=0.2.0-authenticated image=tier-02-baseline.bin
+ota.assignment matches the running release, nothing to install
+```
+
+That is the whole exchange it used to do in the clear, now done over a connection it verified for itself. The device named the service, checked the certificate against the anchor it carries, and only then asked for its update assignment.
+
 ## Test bypass attempts
 
 Two ways around the check, each isolating one half of it.
@@ -369,6 +412,58 @@ This certificate was genuinely issued by the authority your device trusts. Every
 ```
 
 Notice which check did not fail. The chain was fine. The authority was the right one. Only the name was wrong, and a device that verified the issuer and skipped the name would have accepted this without complaint. That is the single most common way this control is deployed broken in real products.
+
+### The device's own refusals
+
+Both bypasses above ran on the host. Now make the device refuse, which is the only result that supports a claim about the device.
+
+The course can make the service present the wrong certificate on purpose. Stop it and start it again holding the untrusted one:
+
+```text
+./course service stop
+./course service start --https --present untrusted
+./course device logs
+```
+
+Within one poll interval the board says exactly which check refused it:
+
+```text
+ota.tls refused the connection to 192.168.68.81:8443 errno=113
+ota.tls required name ota.course.example issued by the trust anchor in this image
+ota.tls verification flags 0x00000008
+ota.tls  the certificate was not issued by the trust anchor in this image
+ota.tls  compared: the certificate issuer against the Course certificate authority
+ota.tls no release data was read, and the running image is unchanged
+```
+
+Then the other half:
+
+```text
+./course service stop
+./course service start --https --present wrong-name
+```
+
+```text
+ota.tls refused the connection to 192.168.68.81:8443 errno=113
+ota.tls required name ota.course.example issued by the trust anchor in this image
+ota.tls verification flags 0x00000004
+ota.tls  the certificate does not carry the name this device requires
+ota.tls  compared: the certificate names against ota.course.example
+ota.tls no release data was read, and the running image is unchanged
+```
+
+Compare the two flag values. `0x08` is the chain check failing and `0x04` is the name check failing. They are different bits because they are different checks, and the device tells you which one ran out of patience with you.
+
+Read the last line of each block. The device refused, read nothing, and kept running the image it already had. A device that fails an update check and keeps working is behaving correctly. One that stops is a different bug.
+
+Now put the real certificate back and watch it recover:
+
+```text
+./course service stop
+./course service start --https
+```
+
+The board returns to `ota.tls verified` on its next poll. The refusal was not a state the device got stuck in, and that matters: a control that cannot recover from a bad day in the field is an availability problem wearing a security badge.
 
 Record your results:
 
@@ -441,7 +536,7 @@ Set the host results to observed. Keep the two device rows, `E-2-06` and `E-2-07
 
 | Observation | First check |
 | --- | --- |
-| The board reports a connection timeout rather than a verification failure | The connection is not reaching the service. Check that the TLS port is published by the container and permitted by the host firewall |
+| The board reports `errno=116` and prints no verification flags | A timeout, not a refusal: the connection never reached the service, so nothing was verified. Check that the TLS port is published by the container and open in the host firewall. On Fedora, `sudo firewall-cmd --add-port=8443/tcp` |
 | The board says it trusts nothing | Its image was built without a trust anchor. Run `./course setup`, then `./course build firmware --tier 02`, then flash again |
 | The board's trust anchor fingerprint differs from `./course service certificate` | The image was built against a different Course environment. Rebuild and reflash |
 | A host tool fails with "doesn't contain any IP SANs" | It connected by address without stating the name. That is correct behavior, not a fault |

@@ -246,6 +246,16 @@ verification:
       ota_download: validated
       altered_image_execution: validated
       led_behavior: unavailable_on_validated_board
+  tier_02:
+    command: [./scripts/verify-tier-00.sh]
+    receipt: .course-state/receipts/tier-02.json
+    revision_bound: true
+    hardware:
+      tls_handshake_verified: validated
+      untrusted_certificate_refused: validated
+      wrong_name_certificate_refused: validated
+      recovery_after_refusal: validated
+      certificate_dates_checked: not_checked_no_clock
 
 tiers:
   "00":

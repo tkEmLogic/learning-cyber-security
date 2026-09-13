@@ -143,6 +143,8 @@ Private key material for every certificate above lives only under `.course-secre
 
 The two refusals require the physical ESP32-C6, because the refusal under test is the device's. Host validation may prove that a fixture offers the right certificate and that the guardrails hold. It may not claim that the device refused anything it was never offered.
 
+The device's own refusal is produced by `./course service start --https --present untrusted` or `--present wrong-name`, which makes the real service hold one of the two failing certificates so a board can be watched refusing it. The service says loudly that it is doing so, and starting it again without `--present` restores the genuine certificate. Neither certificate is ever installed into any trust store.
+
 ## Capture rules
 
 A fixture may capture traffic only under these bounds.

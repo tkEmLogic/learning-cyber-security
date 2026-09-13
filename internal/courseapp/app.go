@@ -928,13 +928,25 @@ func (a *app) service(args []string) error {
 	switch args[0] {
 	case "start":
 		https := false
-		for _, arg := range args[1:] {
-			if arg != "--https" {
-				return fmt.Errorf("unknown service start option %s", arg)
+		present := ""
+		for i := 1; i < len(args); i++ {
+			switch args[i] {
+			case "--https":
+				https = true
+			case "--present":
+				if i+1 >= len(args) {
+					return errors.New("--present requires service, untrusted, or wrong-name")
+				}
+				present = args[i+1]
+				i++
+			default:
+				return fmt.Errorf("unknown service start option %s", args[i])
 			}
-			https = true
 		}
-		return a.serviceStart(https)
+		if present != "" && !https {
+			return errors.New("--present applies only with --https")
+		}
+		return a.serviceStart(https, present)
 	case "stop":
 		return a.serviceStop()
 	case "status":
@@ -992,7 +1004,19 @@ func (a *app) serviceMode() string {
 	return strings.TrimSpace(string(data))
 }
 
-func (a *app) serviceStart(https bool) error {
+// presentedCertificate maps the name a Learner types to the material the
+// service will hold.
+//
+// The two wrong ones exist so the device can be watched refusing them. They are
+// the only way to test the device's half of this control, because the check
+// runs on the device and nothing on the host can stand in for it.
+var presentedCertificate = map[string][2]string{
+	"service":    {coursepki.ServiceCert, coursepki.ServiceKey},
+	"untrusted":  {coursepki.UntrustedCert, coursepki.UntrustedKey},
+	"wrong-name": {coursepki.WrongNameCert, coursepki.WrongNameKey},
+}
+
+func (a *app) serviceStart(https bool, present string) error {
 	if _, running := a.runningService(); running {
 		return errors.New("the OTA service is already running; run ./course service stop first")
 	}
@@ -1017,6 +1041,13 @@ func (a *app) serviceStart(https bool) error {
 			return errors.New("no Course certificate authority exists; run ./course setup first")
 		}
 		arguments = append(arguments, "--https")
+		if present == "" {
+			present = "service"
+		}
+		if present != "service" {
+			fmt.Fprintf(a.out, "This service will present the %s certificate on purpose, so a device can be watched refusing it.\n", present)
+			fmt.Fprintln(a.out, "Nothing that verifies correctly will talk to it. Start it again without --present to return to normal.")
+		}
 	}
 	fmt.Fprintf(a.out, "+ %s %s\n", binary, strings.Join(arguments, " "))
 	command := exec.Command(binary, arguments...)
@@ -1038,10 +1069,14 @@ func (a *app) serviceStart(https bool) error {
 		"COURSE_RELEASE_DIR="+filepath.Join(a.root, a.manifest.Paths.GeneratedArtifacts, "releases"),
 	)
 	if https {
+		material, ok := presentedCertificate[present]
+		if !ok {
+			return fmt.Errorf("unknown certificate %q; use service, untrusted, or wrong-name", present)
+		}
 		command.Env = append(command.Env,
 			"COURSE_TLS_PORT="+strconv.Itoa(a.manifest.Runtime.TLSPort),
-			"COURSE_TLS_CERT="+filepath.Join(a.pkiDir(), coursepki.ServiceCert),
-			"COURSE_TLS_KEY="+filepath.Join(a.pkiDir(), coursepki.ServiceKey),
+			"COURSE_TLS_CERT="+filepath.Join(a.pkiDir(), material[0]),
+			"COURSE_TLS_KEY="+filepath.Join(a.pkiDir(), material[1]),
 			"COURSE_SERVICE_NAME="+coursepki.ServiceName,
 		)
 	}
