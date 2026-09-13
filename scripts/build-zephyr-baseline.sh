@@ -5,7 +5,20 @@ set -euo pipefail
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 workspace=${ZEPHYR_WORKSPACE:-"$(dirname "$repo_root")/zephyr-v4.4.2"}
 build_dir=${ZEPHYR_BUILD_DIR:-"$workspace/build/reference-product-baseline"}
-app_dir="$repo_root/firmware/reference-product-baseline"
+
+# COURSE_FIRMWARE_APP selects which tier's application is built, as a path
+# relative to the repository root. It defaults to Tier 0, so the command and
+# the output quoted on the published Tier 0 page stay exactly as they are.
+#
+# The script keeps its name for the same reason.
+app_rel=${COURSE_FIRMWARE_APP:-firmware/reference-product-baseline}
+app_dir="$repo_root/$app_rel"
+app_name=$(basename "$app_dir")
+
+if [[ ! -f "$app_dir/CMakeLists.txt" ]]; then
+	printf 'No firmware application at %s\n' "$app_dir" >&2
+	exit 1
+fi
 west="$workspace/.venv/bin/west"
 
 if [[ ! -x "$west" || ! -d "$workspace/zephyr" || ! -d "$workspace/zephyr-sdk-1.0.1" ]]; then
@@ -43,7 +56,20 @@ if [[ -n "${COURSE_FIRMWARE_CONF:-}" ]]; then
 		exit 1
 	fi
 	extra_conf_abs="$(cd "$(dirname "$COURSE_FIRMWARE_CONF")" && pwd)/$(basename "$COURSE_FIRMWARE_CONF")"
-	cmake_args+=("-Dreference-product-baseline_EXTRA_CONF_FILE=$extra_conf_abs")
+	cmake_args+=("-D${app_name}_EXTRA_CONF_FILE=$extra_conf_abs")
+fi
+
+# COURSE_CA_INC_DIR holds the generated trust anchor for tiers that verify a
+# service certificate. Tier 0 never sets it. A tier that needs an anchor and
+# does not get one falls back to its own empty anchor and produces an image
+# that trusts nothing, which it says on the console.
+if [[ -n "${COURSE_CA_INC_DIR:-}" ]]; then
+	if [[ ! -f "$COURSE_CA_INC_DIR/course_ca_der.inc" ]]; then
+		printf 'Generated trust anchor is missing: %s/course_ca_der.inc\n' "$COURSE_CA_INC_DIR" >&2
+		exit 1
+	fi
+	anchor_abs="$(cd "$COURSE_CA_INC_DIR" && pwd)"
+	cmake_args+=("-D${app_name}_COURSE_CA_INC_DIR=$anchor_abs")
 fi
 
 # MCUboot needs its console routed to the USB-Serial/JTAG peripheral too,

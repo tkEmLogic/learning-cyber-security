@@ -175,3 +175,54 @@ func writeTestJSON(t *testing.T, path string, value any) {
 		t.Fatal(err)
 	}
 }
+
+// The marker must stay reachable in the clear in every tier, because a safety
+// check cannot depend on the control it is used to test. The data endpoints
+// must leave the plain listener and say where they went.
+func TestPublicHandlerKeepsTheMarkerAndMovesTheData(t *testing.T) {
+	server := newTestServer(t)
+
+	for _, path := range []string{"/health", "/.well-known/course-environment"} {
+		recorder := httptest.NewRecorder()
+		server.PublicHandler(8443, "ota.course.example").ServeHTTP(
+			recorder, httptest.NewRequest(http.MethodGet, path, nil))
+		if recorder.Code != http.StatusOK {
+			t.Errorf("%s on the plain listener = %d, want 200", path, recorder.Code)
+		}
+	}
+
+	recorder := httptest.NewRecorder()
+	server.PublicHandler(8443, "ota.course.example").ServeHTTP(
+		recorder, httptest.NewRequest(http.MethodGet, "/v1/releases/current", nil))
+	if recorder.Code != http.StatusNotFound {
+		t.Fatalf("release record on the plain listener = %d, want 404", recorder.Code)
+	}
+	if !strings.Contains(recorder.Body.String(), "ota.course.example:8443") {
+		t.Fatalf("the refusal must say where the endpoint went, got %s", recorder.Body.String())
+	}
+}
+
+func TestDataHandlerDoesNotServeTheMarker(t *testing.T) {
+	server := newTestServer(t)
+	recorder := httptest.NewRecorder()
+	server.DataHandler().ServeHTTP(
+		recorder, httptest.NewRequest(http.MethodGet, "/.well-known/course-environment", nil))
+	if recorder.Code == http.StatusOK {
+		t.Fatal("the marker must not be served behind TLS; the fixtures read it in the clear")
+	}
+}
+
+func newTestServer(t *testing.T) *Server {
+	t.Helper()
+	server, err := New(Config{
+		CourseID:      "learning-cyber-security",
+		EnvironmentID: "test-environment",
+		Tier:          "02",
+		StateDir:      t.TempDir(),
+		ReleaseDir:    t.TempDir(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return server
+}

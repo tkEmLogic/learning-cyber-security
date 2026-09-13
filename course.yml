@@ -10,7 +10,10 @@ runtime:
   bind_default: 127.0.0.1
   private_bind_allowed: true
   ota_port: 8080
+  ota_tls_port: 8443
   impersonation_port: 18080
+  impersonation_tls_port: 18443
+  service_name: ota.course.example
 
 paths:
   state: .course-state
