@@ -60,7 +60,7 @@ jobs:
             --mr v4.4.2 \
             "$ZEPHYR_WORKSPACE"
           cd "$ZEPHYR_WORKSPACE"
-          "$ZEPHYR_WORKSPACE/.venv/bin/west" update hal_espressif mcuboot mbedtls
+          "$ZEPHYR_WORKSPACE/.venv/bin/west" update hal_espressif mcuboot mbedtls tf-psa-crypto
           "$ZEPHYR_WORKSPACE/.venv/bin/west" packages pip --install
           "$ZEPHYR_WORKSPACE/.venv/bin/west" zephyr-export
           "$ZEPHYR_WORKSPACE/.venv/bin/west" blobs fetch hal_espressif
