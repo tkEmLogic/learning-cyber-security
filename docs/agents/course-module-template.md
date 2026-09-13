@@ -86,6 +86,27 @@ fixtures are separate jobs.
 Level-3 headings are optional everywhere except section 7, which always opens
 with `### Predict`.
 
+## Show the mechanism, not the verdict
+
+This applies to the module and to the command it drives, and it is the rule
+most likely to be broken by accident.
+
+A command that performs an attack silently and prints `Result: it worked`
+teaches nothing. The Learner sees an outcome and has to take it on faith.
+
+Every course command that demonstrates something must narrate it: the numbered
+steps it takes, each request it sends, each answer it gets back, and what each
+answer means. The final result line is the summary, not the lesson.
+
+If the command cannot explain itself, fix the command before writing the
+module around it. The module quotes the command's real output, so the two are
+one piece of work rather than two.
+
+The same rule governs a control tier's procedure. Adding a control is not
+running three commands and reporting success. Show what changed, show the
+check now happening that was not happening before, and show what the attacker
+sees when it fails.
+
 ## What belongs in each section
 
 **2. Scenario.** Set the situation before naming the problem. Say what the
@@ -118,9 +139,23 @@ Planned treatment. Identifiers use the form `TN-W-01`. This table is inherited
 context, so it is not the Learner's own work.
 
 **7. Reproduce the attack or observation.** Opens with `### Predict` and a
-numbered list of questions the Learner answers before running anything. Then
-the commands that stage and run the attack, each with its expected result in a
-fenced block. End with a list of what to record.
+numbered list of questions the Learner answers before running anything. Then a
+`### Look before you act` subsection showing a dry run. Then **one subsection
+per attack**, not one list of commands. End with what the attacks share and
+what to record.
+
+Each attack subsection follows the same four beats:
+
+1. One or two sentences on what the attack targets and why it can work.
+2. The command.
+3. The part of its real output that carries the lesson, in a fenced block.
+   Quote what the command actually prints. Never write output from memory.
+4. What it means, including what it would cost outside the lab, and the
+   Weakness ledger identifiers it demonstrates with the tier that closes each.
+
+Never present an attack as one command and one result line. A Learner who
+types a command and reads a verdict has watched a magic trick. The lesson is
+in the request, the answer, and the reason the answer was given.
 
 **8. Investigate the missing boundary.** A numbered list of questions about who
 authenticated what and where the check should happen. Then a trust boundary
@@ -132,9 +167,11 @@ diagram, because a reader who cannot see the diagram still needs the answer.
 where to run each command. Show the expected result after every important step.
 Separate required work from optional exploration.
 
-**10. Replay.** Rerun the same attack and show the changed result. Then one
-paragraph stating plainly what the attacker still controls and what they no
-longer achieve.
+**10. Replay.** Rerun the same attack and show the changed result, quoting the
+real output the way section 7 does. Show the point of refusal, not only that a
+refusal happened: which check ran, what it compared, and what it rejected.
+Then one paragraph stating plainly what the attacker still controls and what
+they no longer achieve.
 
 **11. Bypass or failure tests.** A pipe table with columns Evidence ID, Test,
 Expected result, Actual result, and the Actual result column left empty for the
@@ -177,7 +214,7 @@ Only these five sections differ between variants.
 
 | Section | Baseline | Analysis | Control |
 | --- | --- | --- | --- |
-| 7 Reproduce | Run the fixtures and record that they succeed. The attack working is the expected result. | Reread the Tier 0 evidence. Nothing is run. | Run the attack against the inherited product. |
+| 7 Reproduce | Run the fixtures and record that they succeed. The attack working is the expected result. | Reread the Tier 0 evidence. Nothing is run, so the subsections explain records rather than requests. | Run the attack against the inherited product. |
 | 9 The work | Build the product and run the fixtures. Often two level-2 sections. | Produce the analysis artifacts: product and asset model, actors, trust boundaries, misuse scenarios, risk register, claims, planned controls. | Add one focused control, then publish and install an approved release. |
 | 10 Replay | State that no control exists yet and link forward to the next tier. | Reclassify the same observation against threats, requirements, and planned controls. Do not claim technical rejection. | Rerun the attack and show it failing. |
 | 11 Tests | Safety and failure behavior, not bypasses. | Completeness of the analysis, such as every asset and actor appearing in the risk register. | Bypass attempts against the new control. |
@@ -220,4 +257,5 @@ to behave differently afterwards.
 4. Check that no em dash remains.
 5. Check that every canonical term matches `CONTEXT.md`.
 6. Check that each fact appears in exactly one place in the module.
-7. Paste it into Docmost and check that the structure survives.
+7. Check that every attack shows its steps and its real output, not a verdict.
+8. Paste it into Docmost and check that the structure survives.
