@@ -41,7 +41,12 @@
   // label=disable is needed on SELinux hosts such as Fedora. Without it the
   // container is denied access to tty_device_t and every flash attempt fails
   // with a permission error that looks like a missing group.
+  // The OTA service runs as a plain process inside this container. Publishing
+  // 8080 on every host address lets a physical ESP32-C6 reach it over the
+  // host's private network. Loopback would be enough for host-only work but
+  // would make the board unreachable, which is the whole Tier 0 exercise.
   "runArgs": [
+    "--publish=0.0.0.0:8080:8080",
     "--group-add=keep-groups",
     "--security-opt=label=disable",
     "--device=${localEnv:ESP32_SERIAL_DEVICE:/dev/ttyACM0}",

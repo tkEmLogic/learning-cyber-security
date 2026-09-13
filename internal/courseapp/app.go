@@ -19,6 +19,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -32,16 +33,10 @@ type manifest struct {
 		EnvironmentMarkerTTLHours int    `yaml:"environment_marker_ttl_hours"`
 	} `yaml:"course"`
 	Runtime struct {
-		Selection          string `yaml:"selection"`
 		BindDefault        string `yaml:"bind_default"`
 		PrivateBindAllowed bool   `yaml:"private_bind_allowed"`
 		OTAPort            int    `yaml:"ota_port"`
 		ImpersonationPort  int    `yaml:"impersonation_port"`
-		Compose            struct {
-			File    string              `yaml:"file"`
-			Choices map[string][]string `yaml:"choices"`
-			Probes  map[string][]string `yaml:"probes"`
-		} `yaml:"compose"`
 	} `yaml:"runtime"`
 	Paths struct {
 		State              string   `yaml:"state"`
@@ -52,11 +47,10 @@ type manifest struct {
 		CleanupAllowlist   []string `yaml:"cleanup_allowlist"`
 	} `yaml:"paths"`
 	Services map[string]struct {
-		Bind        string `yaml:"bind"`
-		Port        int    `yaml:"port"`
-		ComposeFile string `yaml:"compose_file"`
-		Health      string `yaml:"health"`
-		Marker      string `yaml:"marker"`
+		Bind   string `yaml:"bind"`
+		Port   int    `yaml:"port"`
+		Health string `yaml:"health"`
+		Marker string `yaml:"marker"`
 	} `yaml:"services"`
 	Devices map[string]struct {
 		SyntheticID        string   `yaml:"synthetic_id"`
@@ -200,8 +194,8 @@ func validateManifest(m manifest) error {
 	if m.SchemaVersion != 1 || m.Course.ID != "learning-cyber-security" || m.Course.Version == "" {
 		return errors.New("course.yml has an unsupported identity or schema version")
 	}
-	if m.Runtime.Selection != "explicit_if_ambiguous" {
-		return errors.New("course.yml must require explicit runtime selection when ambiguous")
+	if m.Runtime.OTAPort == 0 || m.Runtime.BindDefault == "" {
+		return errors.New("course.yml must define the OTA port and default bind address")
 	}
 	if len(m.Paths.CleanupAllowlist) != 4 || m.Safety.CleanupConfirmation == "" {
 		return errors.New("course.yml cleanup contract is incomplete")
@@ -287,13 +281,6 @@ func (a *app) doctor() error {
 	} else {
 		fmt.Fprintln(a.out, "  available")
 	}
-	available := a.availableRuntimes()
-	for _, runtime := range []string{"docker", "podman"} {
-		probe := a.manifest.Runtime.Compose.Probes[runtime]
-		command := append(append([]string{}, a.manifest.Runtime.Compose.Choices[runtime]...), "version")
-		fmt.Fprintf(a.out, "+ %s && %s\n", strings.Join(probe, " "), strings.Join(command, " "))
-		fmt.Fprintf(a.out, "  qualifies: %t\n", contains(available, runtime))
-	}
 	fmt.Fprintln(a.out, "+ find /dev/serial/by-id -maxdepth 1 -type l")
 	if entries, _ := filepath.Glob("/dev/serial/by-id/*"); len(entries) == 0 {
 		fmt.Fprintln(a.out, "  hardware: pending, no stable ESP32-C6 serial path detected")
@@ -303,18 +290,11 @@ func (a *app) doctor() error {
 		}
 		fmt.Fprintln(a.out, "  hardware: pending, serial candidates do not prove that an ESP32-C6 is connected")
 	}
-	if len(available) > 1 {
-		fmt.Fprintln(a.out, "Result: both runtimes qualify; setup requires --runtime docker or --runtime podman")
-	} else if len(available) == 1 {
-		fmt.Fprintf(a.out, "Result: runtime %s qualifies\n", available[0])
-	} else {
-		problems++
-		fmt.Fprintln(a.out, "Result: no compose runtime qualifies")
-	}
 	if problems != 0 {
 		return fmt.Errorf("%d required host checks failed", problems)
 	}
-	fmt.Fprintln(a.out, "Next: ./course setup --runtime <docker|podman>")
+	fmt.Fprintln(a.out, "Result: the course toolchain is available")
+	fmt.Fprintln(a.out, "Next: ./course setup")
 	return nil
 }
 
@@ -323,21 +303,8 @@ func (a *app) setup(args []string) error {
 	if err != nil {
 		return err
 	}
-	runtime, bind := options.runtime, options.bind
+	bind := options.bind
 	a.context("generated local Course environment")
-	available := a.availableRuntimes()
-	if runtime == "" {
-		if len(available) == 0 {
-			return errors.New("no Docker or Podman compose runtime qualifies")
-		}
-		if len(available) > 1 {
-			return errors.New("both Docker and Podman qualify; choose --runtime docker or --runtime podman")
-		}
-		runtime = available[0]
-	}
-	if !contains(available, runtime) {
-		return fmt.Errorf("runtime %q does not qualify", runtime)
-	}
 	if err := validateBind(bind); err != nil {
 		return err
 	}
@@ -356,11 +323,11 @@ func (a *app) setup(args []string) error {
 	if err := writeJSON(filepath.Join(a.root, a.manifest.Safety.MarkerPath), env, 0o600); err != nil {
 		return err
 	}
-	runtimeState := map[string]any{"schema_version": 1, "runtime": runtime, "compose_command": a.manifest.Runtime.Compose.Choices[runtime]}
-	if err := writeJSON(filepath.Join(a.root, a.manifest.Paths.State, "runtime.json"), runtimeState, 0o600); err != nil {
-		return err
-	}
-	serviceEnv := fmt.Sprintf("COURSE_ENVIRONMENT_ID=%s\nCOURSE_BIND=%s\nCOURSE_PORT=%d\n", id, bind, a.manifest.Runtime.OTAPort)
+	// COURSE_ADVERTISED_HOST is the address the Reference product uses to reach
+	// the service, which is this container's published port on the host. The
+	// service process itself always listens on every address inside the
+	// container, so the two are not the same value.
+	serviceEnv := fmt.Sprintf("COURSE_ENVIRONMENT_ID=%s\nCOURSE_ADVERTISED_HOST=%s\nCOURSE_PORT=%d\n", id, bind, a.manifest.Runtime.OTAPort)
 	if err := os.WriteFile(filepath.Join(a.root, a.manifest.Paths.State, "service.env"), []byte(serviceEnv), 0o600); err != nil {
 		return err
 	}
@@ -398,7 +365,7 @@ func (a *app) setup(args []string) error {
 	fmt.Fprintf(a.out, "Result: created synthetic Tier 0 environment %s\n", id)
 	fmt.Fprintf(a.out, "State: %s, %s\n", a.manifest.Paths.State, a.manifest.Paths.GeneratedArtifacts)
 	if isLoopback(bind) {
-		fmt.Fprintln(a.out, "Note: the service is bound to loopback, so a physical board cannot reach it.")
+		fmt.Fprintln(a.out, "Note: the service is advertised on loopback, so a physical board cannot reach it.")
 		fmt.Fprintln(a.out, "Note: run setup again with --bind <this host's private address> for hardware work.")
 	}
 	fmt.Fprintln(a.out, "Next: ./course service start")
@@ -446,7 +413,6 @@ func isLoopback(bind string) bool {
 }
 
 type setupOptions struct {
-	runtime  string
 	bind     string
 	wifiSSID string
 	wifiPSK  string
@@ -459,8 +425,6 @@ func parseSetupArgs(args []string) (setupOptions, error) {
 			return options, fmt.Errorf("option %s requires a value", args[0])
 		}
 		switch args[0] {
-		case "--runtime":
-			options.runtime = args[1]
 		case "--bind":
 			options.bind = args[1]
 		case "--wifi-ssid":
@@ -472,9 +436,6 @@ func parseSetupArgs(args []string) (setupOptions, error) {
 		}
 		args = args[2:]
 	}
-	if options.runtime != "" && options.runtime != "docker" && options.runtime != "podman" {
-		return options, errors.New("--runtime must be docker or podman")
-	}
 	if (options.wifiSSID == "") != (options.wifiPSK == "") {
 		return options, errors.New("--wifi-ssid and --wifi-psk must be given together")
 	}
@@ -482,20 +443,6 @@ func parseSetupArgs(args []string) (setupOptions, error) {
 		return options, errors.New("--wifi-psk must be a WPA2 passphrase of 8 to 63 characters")
 	}
 	return options, nil
-}
-
-func (a *app) availableRuntimes() []string {
-	var available []string
-	for _, name := range []string{"docker", "podman"} {
-		if runProbe(a.root, a.manifest.Runtime.Compose.Probes[name]) != nil {
-			continue
-		}
-		command := append(append([]string{}, a.manifest.Runtime.Compose.Choices[name]...), "version")
-		if runProbe(a.root, command) == nil {
-			available = append(available, name)
-		}
-	}
-	return available
 }
 
 func (a *app) tier(args []string) error {
@@ -832,65 +779,168 @@ func (a *app) publishFirmwareImage(variant firmwareVariant, buildDir string) (ma
 	return release, nil
 }
 
+// service manages the OTA service as a plain process inside the dev
+// container. The container publishes the port to the host, so a physical
+// ESP32-C6 reaches the service over the host's private address while this
+// process only ever listens inside the container.
 func (a *app) service(args []string) error {
 	if len(args) == 0 {
 		return errors.New("service requires start, stop, or status")
 	}
-	runtime, err := a.runtimeState()
-	if err != nil {
-		return err
-	}
-	compose := a.manifest.Runtime.Compose.Choices[runtime]
-	base := append(append([]string{}, compose...), "--env-file", filepath.Join(a.root, a.manifest.Paths.State, "service.env"), "-f", filepath.Join(a.root, a.manifest.Runtime.Compose.File))
 	switch args[0] {
 	case "start":
-		command := append(base, "up", "-d", "--build")
-		fmt.Fprintf(a.out, "+ %s\n", strings.Join(command, " "))
-		if err := runAttached(a.root, a.out, a.errOut, command[0], command[1:]...); err != nil {
-			return err
-		}
-		target, err := a.serviceURL()
-		if err != nil {
-			return err
-		}
-		for i := 0; i < 20; i++ {
-			if response, err := a.client.Get(target + "/health"); err == nil && response.StatusCode == http.StatusOK {
-				response.Body.Close()
-				fmt.Fprintln(a.out, "Result: OTA service is healthy")
-				fmt.Fprintln(a.out, "Next: ./course attack list")
-				return nil
-			}
-			time.Sleep(500 * time.Millisecond)
-		}
-		return errors.New("OTA service did not become healthy")
+		return a.serviceStart()
 	case "stop":
-		command := append(base, "down", "--remove-orphans")
-		fmt.Fprintf(a.out, "+ %s\n", strings.Join(command, " "))
-		return runAttached(a.root, a.out, a.errOut, command[0], command[1:]...)
+		return a.serviceStop()
 	case "status":
-		command := append(base, "ps")
-		fmt.Fprintf(a.out, "+ %s\n", strings.Join(command, " "))
-		if err := runAttached(a.root, a.out, a.errOut, command[0], command[1:]...); err != nil {
-			return err
-		}
-		target, err := a.serviceURL()
-		if err != nil {
-			return err
-		}
-		fmt.Fprintf(a.out, "+ curl --fail %s/health\n", target)
-		response, err := a.client.Get(target + "/health")
-		if err != nil {
-			return err
-		}
-		defer response.Body.Close()
-		if response.StatusCode != http.StatusOK {
-			return fmt.Errorf("health check returned %s", response.Status)
-		}
-		fmt.Fprintln(a.out, "Result: OTA service is healthy")
-		return nil
+		return a.serviceStatus()
 	default:
 		return fmt.Errorf("unknown service command %q", args[0])
 	}
+}
+
+func (a *app) servicePIDPath() string {
+	return filepath.Join(a.root, a.manifest.Paths.State, "ota.pid")
+}
+
+func (a *app) serviceLogPath() string {
+	return filepath.Join(a.root, a.manifest.Paths.State, "ota.log")
+}
+
+// runningService returns the supervised process when it is still alive. A
+// stale PID file is removed, because a container restart leaves one behind.
+func (a *app) runningService() (*os.Process, bool) {
+	data, err := os.ReadFile(a.servicePIDPath())
+	if err != nil {
+		return nil, false
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
+	if err != nil || pid <= 0 {
+		os.Remove(a.servicePIDPath())
+		return nil, false
+	}
+	process, err := os.FindProcess(pid)
+	if err != nil {
+		os.Remove(a.servicePIDPath())
+		return nil, false
+	}
+	if err := process.Signal(syscall.Signal(0)); err != nil {
+		os.Remove(a.servicePIDPath())
+		return nil, false
+	}
+	return process, true
+}
+
+func (a *app) serviceStart() error {
+	if _, running := a.runningService(); running {
+		return errors.New("the OTA service is already running; run ./course service stop first")
+	}
+	settings, err := a.serviceSettings()
+	if err != nil {
+		return err
+	}
+	binary := filepath.Join(a.root, a.manifest.Paths.Build, "ota")
+	build := []string{"go", "build", "-o", binary, "./services/ota/cmd/ota"}
+	fmt.Fprintf(a.out, "+ %s\n", strings.Join(build, " "))
+	if err := runAttached(a.root, a.out, a.errOut, build[0], build[1:]...); err != nil {
+		return err
+	}
+	log, err := os.OpenFile(a.serviceLogPath(), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+	if err != nil {
+		return err
+	}
+	defer log.Close()
+	fmt.Fprintf(a.out, "+ %s\n", binary)
+	command := exec.Command(binary)
+	command.Dir = a.root
+	command.Stdout = log
+	command.Stderr = log
+	// The service listens on every address inside the container. The container
+	// publishes the port, so this wildcard never reaches the host network by
+	// itself. COURSE_ALLOW_CONTAINER_WILDCARD tells the service that is
+	// deliberate rather than a misconfigured bind.
+	command.Env = append(os.Environ(),
+		"COURSE_ID="+a.manifest.Course.ID,
+		"COURSE_TIER=00",
+		"COURSE_ENVIRONMENT_ID="+settings.environmentID,
+		"COURSE_BIND=0.0.0.0",
+		"COURSE_ALLOW_CONTAINER_WILDCARD=1",
+		"COURSE_PORT="+settings.port,
+		"COURSE_STATE_DIR="+filepath.Join(a.root, a.manifest.Paths.State, "ota"),
+		"COURSE_RELEASE_DIR="+filepath.Join(a.root, a.manifest.Paths.GeneratedArtifacts, "releases"),
+	)
+	// A new process group keeps the service alive after ./course exits and
+	// lets stop signal the whole group.
+	command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	if err := command.Start(); err != nil {
+		return err
+	}
+	if err := os.WriteFile(a.servicePIDPath(), []byte(strconv.Itoa(command.Process.Pid)), 0o600); err != nil {
+		return err
+	}
+	go command.Wait()
+	target := a.serviceURL()
+	for i := 0; i < 40; i++ {
+		if response, err := a.client.Get(target + "/health"); err == nil && response.StatusCode == http.StatusOK {
+			response.Body.Close()
+			fmt.Fprintln(a.out, "Result: OTA service is healthy")
+			fmt.Fprintf(a.out, "Reachable by the Reference product at %s\n", a.advertisedURL(settings))
+			fmt.Fprintln(a.out, "Next: ./course attack list")
+			return nil
+		}
+		time.Sleep(250 * time.Millisecond)
+	}
+	a.serviceStop()
+	return fmt.Errorf("OTA service did not become healthy, see %s", a.serviceLogPath())
+}
+
+func (a *app) serviceStop() error {
+	process, running := a.runningService()
+	if !running {
+		fmt.Fprintln(a.out, "Result: the OTA service is not running")
+		return nil
+	}
+	fmt.Fprintf(a.out, "+ kill %d\n", process.Pid)
+	if err := syscall.Kill(-process.Pid, syscall.SIGTERM); err != nil && !errors.Is(err, syscall.ESRCH) {
+		return err
+	}
+	for i := 0; i < 40; i++ {
+		if _, still := a.runningService(); !still {
+			os.Remove(a.servicePIDPath())
+			fmt.Fprintln(a.out, "Result: the OTA service stopped")
+			return nil
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	syscall.Kill(-process.Pid, syscall.SIGKILL)
+	os.Remove(a.servicePIDPath())
+	fmt.Fprintln(a.out, "Result: the OTA service was forced to stop")
+	return nil
+}
+
+func (a *app) serviceStatus() error {
+	settings, err := a.serviceSettings()
+	if err != nil {
+		return err
+	}
+	process, running := a.runningService()
+	if !running {
+		return errors.New("the OTA service is not running; run ./course service start")
+	}
+	fmt.Fprintf(a.out, "Process: ota running as pid %d\n", process.Pid)
+	target := a.serviceURL()
+	fmt.Fprintf(a.out, "+ curl --fail %s/health\n", target)
+	response, err := a.client.Get(target + "/health")
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return fmt.Errorf("health check returned %s", response.Status)
+	}
+	fmt.Fprintln(a.out, "Result: OTA service is healthy")
+	fmt.Fprintf(a.out, "Reachable by the Reference product at %s\n", a.advertisedURL(settings))
+	return nil
 }
 
 func (a *app) device(args []string) error {
@@ -1059,9 +1109,7 @@ func (a *app) attackRun(args []string) error {
 	selectedInterface := f.Interface
 	interfaceSpecified := false
 	hold := 0
-	if serviceTarget, err := a.serviceURL(); err == nil {
-		target = serviceTarget
-	}
+	target = a.serviceURL()
 	for i := 1; i < len(args); i++ {
 		if i+1 >= len(args) {
 			return fmt.Errorf("option %s requires a value", args[i])
@@ -1743,12 +1791,10 @@ func (a *app) clean(args []string) error {
 	if confirmation != a.manifest.Safety.CleanupConfirmation {
 		return fmt.Errorf("typed confirmation required: %s", a.manifest.Safety.CleanupConfirmation)
 	}
-	if target, err := a.serviceURL(); err == nil {
-		if response, err := a.client.Get(target + "/health"); err == nil {
-			response.Body.Close()
-			if response.StatusCode == http.StatusOK {
-				return errors.New("the OTA service is still healthy; run ./course service stop before cleanup")
-			}
+	if response, err := a.client.Get(a.serviceURL() + "/health"); err == nil {
+		response.Body.Close()
+		if response.StatusCode == http.StatusOK {
+			return errors.New("the OTA service is still healthy; run ./course service stop before cleanup")
 		}
 	}
 	for _, relative := range existing {
@@ -1765,39 +1811,50 @@ func (a *app) clean(args []string) error {
 	return nil
 }
 
-func (a *app) runtimeState() (string, error) {
-	var state struct {
-		Runtime string `json:"runtime"`
-	}
-	if err := readJSON(filepath.Join(a.root, a.manifest.Paths.State, "runtime.json"), &state); err != nil {
-		return "", errors.New("run ./course setup before service commands")
-	}
-	if _, ok := a.manifest.Runtime.Compose.Choices[state.Runtime]; !ok {
-		return "", errors.New("generated runtime selection is invalid")
-	}
-	return state.Runtime, nil
+type serviceSettings struct {
+	environmentID string
+	advertised    string
+	port          string
 }
 
-func (a *app) serviceURL() (string, error) {
+func (a *app) serviceSettings() (serviceSettings, error) {
 	data, err := os.ReadFile(filepath.Join(a.root, a.manifest.Paths.State, "service.env"))
 	if err != nil {
-		return "", errors.New("run ./course setup first")
+		return serviceSettings{}, errors.New("run ./course setup first")
 	}
-	bind := "127.0.0.1"
-	port := strconv.Itoa(a.manifest.Runtime.OTAPort)
+	settings := serviceSettings{advertised: a.manifest.Runtime.BindDefault, port: strconv.Itoa(a.manifest.Runtime.OTAPort)}
 	for _, line := range strings.Split(string(data), "\n") {
 		key, value, ok := strings.Cut(line, "=")
 		if !ok {
 			continue
 		}
 		switch key {
-		case "COURSE_BIND":
-			bind = value
+		case "COURSE_ENVIRONMENT_ID":
+			settings.environmentID = value
+		case "COURSE_ADVERTISED_HOST":
+			settings.advertised = value
 		case "COURSE_PORT":
-			port = value
+			settings.port = value
 		}
 	}
-	return "http://" + net.JoinHostPort(bind, port), nil
+	return settings, nil
+}
+
+// serviceURL is how ./course itself reaches the service. The service runs in
+// the same container, so this is always loopback. It is not the address the
+// Reference product uses.
+func (a *app) serviceURL() string {
+	port := strconv.Itoa(a.manifest.Runtime.OTAPort)
+	if settings, err := a.serviceSettings(); err == nil {
+		port = settings.port
+	}
+	return "http://" + net.JoinHostPort("127.0.0.1", port)
+}
+
+// advertisedURL is the address a physical board uses: this container's
+// published port on the host, as chosen by ./course setup --bind.
+func (a *app) advertisedURL(settings serviceSettings) string {
+	return "http://" + net.JoinHostPort(settings.advertised, settings.port)
 }
 
 func validateBind(value string) error {

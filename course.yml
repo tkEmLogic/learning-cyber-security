@@ -7,19 +7,10 @@ course:
   environment_marker_ttl_hours: 24
 
 runtime:
-  selection: explicit_if_ambiguous
   bind_default: 127.0.0.1
   private_bind_allowed: true
   ota_port: 8080
   impersonation_port: 18080
-  compose:
-    file: services/ota/compose.yml
-    choices:
-      docker: [docker, compose]
-      podman: [podman, compose]
-    probes:
-      docker: [docker, info]
-      podman: [podman, info]
 
 paths:
   state: .course-state
@@ -61,9 +52,8 @@ components:
 services:
   ota:
     protocol: http
-    bind: 127.0.0.1
+    bind: 0.0.0.0
     port: 8080
-    compose_file: services/ota/compose.yml
     health: /health
     marker: /.well-known/course-environment
     state_path: .course-state/ota

@@ -29,7 +29,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - run: ./course setup --runtime docker
+      - run: ./course setup
       - run: ./course service start
       - run: ./course service status
       - run: ./course attack run tier-00/plaintext-inspection --execute tier-00/plaintext-inspection
@@ -50,25 +50,14 @@ jobs:
             ccache cmake device-tree-compiler file g++-multilib gcc-multilib \
             gperf libmagic1 libsdl2-dev make ninja-build python3-dev \
             python3-tk python3-venv wget xz-utils
+      # The dev container provisions the same workspace. Calling its script
+      # rather than repeating its steps keeps one source of truth: the two
+      # drifted once already and broke this job (see 5bf92f3).
       - name: Provision pinned workspace
         run: |
           export ZEPHYR_WORKSPACE="$GITHUB_WORKSPACE/../zephyr-v4.4.2"
-          python3 -m venv "$ZEPHYR_WORKSPACE/.venv"
-          "$ZEPHYR_WORKSPACE/.venv/bin/python" -m pip install --upgrade pip west
-          "$ZEPHYR_WORKSPACE/.venv/bin/west" init \
-            -m https://github.com/zephyrproject-rtos/zephyr.git \
-            --mr v4.4.2 \
-            "$ZEPHYR_WORKSPACE"
-          cd "$ZEPHYR_WORKSPACE"
-          "$ZEPHYR_WORKSPACE/.venv/bin/west" update hal_espressif mcuboot mbedtls tf-psa-crypto
-          "$ZEPHYR_WORKSPACE/.venv/bin/west" packages pip --install
-          "$ZEPHYR_WORKSPACE/.venv/bin/west" zephyr-export
-          "$ZEPHYR_WORKSPACE/.venv/bin/west" blobs fetch hal_espressif
-          cd "$ZEPHYR_WORKSPACE/zephyr"
-          "$ZEPHYR_WORKSPACE/.venv/bin/west" sdk install \
-            --version 1.0.1 \
-            --install-dir "$ZEPHYR_WORKSPACE/zephyr-sdk-1.0.1" \
-            --gnu-toolchains riscv64-zephyr-elf
+          export WORKSPACE_ROOT="$GITHUB_WORKSPACE"
+          bash .devcontainer/post-create.sh
       - name: Build pinned ESP32-C6 sysbuild
         run: |
           ZEPHYR_WORKSPACE="$GITHUB_WORKSPACE/../zephyr-v4.4.2" \

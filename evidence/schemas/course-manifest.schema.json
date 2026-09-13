@@ -39,13 +39,13 @@
     },
     "runtime": {
       "type": "object",
-      "required": ["selection", "bind_default", "compose"],
+      "required": ["bind_default", "ota_port"],
       "properties": {
-        "selection": {
-          "const": "explicit_if_ambiguous"
-        },
         "bind_default": {
           "const": "127.0.0.1"
+        },
+        "ota_port": {
+          "const": 8080
         }
       }
     },

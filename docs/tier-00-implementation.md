@@ -26,7 +26,7 @@ The current release record is mutable and unsigned.
 
 The service exposes an exact Course environment marker and explicit seed and reset endpoints.
 
-The service uses HTTP and binds to loopback through the compose port mapping by default.
+The service uses HTTP. It runs as a process inside the dev container, listening on every address there, and the container publishes the port to the host. `./course setup --bind` chooses the address the Reference product uses to reach it.
 
 ## Firmware boundary
 

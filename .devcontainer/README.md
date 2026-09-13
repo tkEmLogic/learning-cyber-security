@@ -4,6 +4,11 @@ This dev container gives every Tier 0 course session (host build, on-device
 flash, `./course` workflow) the same pinned Ubuntu 24.04 toolchain, instead of
 depending on whatever Python/CMake/west versions happen to be on the host.
 
+It is the development environment, not an option. Everything runs inside it,
+including the OTA service, so the host needs only a container engine and
+VS Code. See
+[issue #37](https://github.com/tkEmLogic/learning-cyber-security/issues/37).
+
 ## Why Podman
 
 The course's implementation stack decision
@@ -25,8 +30,42 @@ permissions without a Docker daemon running as root in the background.
    }
    ```
 
-3. (Optional) If you use `docker compose` semantics anywhere else, install
-   `podman-compose`; this dev container does not need it.
+3. Nothing else. The OTA service runs as a plain process inside the
+   container, so there is no compose file and no Docker or Podman runtime
+   choice to make.
+
+## Other platforms
+
+The default configuration targets Linux with Podman and an attached board,
+because that is the setup validated against hardware. The container still
+builds firmware and runs the OTA service and all four Tier 0 fixtures
+elsewhere, but physical flashing and serial logs are Linux only: macOS has no
+USB passthrough into the container engine's virtual machine, and Windows would
+need usbipd-win with WSL2, which nothing here has tested.
+
+Remove these `runArgs` from `devcontainer.json` first:
+
+| Platform | Remove |
+| --- | --- |
+| macOS | `--group-add=keep-groups`, `--security-opt=label=disable`, `--device=...`, both `/dev` volumes |
+| Windows | The same five lines |
+| Linux with Docker rather than Podman | `--group-add=keep-groups`, which is Podman-only on every platform |
+
+Keep `--publish`. The OTA service needs it everywhere.
+
+## The published service port
+
+`--publish=0.0.0.0:8080:8080` exposes the OTA service on every host address, so
+a physical ESP32-C6 can reach it over the host's private network. Tell the
+course which address the board should use:
+
+```bash
+./course setup --bind <this host's private address>
+```
+
+That address is what gets compiled into the firmware image. It is not where the
+service listens: the service always listens on every address inside the
+container, and the published port is what carries it to the host network.
 
 ## What's persisted, and where
 
@@ -71,6 +110,9 @@ without it.
 ./scripts/build-zephyr-baseline.sh
 "$ZEPHYR_WORKSPACE/.venv/bin/west" flash -d "$ZEPHYR_WORKSPACE/build/reference-product-baseline"
 ```
+
+The course wraps both as `./course build firmware` and `./course device flash`.
+`ZEPHYR_WORKSPACE` needs no prefix, because `containerEnv` already sets it.
 
 Pass the sysbuild top-level build directory (containing `domains.yaml`), not
 the nested per-domain directory — passing the wrong one silently skips

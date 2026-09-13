@@ -817,7 +817,7 @@ Source: resolved decision ticket [#16](https://github.com/tkEmLogic/learning-cyb
 
 ## 16. Command interface
 
-**Fixed decision.** Provide one repository-root command named `./course`. It is a thin, documented wrapper around existing ecosystem tools such as West, CMake, the selected Docker or Podman compose command, certificate tools, and test runners.
+**Fixed decision.** Provide one repository-root command named `./course`. It is a thin, documented wrapper around existing ecosystem tools such as West, CMake, certificate tools, and test runners. It also supervises the local OTA service process. An earlier version of this decision named a selected Docker or Podman compose command; the service moved inside the dev container in issue #38, which removed the compose file and the runtime choice.
 
 **Implementation requirement.** Required command groups are:
 

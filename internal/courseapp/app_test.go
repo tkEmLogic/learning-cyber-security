@@ -168,7 +168,7 @@ func TestCleanupRefusesWhileServiceIsHealthy(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(root, ".course-state"), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	serviceEnv := "COURSE_BIND=" + host + "\nCOURSE_PORT=" + port + "\n"
+	serviceEnv := "COURSE_ADVERTISED_HOST=" + host + "\nCOURSE_PORT=" + port + "\n"
 	if err := os.WriteFile(filepath.Join(root, ".course-state", "service.env"), []byte(serviceEnv), 0o600); err != nil {
 		t.Fatal(err)
 	}
