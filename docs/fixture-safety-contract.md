@@ -22,7 +22,11 @@ All device identifiers, firmware images, status values, and service records are 
 
 A fixture accepts one literal target.
 
-A fixture declares the scheme it may use in `course.yml`, and the target is validated against that declared value. A Tier 0 fixture cannot speak HTTPS, and a Tier 2 fixture cannot fall back to plain HTTP against a data endpoint. The scheme is an allowlisted manifest input like every other mutable value, never a Learner-supplied one.
+A fixture's target is always the plain endpoint that serves the Course environment marker. It is never an HTTPS URL, in any tier.
+
+This is stronger than the rule first written here, and it came out of building Tier 2. A fixture that needs the TLS endpoint derives it from the manifest: the same host, and the port and service name recorded in `course.yml`. Nothing about a TLS endpoint is ever supplied on a command line, so `validateTarget` keeps refusing every scheme but `http` and the guardrail loses nothing.
+
+A fixture that uses the TLS endpoint says so in `course.yml` with `uses_tls_port`. That flag decides which transport its reset travels over. It is an allowlisted manifest input like every other mutable value, never a Learner-supplied one.
 
 It never accepts a CIDR block, address range, wildcard, broadcast address, multicast address, or URL obtained through network discovery.
 
@@ -128,8 +132,7 @@ These rules bind the fixtures that Tier 2 will add, before they are written.
 | Fixture | Permitted action | Refused behavior |
 | --- | --- | --- |
 | Plaintext inspection, replayed | Ask the HTTP port for the release record and show that it is no longer served there, and capture the device's traffic on the TLS port to show that nothing after the handshake is readable. | Any attempt to recover plaintext by downgrading the service, disabling verification, or capturing outside the manifest-owned ports. |
-| Service impersonation, replayed | Start the manifest-owned impersonation service with its own untrusted certificate and point only the generated course configuration at it. | Supplying a certificate from outside the manifest, or installing any certificate into a trust store the Learner did not generate for this Course environment. |
-| Untrusted authority | Offer a validly formed certificate issued by an authority the device does not trust, and record the refusal. | Reusing the course authority's key, or producing a certificate that any other course component would accept. |
+| Service impersonation, replayed | Start the manifest-owned impersonation service holding a certificate for the right name from an authority the device does not trust, and point only the generated course configuration at it. This is also the untrusted-authority test: the two were separate rows here until building them showed they are one attack. | Supplying a certificate from outside the manifest, or installing any certificate into a trust store the Learner did not generate for this Course environment. |
 | Name mismatch | Offer a certificate issued by the trusted course authority that carries a different manifest-owned name, and record the refusal. | Learner-supplied names, wildcard names, or a name that resolves anywhere. |
 
 Every Tier 2 fixture keeps the Tier 0 guarantees without exception: one literal target, dry run first, exact execution identifier, marker match over plain HTTP, idempotent reset, and a machine-readable evidence record.
@@ -204,10 +207,10 @@ A rule with no named enforcement point is a wish. This table says where each rul
 | Marker handshake, and that it is plain HTTP | the attack runner, against `services.ota.marker` in `course.yml` | Enforced, and already plain HTTP because no other transport exists yet |
 | Idempotent reset and refusal after a failed reset | the attack runner, with `safety.refuse_after_failed_reset` in `course.yml` | Enforced |
 | Evidence record contents | `writeAttackEvidence` in `internal/courseapp/app.go` | Enforced |
-| Declared scheme per fixture | `validateTarget`, read from the fixture record in `course.yml` | Owed by [Rework the attacks so a Learner can watch the control refuse](https://github.com/tkEmLogic/learning-cyber-security/issues/45). `validateTarget` today hard-codes `http` |
-| Service name as a verification input, with the name in `course.yml` | the fixture runner and the firmware build | Owed by [Decide the course-local certificate authority and the service name](https://github.com/tkEmLogic/learning-cyber-security/issues/42) and its implementing tickets |
-| Transport mode per tier | the `--https` switch on the OTA service, selected from the tier record in `course.yml` | Owed by [Serve the course over HTTPS and generate the certificate authority](https://github.com/tkEmLogic/learning-cyber-security/issues/43) |
-| Capture bounds | the capture fixture, from manifest values only | Owed by [Rework the attacks so a Learner can watch the control refuse](https://github.com/tkEmLogic/learning-cyber-security/issues/45) |
-| Private keys confined to `.course-secrets/` | `scripts/check-secrets.sh` and the setup command | Partly enforced. `check-secrets.sh` runs today, and the key generation it must cover does not exist yet |
+| Targets are always plain, TLS endpoints are derived from the manifest | `validateTarget` in `internal/courseapp/app.go`, unchanged, plus `uses_tls_port` in `course.yml` | Enforced |
+| Service name as a verification input | `coursepki.ServiceName`, the firmware build, and `verifyingClient` in `internal/courseapp/tier02.go` | Enforced |
+| Transport mode per tier | the `--https` switch on the OTA service | Enforced |
+| Capture bounds | `captureExchange` in `internal/courseapp/tier02.go`, from manifest ports only, with the filter printed | Enforced, and skipped with an explanation when the container has no capture tool |
+| Private keys confined to `.course-secrets/` | `internal/coursepki`, `scripts/check-secrets.sh`, and `.gitignore` | Enforced |
 
 When a rule moves, this table moves with it.

@@ -51,6 +51,11 @@ components:
         release_id: tier-00-altered
         beacon_state: fast
         image: artifacts/generated/releases/tier-00-altered.bin
+      tier-02-baseline:
+        release_id: tier-02-baseline
+        beacon_state: steady
+        image: artifacts/generated/releases/tier-02-baseline.bin
+        app: firmware/tier-02-authenticated-service
 
 services:
   ota:
@@ -125,6 +130,37 @@ fixtures:
     reset: ./course attack reset tier-00/altered-image
     reset_keeps_built_image: true
     hardware_required: true
+  tier-02/plaintext-inspection:
+    tier: "02"
+    uses_tls_port: true
+    target: http://127.0.0.1:8080
+    interface: loopback
+    expected_effect: Release records left the plain HTTP port and are readable only over a verified connection.
+    changes:
+      - artifacts/generated/attacks/tier-02/plaintext-inspection
+    reset: ./course attack reset tier-02/plaintext-inspection
+    hardware_required: false
+  tier-02/service-impersonation:
+    tier: "02"
+    uses_tls_port: true
+    target: http://127.0.0.1:8080
+    interface: loopback
+    expected_effect: A certificate for the right name from an untrusted authority is refused.
+    changes:
+      - .course-state/device-config.json
+      - artifacts/generated/attacks/tier-02/service-impersonation
+    reset: ./course attack reset tier-02/service-impersonation
+    hardware_required: false
+  tier-02/name-mismatch:
+    tier: "02"
+    uses_tls_port: true
+    target: http://127.0.0.1:8080
+    interface: loopback
+    expected_effect: A certificate issued by the trusted authority for another name is refused.
+    changes:
+      - artifacts/generated/attacks/tier-02/name-mismatch
+    reset: ./course attack reset tier-02/name-mismatch
+    hardware_required: false
 
 evidence:
   schema_version: 1
@@ -255,11 +291,24 @@ tiers:
     title: Authenticate and encrypt the server connection
     kind: control
     track: core
-    status: planned
+    status: implemented
     start_checkpoint: course-v1.0-tier-01-complete
     complete_checkpoint: course-v1.0-tier-02-complete
     module: course-material/tiers/tier-02-authenticated-https/index.md
+    firmware_app: firmware/tier-02-authenticated-service
+    service_mode: https
     prerequisites: ["01"]
+    continue_same_workspace: true
+    components: [course_helper, ota_service, firmware]
+    services: [ota]
+    devices: [reference_beacon]
+    fixtures:
+      - tier-02/plaintext-inspection
+      - tier-02/service-impersonation
+      - tier-02/name-mismatch
+    mentor_review: not_required
+    destructive: false
+    irreversible: false
   "03":
     title: Require authentic firmware images
     kind: control

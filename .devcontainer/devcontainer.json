@@ -42,11 +42,22 @@
   // container is denied access to tty_device_t and every flash attempt fails
   // with a permission error that looks like a missing group.
   // The OTA service runs as a plain process inside this container. Publishing
-  // 8080 on every host address lets a physical ESP32-C6 reach it over the
-  // host's private network. Loopback would be enough for host-only work but
-  // would make the board unreachable, which is the whole Tier 0 exercise.
+  // 8080 and 8443 on every host address lets a physical ESP32-C6 reach it over
+  // the host's private network. Loopback would be enough for host-only work
+  // but would make the board unreachable, which is the whole Tier 0 exercise.
+  //
+  // Tier 0 uses 8080 alone. Tier 2 moves release records, firmware, and events
+  // to 8443 and leaves health and the course marker on 8080.
+  // NET_RAW is dropped from Podman's defaults since 4.4.0, and it is missing
+  // from the bounding set, so setcap inside the container cannot recover it.
+  // Without it the Tier 2 packet capture produces no file. The capability is
+  // scoped to this container and the capture itself is bounded by
+  // docs/fixture-safety-contract.md: one interface, manifest ports only, a
+  // filter the course builds, and no promiscuous mode.
   "runArgs": [
     "--publish=0.0.0.0:8080:8080",
+    "--publish=0.0.0.0:8443:8443",
+    "--cap-add=NET_RAW",
     "--group-add=keep-groups",
     "--security-opt=label=disable",
     "--device=${localEnv:ESP32_SERIAL_DEVICE:/dev/ttyACM0}",

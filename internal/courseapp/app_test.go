@@ -24,7 +24,7 @@ func TestTierListShowsPlannedUnavailableTiers(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("code=%d stderr=%s", code, stderr.String())
 	}
-	if !strings.Contains(stdout.String(), "00  IMPLEMENTED") || !strings.Contains(stdout.String(), "01  IMPLEMENTED") || !strings.Contains(stdout.String(), "02  PLANNED") || !strings.Contains(stdout.String(), "B  PLANNED") {
+	if !strings.Contains(stdout.String(), "00  IMPLEMENTED") || !strings.Contains(stdout.String(), "01  IMPLEMENTED") || !strings.Contains(stdout.String(), "02  IMPLEMENTED") || !strings.Contains(stdout.String(), "03  PLANNED") || !strings.Contains(stdout.String(), "B  PLANNED") {
 		t.Fatalf("unexpected tier list:\n%s", stdout.String())
 	}
 }

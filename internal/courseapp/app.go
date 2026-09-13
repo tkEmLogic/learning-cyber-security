@@ -35,11 +35,12 @@ type manifest struct {
 		EnvironmentMarkerTTLHours int    `yaml:"environment_marker_ttl_hours"`
 	} `yaml:"course"`
 	Runtime struct {
-		BindDefault        string `yaml:"bind_default"`
-		PrivateBindAllowed bool   `yaml:"private_bind_allowed"`
-		OTAPort            int    `yaml:"ota_port"`
-		TLSPort            int    `yaml:"ota_tls_port"`
-		ImpersonationPort  int    `yaml:"impersonation_port"`
+		BindDefault          string `yaml:"bind_default"`
+		PrivateBindAllowed   bool   `yaml:"private_bind_allowed"`
+		OTAPort              int    `yaml:"ota_port"`
+		TLSPort              int    `yaml:"ota_tls_port"`
+		ImpersonationPort    int    `yaml:"impersonation_port"`
+		ImpersonationTLSPort int    `yaml:"impersonation_tls_port"`
 	} `yaml:"runtime"`
 	Paths struct {
 		State              string   `yaml:"state"`
@@ -1402,13 +1403,19 @@ func (a *app) attackRun(args []string) error {
 	fmt.Fprintf(a.out, "Fixture: %s\nTarget: %s\nInterface: %s\n", id, target, selectedInterface)
 	fmt.Fprintf(a.out, "Marker matched: course_id=%s environment_id=%s tier=%s synthetic_data=%t\n", env.CourseID, env.EnvironmentID, env.Tier, env.SyntheticData)
 	fmt.Fprintf(a.out, "Expected insecure effect: %s\nChanges: %s\nReset: %s\n", f.ExpectedEffect, strings.Join(f.Changes, ", "), f.Reset)
-	if plan, ok := fixturePlan[id]; ok {
+	plans := fixturePlan
+	proofs := fixtureProves
+	if strings.HasPrefix(id, "tier-02/") {
+		plans = tier02Plan
+		proofs = tier02Proves
+	}
+	if plan, ok := plans[id]; ok {
 		fmt.Fprintln(a.out, "Plan:")
 		for i, line := range plan {
 			fmt.Fprintf(a.out, "  %d. %s\n", i+1, line)
 		}
 	}
-	if proves, ok := fixtureProves[id]; ok {
+	if proves, ok := proofs[id]; ok {
 		fmt.Fprintln(a.out, "Weaknesses this demonstrates:")
 		for _, line := range proves {
 			fmt.Fprintf(a.out, "  %s\n", line)
@@ -1534,6 +1541,38 @@ func (a *app) showBytes(body []byte) {
 
 // fixtureProves links each fixture to the Weakness ledger identifiers it
 // demonstrates, so the Learner never has to guess which row to fill in.
+var tier02Proves = map[string][]string{
+	"tier-02/plaintext-inspection": {
+		"T0-W-01  HTTP has no confidentiality. Closed for release data by this tier. The marker stays readable by design.",
+	},
+	"tier-02/service-impersonation": {
+		"T0-W-03  The device trusted an unauthenticated service. Closed by this tier.",
+	},
+	"tier-02/name-mismatch": {
+		"T0-W-03  The device trusted an unauthenticated service. This shows the second half of the check.",
+	},
+}
+
+var tier02Plan = map[string][]string{
+	"tier-02/plaintext-inspection": {
+		"Ask the plain HTTP port for the release record, as Tier 0 did, and show it is no longer there.",
+		"Ask the TLS port with the trust anchor and the required name, and read the record.",
+		"Ask the TLS port by address without the name, and watch it refused.",
+		"Record the bytes on the wire, if the container allows capture.",
+	},
+	"tier-02/service-impersonation": {
+		"Start a manifest-owned imposter holding a certificate for the right name from the wrong authority.",
+		"Point the generated device configuration at it.",
+		"Ask it for a release, checking the certificate the way the device does, and watch it refused.",
+		"Show the certificate it was holding.",
+	},
+	"tier-02/name-mismatch": {
+		"Serve a certificate genuinely issued by the trusted authority, for another name.",
+		"Connect requiring the name the device requires, and watch it refused.",
+		"Notice that the chain check passed and the name check did not.",
+	},
+}
+
 var fixtureProves = map[string][]string{
 	"tier-00/plaintext-inspection": {
 		"T0-W-01  HTTP has no confidentiality. Everything above was readable by anyone on this network.",
@@ -1640,6 +1679,12 @@ func (a *app) executeFixture(id, target string, env environment) (string, string
 		return "service accepted the spoofed manifest-owned device identifier", "", map[string]string{}, nil
 	case "tier-00/service-impersonation":
 		return a.runImpersonation(env, target)
+	case "tier-02/plaintext-inspection":
+		return a.runTier02PlaintextInspection(env, target)
+	case "tier-02/service-impersonation":
+		return a.runTier02Impersonation(env, target)
+	case "tier-02/name-mismatch":
+		return a.runTier02NameMismatch(env, target)
 	case "tier-00/altered-image":
 		a.step(1, "Take an altered, unsigned firmware image.")
 		release, image, runnable, err := a.alteredImageRelease()
@@ -1815,9 +1860,23 @@ func (a *app) resetFixture(id string) error {
 }
 
 func (a *app) resetFixtureState(id, target string, env environment) error {
-	request, _ := http.NewRequest(http.MethodPost, target+"/v1/lab/reset", nil)
+	// Tier 2 moved the lab endpoints behind TLS, so the reset goes there and
+	// verifies the certificate like everything else. The marker check that
+	// authorised this run stayed in the clear; the reset is data, and data
+	// travels the way the tier says data travels.
+	resetURL := target + "/v1/lab/reset"
+	client := a.client
+	if strings.HasPrefix(id, "tier-02/") {
+		pool, err := a.trustAnchorPool()
+		if err != nil {
+			return err
+		}
+		client = a.verifyingClient(pool, coursepki.ServiceName, a.tlsAddress(target))
+		resetURL = "https://" + coursepki.ServiceName + ":" + strconv.Itoa(a.manifest.Runtime.TLSPort) + "/v1/lab/reset"
+	}
+	request, _ := http.NewRequest(http.MethodPost, resetURL, nil)
 	request.Header.Set("X-Course-Environment-ID", env.EnvironmentID)
-	response, err := a.client.Do(request)
+	response, err := client.Do(request)
 	if err != nil {
 		return err
 	}
@@ -1825,7 +1884,7 @@ func (a *app) resetFixtureState(id, target string, env environment) error {
 	if response.StatusCode != http.StatusOK {
 		return fmt.Errorf("service reset returned %s", response.Status)
 	}
-	if id == "tier-00/service-impersonation" {
+	if id == "tier-00/service-impersonation" || id == "tier-02/service-impersonation" {
 		config := map[string]any{"schema_version": 1, "device_id": a.manifest.Devices["reference_beacon"].SyntheticID, "ota_url": target}
 		if err := writeJSON(filepath.Join(a.root, a.manifest.Paths.State, "device-config.json"), config, 0o600); err != nil {
 			return err
