@@ -19,6 +19,10 @@ The first round-trip showed that fenced Mermaid source remained intact but
 rendered as a code block in the tested Docmost sandbox. The selected candidate
 therefore uses a plain-text flow diagram.
 
+That finding is superseded. The live Docmost instance renders a fenced
+`mermaid` block as a diagram. Course material may use Mermaid. This prototype
+is left as written, because it is a record of what the round-trip found.
+
 ## Open the comparison
 
 Open `index.html` in a browser.

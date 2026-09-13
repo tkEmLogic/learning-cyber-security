@@ -10,8 +10,8 @@ if grep -RIn $'\u2014' "${paths[@]}"; then
 	exit 1
 fi
 
-if grep -RInE '```[[:space:]]*mermaid|<(div|span|section|article|table|script|style|img|br|details|summary)([[:space:]>])' "${paths[@]}"; then
-	printf 'Learner material contains Mermaid or raw HTML.\n' >&2
+if grep -RInE '<(div|span|section|article|table|script|style|img|br|details|summary)([[:space:]>])' "${paths[@]}"; then
+	printf 'Learner material contains raw HTML.\n' >&2
 	exit 1
 fi
 

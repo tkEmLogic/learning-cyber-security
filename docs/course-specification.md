@@ -704,7 +704,7 @@ Source: resolved decision ticket [#14](https://github.com/tkEmLogic/learning-cyb
 
 **Implementation requirement.** The headings stay consistent, but their expected content follows the tier variant from section 11. Tier 0 uses the procedure to build the baseline and records the successful attack as its result; its replay section says that no control exists yet and links forward to Tier 1. Tier 1 uses the procedure to create analysis artifacts and reclassifies the same observation against threats, requirements, and planned controls; it does not claim technical rejection. Tiers 2 through 9 and Advanced Tiers A and B use the full attack, control, replay, and bypass sequence. Tier 10 uses the procedure for integrated diagnosis and remediation, then reruns the affected fixture set as regression evidence.
 
-**Implementation requirement.** Use plain English, one source line per prose paragraph, simple pipe tables, fenced text blocks, and descriptive links. Use plain-text diagrams or imported images rather than relying on Mermaid rendering.
+**Implementation requirement.** Use plain English, one source line per prose paragraph, simple pipe tables, fenced text blocks, and descriptive links. Use Mermaid diagrams, plain-text diagrams, or imported images.
 
 ### Validated prototype
 
@@ -712,7 +712,7 @@ Source: resolved decision ticket [#14](https://github.com/tkEmLogic/learning-cyb
 
 ### Docmost round-trip validation
 
-**Implementation requirement.** The selected file was imported into a local Docmost sandbox, inspected, exported as Markdown, and compared with the source. Heading hierarchy, four pipe tables, fourteen fenced code blocks, a plain-text trust-boundary diagram, three external reference links, lists, blockquotes, bold text, and section order all survived correctly. Docmost normalized table separator spacing and whitespace in empty table cells, and it omitted the final newline. Neither change altered meaning or readability. A fenced Mermaid block survived export but rendered as source code rather than a diagram in the first import attempt, so the validated structure uses a plain-text diagram instead. Source line wrapping becomes a visible hard break on import, so every module keeps each prose paragraph on one source line.
+**Implementation requirement.** The selected file was imported into a local Docmost sandbox, inspected, exported as Markdown, and compared with the source. Heading hierarchy, four pipe tables, fourteen fenced code blocks, a plain-text trust-boundary diagram, three external reference links, lists, blockquotes, bold text, and section order all survived correctly. Docmost normalized table separator spacing and whitespace in empty table cells, and it omitted the final newline. Neither change altered meaning or readability. A fenced Mermaid block survived export but rendered as source code rather than a diagram in the first import attempt into the sandbox, so the validated prototype uses a plain-text diagram. That finding is superseded: the live Docmost instance renders a fenced `mermaid` block as a diagram, so Mermaid is permitted. Source line wrapping becomes a visible hard break on import, so every module keeps each prose paragraph on one source line.
 
 Source: resolved prototype ticket [#15](https://github.com/tkEmLogic/learning-cyber-security/issues/15).
 
@@ -872,7 +872,7 @@ Source: resolved decision ticket [#16](https://github.com/tkEmLogic/learning-cyb
 
 ## 18. Continuous integration
 
-**Implementation requirement.** Run on every pull request where practical: course Markdown and internal-link checks; plain-English and forbidden-format checks, including em dashes, raw HTML, hard-wrapped prose, and Mermaid fences; schema and cross-reference checks for `course.yml`, weakness ledgers, requirements, claims, and evidence metadata; secret scanning and checks for forbidden private-key files; firmware and bootloader builds for the changed configuration; OTA service tests; provisioning-tool tests with disposable keys; host-side attack-fixture and negative tests; and SBOM generation and known-vulnerability scan with recorded database time.
+**Implementation requirement.** Run on every pull request where practical: course Markdown and internal-link checks; plain-English and forbidden-format checks, including em dashes, raw HTML, and hard-wrapped prose; schema and cross-reference checks for `course.yml`, weakness ledgers, requirements, claims, and evidence metadata; secret scanning and checks for forbidden private-key files; firmware and bootloader builds for the changed configuration; OTA service tests; provisioning-tool tests with disposable keys; host-side attack-fixture and negative tests; and SBOM generation and known-vulnerability scan with recorded database time.
 
 **Implementation requirement.** A checkpoint-validation workflow reads `course.yml`, checks out each published checkpoint, and runs that tier's declared host-side build and verification commands. This proves that historical states remain reproducible without duplicating their source trees.
 
@@ -928,7 +928,7 @@ Source: resolved research ticket [#18](https://github.com/tkEmLogic/learning-cyb
 
 **Implementation requirement.** Use short, direct sentences, common words, active voice, and one main idea per sentence. Define a necessary technical term before using it without explanation. Avoid idioms, jokes, culture-specific references, and esoteric language. Do not use em dashes. Use a full stop, comma, colon, or a new sentence instead. Do not use a complex word when a simple word has the same meaning.
 
-**Implementation requirement.** Keep each prose paragraph on one source line, because the tested Docmost importer preserves source line wraps as visible hard breaks. Use normal headings, paragraphs, links, blockquotes, lists, and fenced code blocks. Use simple pipe tables. Avoid raw HTML, MDX, GitHub alert syntax, and deeply nested lists. Do not rely on Mermaid rendering, because a fenced Mermaid block survived Docmost export but rendered as source code rather than a diagram in course validation. Use a plain-text diagram, a simple table, or an imported image instead. Put essential meaning in text, even when a diagram also shows it. Use descriptive link text and relative links for repository content.
+**Implementation requirement.** Keep each prose paragraph on one source line, because the tested Docmost importer preserves source line wraps as visible hard breaks. Use normal headings, paragraphs, links, blockquotes, lists, and fenced code blocks. Use simple pipe tables. Avoid raw HTML, MDX, GitHub alert syntax, and deeply nested lists. Use a fenced `mermaid` block for flow and trust boundary diagrams, because the live Docmost instance renders Mermaid. A plain-text diagram, a simple table, or an imported image remains acceptable where it reads better. Put essential meaning in text, even when a diagram also shows it. Use descriptive link text and relative links for repository content.
 
 **Implementation requirement.** Give procedure steps in the order the Learner performs them. State where to run each command. Show the expected result after important steps. Explain destructive or irreversible actions before the command. Separate required work from optional exploration. Use the same name for a concept in every module, matching the terms in `CONTEXT.md`.
 
@@ -972,7 +972,7 @@ Source: resolved decision tickets [#2](https://github.com/tkEmLogic/learning-cyb
 | Advanced Tier A | Either published as hands-on after passing the validation gate in section 6, including separate bootloader-signing-key and firmware-release-key rotation tests for both image and Release-manifest verification, or clearly marked experimental with the specific failing checks named. |
 | Advanced Tier B | Either published as hands-on after passing the validation gate in section 9, or published as the guided comparison fallback. |
 | CRA evidence | The Tier 9 artifacts distinguish the 11 September 2026 reporting duties from the 11 December 2027 product duties, include separate actively-exploited-vulnerability and severe-incident scenarios with the correct 24-hour, 72-hour, and event-specific final deadlines, and state the product-specific legal review boundary from section 4. |
-| Formatting | No em dash, no raw HTML, no Mermaid fence, and no multi-line prose paragraph exists in any learner-facing or mentor-facing Markdown file. |
+| Formatting | No em dash, no raw HTML, and no multi-line prose paragraph exists in any learner-facing or mentor-facing Markdown file. |
 
 Source: synthesized from resolved decision tickets [#2](https://github.com/tkEmLogic/learning-cyber-security/issues/2) through [#16](https://github.com/tkEmLogic/learning-cyber-security/issues/16) and [#18](https://github.com/tkEmLogic/learning-cyber-security/issues/18).
 
