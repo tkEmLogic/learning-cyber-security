@@ -24,17 +24,78 @@ The course is a sequence of Hardening tiers. Each tier is one runnable state of 
 
 Tier 0 builds the product with no security at all. Every later tier adds exactly one control and proves that it works.
 
-| Tier | What it adds |
-| --- | --- |
-| Tier 0 | The unsecured baseline. Nothing is protected |
-| Tier 1 | Analysis only. A model of the product, its assets, and its risks |
-| Tier 2 and later | One security control each, with the attack that proves it |
-
 Each tier follows the same shape. You read an incident, reproduce the attack, find the missing trust boundary, add the control, replay the attack, and record what changed.
 
 You keep two records as you go. The Weakness ledger lists what is still broken. The Security evidence pack links every Security claim to the evidence that supports it.
 
 A Security claim is only as good as its evidence. When you did not observe something, you record it as pending. You never write down a result you did not see.
+
+## The tiers
+
+The core course is eleven tiers and about 43 hours of work. Two advanced tiers follow it for teams with disposable hardware.
+
+**Only Tier 0 is written and published today.** The rest of this table is the course plan. It is here so you can see where the work goes, not because you can start it yet.
+
+| Tier | What you add | The attack it answers | Time |
+| --- | --- | --- | --- |
+| Tier 0: Build the unsecured reference product | Nothing. This is the baseline with no security at all | Any local actor can read the traffic, imitate the service, and supply any firmware | 3 hours |
+| Tier 1: Model the product and its risks | Analysis only. Assets, actors, trust boundaries, and a risk register | Teams add controls without agreeing what they protect or who they defend against | 3 hours |
+| Tier 2: Authenticate and encrypt the server connection | HTTPS, a course-local service CA, certificate and hostname validation | Local eavesdropping, network modification, and service impersonation | 3 hours |
+| Tier 3: Require authentic firmware images | An offline release-signing key and real MCUboot signature checking | A trusted but compromised OTA service supplies an altered or unsigned image | 4 hours |
+| Tier 4: Protect release metadata and block downgrade | Signed release metadata and a security counter | Replay of an old signed image, and mutable metadata | 4 hours |
+| Tier 5: Make installation recoverable | Test boot, confirmation, and rollback | Power loss, a corrupted download, or a release that crashes on boot | 4 hours |
+| Tier 6: Replace shared identity with per-device factory identity | On-device key generation and a per-device Factory identity | One extracted shared credential impersonates every device | 4 hours |
+| Tier 7: Add owner-scoped operational identity and mutual TLS | A rotatable Operational identity and mutual TLS | Factory credentials overused for daily access, or an unclaimed device joining | 4 hours |
+| Tier 8: Operate the credential lifecycle | Rotation, renewal, revocation, ownership transfer, decommissioning | Expired, stolen, copied, or old-owner credentials that still work | 4 hours |
+| Tier 9: Manage dependencies, vulnerabilities, and support | An SBOM, vulnerability handling, disclosure, and reporting exercises | Unknown components, unreviewed vulnerabilities, and late reporting | 5 hours |
+| Tier 10: Defend the integrated reference product | No new control. Diagnose and repair the whole product under attack | A mixed campaign combining impersonation, replay, and interruption | 5 hours |
+| Advanced Tier A: Add a hardware-rooted boot chain and confidentiality | ESP32-C6 Secure Boot v2 and flash encryption | A physical attacker replaces the bootloader or reads flash | 6 to 8 hours |
+| Advanced Tier B: Isolate operational identity in STSAFE-A120 | A secure element that never exports its private keys | Key extraction from MCU storage, and misuse by compromised application code | 6 to 8 hours |
+
+The two advanced tiers make irreversible hardware changes. They require disposable boards and a Mentor before and after the change.
+
+## Mentor review gates
+
+A Mentor review gate is a scheduled conversation where you demonstrate a result, explain the security reasoning, and answer a prepared failure case. There is no grade.
+
+Six tiers end at a required gate:
+
+| After | Gate |
+| --- | --- |
+| Tier 1 | Readiness, before the implementation-heavy tiers begin |
+| Tier 3 | Firmware trust |
+| Tier 5 | Update recovery |
+| Tier 7 | Identity boundary |
+| Tier 9 | Lifecycle and evidence |
+| Tier 10 | Core course completion |
+
+Tier 0 has no gate. You may still ask a Mentor to look at your work.
+
+Completing the core course is an in-house learning milestone. It is not proof that you or the Reference product meet any external standard. Open risks may remain, and they should be visible rather than hidden.
+
+## Words this course uses
+
+The course uses these words in one fixed meaning. Every tier uses them the same way.
+
+| Word | Meaning |
+| --- | --- |
+| Learner | You. An embedded engineer new to applying security |
+| Mentor | An experienced engineer who reviews your work at defined points |
+| Mentor review gate | A scheduled review where you demonstrate a result and answer a failure case |
+| Reference product | The ESP32-C6 status beacon that every tier works on |
+| Hardening tier | One runnable state of the Reference product, adding one focused control |
+| Weakness ledger | Your record of what is still broken, what proves it, and which tier will fix it |
+| Security evidence pack | Your versioned set of claims, controls, tests, results, and residual risks |
+| Security claim | A specific, reviewable statement about a security property. Supported, partly supported, unsupported, or not applicable |
+| Residual risk | A risk that remains after the controls are applied, with its rationale and owner |
+| Lab artifact | A reviewable result showing what you designed, observed, or concluded |
+| Course workspace | Your own Git branch or worktree, created from a tier checkpoint |
+| Tier checkpoint | A fixed Git tag marking a tested runnable state at the start or end of a tier |
+| Course environment marker | A disposable identifier shared by the local service and the attack fixtures. A fixture refuses to run unless it matches |
+| OTA service | The local service that hands out update assignments, release metadata, and firmware images |
+| Release manifest | Metadata describing one firmware release: its hardware, version, size, and digest |
+| Factory identity | A permanent, manufacturer-issued identity for one physical device |
+| Operational identity | A rotatable per-device identity used for normal service access |
 
 ## Safety
 
@@ -197,3 +258,5 @@ The command removes only the exact list of paths named in `course.yml`.
 ## Where to go next
 
 Open the page named Tier 0: Build the unsecured reference product, and work through it from the top.
+
+It is the only tier published so far. When you finish it, you will have a working, deliberately insecure device, four demonstrated attacks, and the first entries in your Weakness ledger and Security evidence pack.
