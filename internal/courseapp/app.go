@@ -1152,6 +1152,18 @@ func (a *app) attackRun(args []string) error {
 	fmt.Fprintf(a.out, "Fixture: %s\nTarget: %s\nInterface: %s\n", id, target, selectedInterface)
 	fmt.Fprintf(a.out, "Marker matched: course_id=%s environment_id=%s tier=%s synthetic_data=%t\n", env.CourseID, env.EnvironmentID, env.Tier, env.SyntheticData)
 	fmt.Fprintf(a.out, "Expected insecure effect: %s\nChanges: %s\nReset: %s\n", f.ExpectedEffect, strings.Join(f.Changes, ", "), f.Reset)
+	if plan, ok := fixturePlan[id]; ok {
+		fmt.Fprintln(a.out, "Plan:")
+		for i, line := range plan {
+			fmt.Fprintf(a.out, "  %d. %s\n", i+1, line)
+		}
+	}
+	if proves, ok := fixtureProves[id]; ok {
+		fmt.Fprintln(a.out, "Weaknesses this demonstrates:")
+		for _, line := range proves {
+			fmt.Fprintf(a.out, "  %s\n", line)
+		}
+	}
 	if executeID == "" {
 		fmt.Fprintln(a.out, "Result: dry run only")
 		fmt.Fprintf(a.out, "Execute: ./course attack run %s --execute %s\n", id, id)
@@ -1207,14 +1219,127 @@ func (a *app) attackRun(args []string) error {
 	return nil
 }
 
+// An attack a Learner cannot see teaches nothing. These helpers narrate a
+// fixture as it runs: every request it sends, every answer it gets back, and
+// what each one means. The Result line at the end is the summary, not the
+// lesson.
+
+func (a *app) step(number int, what string) {
+	fmt.Fprintf(a.out, "\nStep %d. %s\n", number, what)
+}
+
+func (a *app) sent(method, target string) {
+	fmt.Fprintf(a.out, "  -> %s %s\n", method, target)
+}
+
+func (a *app) sentBody(label string, value any) {
+	fmt.Fprintf(a.out, "     %s\n", label)
+	a.showJSON(value)
+}
+
+func (a *app) got(format string, args ...any) {
+	fmt.Fprintf(a.out, "  <- %s\n", fmt.Sprintf(format, args...))
+}
+
+func (a *app) note(format string, args ...any) {
+	fmt.Fprintf(a.out, "     %s\n", fmt.Sprintf(format, args...))
+}
+
+func (a *app) showJSON(value any) {
+	data, err := json.MarshalIndent(value, "     ", "  ")
+	if err != nil {
+		return
+	}
+	fmt.Fprintf(a.out, "     %s\n", string(data))
+}
+
+// showBytes shows what the image looks like on the wire. Text content is
+// printed as text; a compiled image is printed as hex, because a screen of
+// dots teaches nothing. Either way the point is that it is readable at all.
+func (a *app) showBytes(body []byte) {
+	const preview = 64
+	shown := body
+	truncated := false
+	if len(shown) > preview {
+		shown, truncated = shown[:preview], true
+	}
+	printable := 0
+	for _, c := range shown {
+		if c == '\n' || c == '\t' || (c >= 32 && c <= 126) {
+			printable++
+		}
+	}
+	suffix := ""
+	if truncated {
+		suffix = " ..."
+	}
+	if len(shown) > 0 && printable*10 >= len(shown)*9 {
+		text := strings.ReplaceAll(string(shown), "\n", "\\n")
+		fmt.Fprintf(a.out, "     first %d bytes as text: %s%s\n", len(shown), text, suffix)
+		return
+	}
+	fmt.Fprintf(a.out, "     first %d bytes as hex: %s%s\n", len(shown), hex.EncodeToString(shown), suffix)
+	fmt.Fprintln(a.out, "     A compiled image, sent in the clear. Readable, copyable, and modifiable in transit.")
+}
+
+// fixtureProves links each fixture to the Weakness ledger identifiers it
+// demonstrates, so the Learner never has to guess which row to fill in.
+var fixtureProves = map[string][]string{
+	"tier-00/plaintext-inspection": {
+		"T0-W-01  HTTP has no confidentiality. Everything above was readable by anyone on this network.",
+	},
+	"tier-00/device-id-spoofing": {
+		"T0-W-02  The service trusts the device identifier inside the request body, not the sender.",
+	},
+	"tier-00/service-impersonation": {
+		"T0-W-03  The device trusts any service that answers at the configured address.",
+	},
+	"tier-00/altered-image": {
+		"T0-W-04  MCUboot accepts an unsigned image, so the device will run whatever arrives.",
+		"T0-W-05  The release record is mutable, so anyone who can write it chooses the firmware.",
+	},
+}
+
+// fixturePlan is what a dry run shows: the steps the fixture would take, in
+// order, before the Learner commits to running it.
+var fixturePlan = map[string][]string{
+	"tier-00/plaintext-inspection": {
+		"Ask the service which firmware release it is currently handing out.",
+		"Download that firmware image and read its bytes.",
+	},
+	"tier-00/device-id-spoofing": {
+		"Post a status event to one device's endpoint, naming a different device inside the body.",
+		"Check which identifier the service recorded.",
+	},
+	"tier-00/service-impersonation": {
+		"Start a second HTTP service that copies this course environment marker.",
+		"Rewrite the generated device configuration to point at it.",
+		"Ask the device's configured address for a release, and see whose answer comes back.",
+	},
+	"tier-00/altered-image": {
+		"Build or reuse an altered, unsigned firmware image.",
+		"Overwrite the current release record so the service hands out the altered image.",
+		"Download the image again and confirm the service delivered the altered bytes.",
+	},
+}
+
 func (a *app) executeFixture(id, target string, env environment) (string, string, map[string]string, error) {
 	switch id {
 	case "tier-00/plaintext-inspection":
+		a.step(1, "Ask the service which firmware release it is handing out.")
+		a.note("No credential is sent, because the service asks for none.")
 		var release map[string]any
+		a.sent(http.MethodGet, target+"/v1/releases/current")
 		if err := a.getJSON(target+"/v1/releases/current", &release); err != nil {
 			return "", "", nil, err
 		}
+		a.got("200 OK, and the whole record came back readable:")
+		a.showJSON(release)
+		a.note("This is plain HTTP. Anyone who can see this network sees exactly these fields.")
 		name, _ := release["image_path"].(string)
+
+		a.step(2, "Download the firmware image that record names.")
+		a.sent(http.MethodGet, target+"/v1/firmware/"+url.PathEscape(name))
 		response, err := a.client.Get(target + "/v1/firmware/" + url.PathEscape(name))
 		if err != nil {
 			return "", "", nil, err
@@ -1228,11 +1353,20 @@ func (a *app) executeFixture(id, target string, env environment) (string, string
 			return "", "", nil, errors.New("firmware bytes were not readable")
 		}
 		sum := sha256.Sum256(body)
+		a.got("%d OK, %d bytes of firmware, with no encryption of any kind.", response.StatusCode, len(body))
+		a.showBytes(body)
+		a.note("sha256: %s", hex.EncodeToString(sum[:]))
+		a.note("Nothing proved who asked for this image, and nothing proves who built it.")
 		return fmt.Sprintf("plaintext release version %v and %d firmware bytes were readable", release["version"], len(body)), "", map[string]string{name: "sha256:" + hex.EncodeToString(sum[:])}, nil
 	case "tier-00/device-id-spoofing":
 		dev := a.manifest.Devices["reference_beacon"]
+		a.step(1, "Report a machine state, but lie about which device is reporting.")
+		a.note("The address names %s. The body claims to be %s.", dev.SyntheticID, dev.SpoofID)
+		a.note("A real device would have to prove which one it is. Nothing here asks it to.")
 		event := map[string]any{"device_id": dev.SpoofID, "event_type": "status.observed", "boot_id": "synthetic-boot", "event_sequence": 1, "firmware_version": "0.0.0-insecure", "security_counter": 0, "machine_state": "fast", "result": "synthetic", "reason_code": "fixture"}
 		data, _ := json.Marshal(event)
+		a.sent(http.MethodPost, target+"/v1/devices/"+url.PathEscape(dev.SyntheticID)+"/events")
+		a.sentBody("with this body:", event)
 		request, _ := http.NewRequest(http.MethodPost, target+"/v1/devices/"+url.PathEscape(dev.SyntheticID)+"/events", bytes.NewReader(data))
 		request.Header.Set("Content-Type", "application/json")
 		response, err := a.client.Do(request)
@@ -1247,17 +1381,37 @@ func (a *app) executeFixture(id, target string, env environment) (string, string
 		if response.StatusCode != http.StatusAccepted || result["accepted_device_id"] != dev.SpoofID {
 			return "", "", nil, errors.New("service did not demonstrate body device_id trust")
 		}
+
+		a.step(2, "Read back which device the service believes reported.")
+		a.got("%d Accepted, and the service recorded this:", response.StatusCode)
+		a.showJSON(result)
+		a.note("It stored %s, the identifier from the body, not %s from the address.", dev.SpoofID, dev.SyntheticID)
+		a.note("One device just wrote history for another, and the audit record now lies.")
 		return "service accepted the spoofed manifest-owned device identifier", "", map[string]string{}, nil
 	case "tier-00/service-impersonation":
 		return a.runImpersonation(env, target)
 	case "tier-00/altered-image":
+		a.step(1, "Take an altered, unsigned firmware image.")
 		release, image, runnable, err := a.alteredImageRelease()
 		if err != nil {
 			return "", "", nil, err
 		}
 		name := release["image_path"].(string)
 		sum := sha256.Sum256(image)
+		if runnable {
+			a.note("Using the real altered image you built with ./course build firmware --variant altered.")
+		} else {
+			a.note("Using a placeholder image. It cannot run on a board, but the service treats it the same.")
+		}
+		a.note("It is not signed. Nothing in it says who made it.")
+		a.showBytes(image)
+		a.note("sha256: %s", hex.EncodeToString(sum[:]))
+
+		a.step(2, "Overwrite the record that decides which firmware every device installs.")
+		a.note("The record is mutable and the service does not ask who is changing it.")
 		data, _ := json.Marshal(release)
+		a.sent(http.MethodPut, target+"/v1/releases/current")
+		a.sentBody("replacing the current release with:", release)
 		request, _ := http.NewRequest(http.MethodPut, target+"/v1/releases/current", bytes.NewReader(data))
 		request.Header.Set("Content-Type", "application/json")
 		request.Header.Set("X-Course-Environment-ID", env.EnvironmentID)
@@ -1269,6 +1423,10 @@ func (a *app) executeFixture(id, target string, env environment) (string, string
 		if response.StatusCode != http.StatusOK {
 			return "", "", nil, fmt.Errorf("mutable release update returned %s", response.Status)
 		}
+		a.got("%d OK. The service now hands out the altered image to every device that asks.", response.StatusCode)
+
+		a.step(3, "Download it back, the way a device would.")
+		a.sent(http.MethodGet, target+"/v1/firmware/"+name)
 		response, err = a.client.Get(target + "/v1/firmware/" + name)
 		if err != nil {
 			return "", "", nil, err
@@ -1278,6 +1436,8 @@ func (a *app) executeFixture(id, target string, env environment) (string, string
 		if readErr != nil || !bytes.Equal(body, image) {
 			return "", "", nil, errors.New("altered image was not delivered unchanged")
 		}
+		a.got("%d OK, %d bytes, byte for byte the altered image.", response.StatusCode, len(body))
+		a.note("A device receiving this has no way to tell it apart from a genuine release.")
 		if runnable {
 			return "altered unsigned image was built for the board and delivered by the service",
 				"device acceptance needs a flashed ESP32-C6 that can reach this service",
@@ -1351,18 +1511,29 @@ func (a *app) runImpersonation(env environment, target string) (string, string, 
 	go func() { _ = server.Serve(listener) }()
 	defer server.Shutdown(context.Background())
 	impersonationURL := "http://" + bind
+	a.step(1, "Start a second service that pretends to be the update service.")
+	a.note("Listening on %s. It serves the same endpoints and copies this environment marker.", impersonationURL)
 	if _, _, err := a.matchMarker(impersonationURL); err != nil {
 		return "", "", nil, err
 	}
+	a.got("The imposter answers the marker check convincingly enough for the course tooling.")
+
+	a.step(2, "Point the device configuration at the imposter.")
 	configPath := filepath.Join(a.root, a.manifest.Paths.State, "device-config.json")
 	var config map[string]any
 	if err := readJSON(configPath, &config); err != nil {
 		return "", "", nil, err
 	}
+	a.note("Was: ota_url = %v", config["ota_url"])
 	config["ota_url"] = impersonationURL
+	a.note("Now: ota_url = %v", impersonationURL)
+	a.note("In Tier 0 this address is the entire basis for trust. Whoever answers it, wins.")
 	if err := writeJSON(configPath, config, 0o600); err != nil {
 		return "", "", nil, err
 	}
+
+	a.step(3, "Ask for a release, exactly as the device would.")
+	a.sent(http.MethodGet, impersonationURL+"/v1/releases/current")
 	var release map[string]any
 	if err := a.getJSON(impersonationURL+"/v1/releases/current", &release); err != nil {
 		return "", "", nil, err
@@ -1370,6 +1541,9 @@ func (a *app) runImpersonation(env environment, target string) (string, string, 
 	if release["release_id"] != "impersonated" {
 		return "", "", nil, errors.New("generated device configuration did not accept impersonation service")
 	}
+	a.got("The answer came from the imposter, and it looks like any other release:")
+	a.showJSON(release)
+	a.note("No certificate, no key, no name was ever checked. The real service was never contacted.")
 	return "marker-matching HTTP service impersonation supplied a hostile mutable release record", "", map[string]string{}, nil
 }
 

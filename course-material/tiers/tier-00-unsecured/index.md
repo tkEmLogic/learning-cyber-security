@@ -91,29 +91,36 @@ Before you run anything, write down:
 2. Which component decides whether downloaded firmware may run?
 3. Which observation cannot be made without a physical device?
 
-### Inspect the fixture plan
+### Look before you act
 
-Every fixture is a dry run until you add `--execute`. Look before you act:
+Every attack is a dry run until you add `--execute`. Always look first:
 
 ```text
 ./course attack list
 ./course attack run tier-00/plaintext-inspection
 ```
 
-Expected result ends with:
+A dry run prints four things and changes nothing:
 
 ```text
 Marker matched: course_id=learning-cyber-security environment_id=<identifier> tier=00 synthetic_data=true
 Expected insecure effect: HTTP release fields and firmware bytes are readable.
 Changes: artifacts/generated/attacks/tier-00/plaintext-inspection
 Reset: ./course attack reset tier-00/plaintext-inspection
+Plan:
+  1. Ask the service which firmware release it is currently handing out.
+  2. Download that firmware image and read its bytes.
+Weaknesses this demonstrates:
+  T0-W-01  HTTP has no confidentiality. Everything above was readable by anyone on this network.
 Result: dry run only
 Execute: ./course attack run tier-00/plaintext-inspection --execute tier-00/plaintext-inspection
 ```
 
-The marker line matters. A fixture refuses to run unless the target announces the same disposable Course environment that your own `./course setup` created. That is what keeps these attacks pointed at your own lab.
+Read those lines before running anything. `Changes` tells you what will be touched. `Reset` tells you how to undo it. `Plan` tells you what the attack will actually do, step by step.
 
-Repeat the dry run for the other three fixtures.
+The marker line matters most. A fixture refuses to run unless the target announces the same disposable Course environment that your own `./course setup` created. That is what keeps these attacks pointed at your own lab and nowhere else.
+
+Repeat the dry run for the other three fixtures before you continue.
 
 ## Investigate the missing boundaries
 
@@ -212,27 +219,137 @@ The device repeats this exchange every 30 seconds. Every status report crosses t
 
 ## Run the fixtures
 
-Run each one:
+Four attacks follow. Each one runs against your own service, and each one prints what it is doing as it does it: the request it sends, the answer it gets, and what that answer means.
+
+Read the output. The command does the typing, but the learning is in what comes back.
+
+Every attack has the same shape. Run it once with no `--execute` to see its plan, then again with `--execute` to run it.
+
+### Attack 1: read everything on the wire
+
+The Reference product talks to the update service over plain HTTP. Find out what that means in practice.
+
+```text
+./course attack run tier-00/plaintext-inspection
+```
+
+The plan appears first, then the weaknesses it demonstrates, then `Result: dry run only`. Nothing has happened yet. Run it for real:
 
 ```text
 ./course attack run tier-00/plaintext-inspection --execute tier-00/plaintext-inspection
+```
+
+The attack asks the service which firmware it is handing out, and the service answers without asking who wants to know:
+
+```text
+Step 1. Ask the service which firmware release it is handing out.
+     No credential is sent, because the service asks for none.
+  -> GET http://127.0.0.1:8080/v1/releases/current
+  <- 200 OK, and the whole record came back readable:
+     {
+       "image_path": "tier-00-baseline.bin",
+       "image_sha256": "f28a01...",
+       "release_id": "tier-00-baseline",
+       "signed": false,
+       "version": "0.0.0-insecure"
+     }
+     This is plain HTTP. Anyone who can see this network sees exactly these fields.
+```
+
+Then it downloads the image itself and prints the first bytes.
+
+Look at what you just learned about a product you did not write: its version, its board, the exact size and digest of its firmware, and the fact that `signed` is `false`. An attacker learns the same things, in one request, without touching the device.
+
+This is `T0-W-01`. Tier 2 closes it with HTTPS.
+
+### Attack 2: report a machine state as another device
+
+Every device shares one identity in Tier 0, and the service decides who is reporting by reading the request body.
+
+```text
 ./course attack run tier-00/device-id-spoofing --execute tier-00/device-id-spoofing
+```
+
+Watch the mismatch. The URL names one device. The body names a different one:
+
+```text
+  -> POST http://127.0.0.1:8080/v1/devices/beacon-development-shared/events
+     with this body:
+     {
+       "device_id": "beacon-development-clone",
+       "machine_state": "fast",
+       ...
+     }
+  <- 202 Accepted, and the service recorded this:
+     {
+       "accepted_device_id": "beacon-development-clone",
+       "warning": "Tier 0 trusts the JSON body device_id"
+     }
+```
+
+The service stored the identifier from the body. Nothing asked the sender to prove it was that device.
+
+Think about what this costs in a real factory. The machine that is actually failing reports nothing, and a healthy machine appears to be in an error state. The maintenance team is sent to the wrong floor, and the audit record says it was right to send them.
+
+This is `T0-W-02`. Tier 7 closes it by binding each report to a per-device identity.
+
+### Attack 3: become the update service
+
+The device finds its update service at one address, compiled into its firmware. That address is the whole of its trust.
+
+```text
 ./course attack run tier-00/service-impersonation --execute tier-00/service-impersonation
+```
+
+The attack starts a second service on another port, points the device configuration at it, and asks for a release:
+
+```text
+Step 2. Point the device configuration at the imposter.
+     Was: ota_url = http://127.0.0.1:8080
+     Now: ota_url = http://127.0.0.1:18080
+     In Tier 0 this address is the entire basis for trust. Whoever answers it, wins.
+```
+
+The imposter answers, and its reply is indistinguishable from a real one.
+
+No certificate was checked, because there is none. No name was verified, because nothing carries a name. The real service was never contacted and never knew.
+
+On a real network an attacker does not need to edit a configuration file to achieve this. ARP spoofing, a rogue DHCP server, or simply owning the access point puts them at that address.
+
+This is `T0-W-03`. Tier 2 closes it by making the device check who answered.
+
+### Attack 4: replace the firmware everyone installs
+
+The last attack is the one that matters most, because it ends with the device running code an attacker chose.
+
+```text
 ./course attack run tier-00/altered-image --execute tier-00/altered-image
 ```
 
-Expected final line of each:
+Three steps. First it takes an altered, unsigned image. Then it overwrites the record that decides what every device installs:
 
-| Fixture | Expected result line |
-| --- | --- |
-| `tier-00/plaintext-inspection` | `Result: plaintext release version 0.0.0-insecure and 47 firmware bytes were readable` |
-| `tier-00/device-id-spoofing` | `Result: service accepted the spoofed manifest-owned device identifier` |
-| `tier-00/service-impersonation` | `Result: marker-matching HTTP service impersonation supplied a hostile mutable release record` |
-| `tier-00/altered-image` | `Result: altered unsigned image was built for the board and delivered by the service` |
+```text
+Step 2. Overwrite the record that decides which firmware every device installs.
+     The record is mutable and the service does not ask who is changing it.
+  -> PUT http://127.0.0.1:8080/v1/releases/current
+  <- 200 OK. The service now hands out the altered image to every device that asks.
+```
 
-Each run prints `Reset result: passed` and writes a JSON record under `artifacts/generated/attacks/`.
+Then it downloads the image back, the way a device would, and confirms the altered bytes arrive unchanged.
 
-Each run resets the service to the Tier 0 seed when it finishes. The insecure state does not persist by accident.
+Two separate failures combine here. The release record can be rewritten by anyone who can reach the service, which is `T0-W-05`. The image carries no signature, so the device cannot tell a genuine release from a hostile one, which is `T0-W-04`.
+
+Either failure alone would be serious. Together they mean one HTTP request decides what code runs on every device in the fleet.
+
+Tier 3 closes `T0-W-04` with signed images. Tier 4 closes `T0-W-05` with signed release metadata.
+
+### What the attacks share
+
+Each run prints `Reset result: passed` and writes a JSON record under `artifacts/generated/attacks/`. That record is your evidence. You will reference it in the Security evidence pack.
+
+Each run resets the service to the Tier 0 seed when it finishes, so the insecure state never persists by accident.
+
+Notice what none of these attacks needed. No exploit, no memory corruption, no cryptography, no unusual skill. Every one of them is an ordinary HTTP request that the system was happy to answer. That is what the absence of a security boundary looks like.
 
 Without a board, the altered-image record must state that physical acceptance and execution are pending.
 
