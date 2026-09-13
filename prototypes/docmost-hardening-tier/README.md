@@ -41,6 +41,7 @@ Import these files separately:
 - `variant-b-evidence-first.md`
 - `variant-c-incident-mission.md`
 - `selected-cab.md`
+- `mermaid-probe.md`, which tests whether Mermaid renders when pasted
 
 Export each page back to Markdown. Check headings, tables, code blocks, links,
 and the Mermaid diagram. Record any changes caused by import or export.
