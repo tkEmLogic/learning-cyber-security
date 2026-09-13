@@ -1,14 +1,25 @@
 # Tier 0: Build the unsecured reference product
 
-## Incident brief
+## Scenario
 
-An industrial status beacon downloads firmware and reports a machine state over the local network.
+You have joined a team that makes an industrial status beacon. It sits on a machine in a factory, shows the machine state with one light, reports that state over Wi-Fi, and receives its software updates over Wi-Fi.
 
-The product works, but the network and update path have no security controls.
+The product works. It builds, it boots, it connects, and it updates. By every functional measure the team is finished.
 
-A local actor can read the HTTP exchange, claim another synthetic device identifier, imitate the OTA service, and provide an altered unsigned image.
+It also has no security at all. The status reports travel in plain text. Every device shares one identity. The update service proves nothing about who it is. The firmware carries no signature, so the device runs whatever arrives.
 
-Your task is to build this baseline, reproduce each safe fixture, and record what is absent.
+That is where this course starts, and the choice is deliberate. It is much easier to understand why a control exists after you have watched what happens without it. So you are going to build the insecure version first, attack it yourself, and see each weakness with your own eyes before you fix anything.
+
+In this tier you will:
+
+- Build the Reference product and run the local update service.
+- Run four safe attacks against your own device and watch all four succeed.
+- Write down seven specific weaknesses, and which later tier closes each one.
+- Start the two records you will carry through the whole course: the Weakness ledger and the Security evidence pack.
+
+Nothing here is a trick and nothing is hidden. Every attack runs against your own hardware, on your own isolated network, using synthetic data. The tools refuse to point anywhere else.
+
+You will fix none of it in this tier. Tier 0 ends with a working product and an honest list of everything wrong with it. That list is what the rest of the course works through.
 
 ## Learning result
 

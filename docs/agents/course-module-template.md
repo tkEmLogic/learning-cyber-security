@@ -57,7 +57,7 @@ behavior to show. Say why in the module when you omit it.
 | # | Heading | Fixed or tier-named |
 | --- | --- | --- |
 | 1 | `# Tier N: <specification name>` | Tier-named |
-| 2 | `## Incident brief` | Fixed |
+| 2 | `## Scenario` | Fixed |
 | 3 | `## Learning result` | Fixed |
 | 4 | `## Safety boundary` | Fixed |
 | 5 | `## Starting state` | Fixed |
@@ -88,9 +88,17 @@ with `### Predict`.
 
 ## What belongs in each section
 
-**2. Incident brief.** A short scenario that shows the weakness mattering. Name
-the attacker's action and the result on the Reference product. End with what
-the Learner is asked to do. Three to five paragraphs.
+**2. Scenario.** Set the situation before naming the problem. Say what the
+product does and that it works, then what is missing or what an attacker did,
+then why this tier exists. End with a short list of what the Learner will do
+and what they will have at the end. Warm and unhurried: this is the first
+thing a Learner reads, and an abrupt opening reads as a wall rather than a
+door. Six to ten short paragraphs.
+
+For a control tier this is an incident: name the attacker's action and its
+result on the Reference product. For a baseline or analysis tier nothing has
+gone wrong yet, so it is a situation rather than an incident. The heading is
+`## Scenario` either way, which is why it is not called an incident brief.
 
 **3. Learning result.** A bullet list starting `After this tier, you can:`.
 Each bullet is an ability the Learner can demonstrate, not a topic covered.
@@ -175,7 +183,7 @@ Only these five sections differ between variants.
 | 11 Tests | Safety and failure behavior, not bypasses. | Completeness of the analysis, such as every asset and actor appearing in the risk register. | Bypass attempts against the new control. |
 | 13 Claim | No positive Security claim. Say so plainly. | No claim reaches supported. | The claim the control supports, with its limits. |
 
-An analysis tier must state in its Incident brief and its Learning result that
+An analysis tier must state in its Scenario and its Learning result that
 it changes no code and adds no control, so a Learner does not expect the device
 to behave differently afterwards.
 
@@ -184,7 +192,7 @@ to behave differently afterwards.
 ```text
 # Tier N: <specification section 11 name>
 
-## Incident brief
+## Scenario
 ## Learning result
 ## Safety boundary
 ## Starting state
