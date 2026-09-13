@@ -1,0 +1,4 @@
+name: course-common
+build:
+  cmake: .
+  kconfig: Kconfig

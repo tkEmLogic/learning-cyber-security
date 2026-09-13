@@ -1,4 +1,4 @@
-#include "beacon.h"
+#include <course/beacon.h>
 
 #include <string.h>
 #include <zephyr/kernel.h>

@@ -51,10 +51,76 @@ func New(cfg Config) (*Server, error) {
 	return &Server{cfg: cfg}, nil
 }
 
+// Handler serves every endpoint on one listener. This is the Tier 0 service,
+// and it does not change, because the Tier 0 module is published and describes
+// it exactly.
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
+	s.routePublic(mux)
+	s.routeData(mux)
+	return courseHeaders(mux)
+}
+
+// PublicHandler serves the two endpoints that stay in the clear in every tier:
+// health, and the Course environment marker.
+//
+// The marker is plain HTTP on purpose. A safety check must not depend on the
+// control it is being used to test. Over TLS a fixture would either have to
+// verify a certificate before being allowed to find out whether it is pointed
+// at the lab, which makes the control a precondition for testing the control,
+// or skip verification, which is the one example this course tells Learners
+// never to write. The impersonation fixture settles it: its imposter presents
+// a deliberately untrusted certificate, so a TLS marker check would refuse the
+// very fixture it is meant to guard.
+//
+// The marker carries only synthetic identifiers and is not a credential.
+//
+// Data routes are registered here too, and refuse with a message that says
+// where they went. A bare 404 would leave a Learner guessing.
+func (s *Server) PublicHandler(tlsPort int, serviceName string) http.Handler {
+	mux := http.NewServeMux()
+	s.routePublic(mux)
+	moved := func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, http.StatusNotFound, map[string]any{
+			"error":          "this endpoint is no longer served over plain HTTP",
+			"moved_to":       fmt.Sprintf("https://%s:%d", serviceName, tlsPort),
+			"why":            "Tier 2 moved release records, firmware, and events to an authenticated, encrypted connection",
+			"still_here":     []string{"/health", "/.well-known/course-environment"},
+			"why_still_here": "the Course environment marker is a fail-closed targeting check, not a credential, and it must not depend on the control it is used to test",
+		})
+	}
+	for _, route := range dataRoutes {
+		mux.HandleFunc(route, moved)
+	}
+	return courseHeaders(mux)
+}
+
+// DataHandler serves release records, firmware bytes, and status events. In
+// Tier 2 it runs behind TLS.
+func (s *Server) DataHandler() http.Handler {
+	mux := http.NewServeMux()
+	s.routeData(mux)
+	return courseHeaders(mux)
+}
+
+// dataRoutes is the single list both handlers work from, so the two can never
+// drift apart.
+var dataRoutes = []string{
+	"GET /v1/releases/current",
+	"PUT /v1/releases/current",
+	"GET /v1/releases/{release_id}/manifest",
+	"GET /v1/firmware/{name}",
+	"POST /v1/devices/{device_id}/events",
+	"POST /v1/lab/seed",
+	"POST /v1/lab/reset",
+}
+
+func (s *Server) routePublic(mux *http.ServeMux) {
 	mux.HandleFunc("GET /health", s.health)
 	mux.HandleFunc("GET /.well-known/course-environment", s.marker)
+}
+
+func (s *Server) routeData(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/releases/current", s.currentRelease)
 	mux.HandleFunc("PUT /v1/releases/current", s.updateRelease)
 	mux.HandleFunc("GET /v1/releases/{release_id}/manifest", s.releaseManifest)
@@ -62,7 +128,6 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/devices/{device_id}/events", s.deviceEvent)
 	mux.HandleFunc("POST /v1/lab/seed", s.seed)
 	mux.HandleFunc("POST /v1/lab/reset", s.reset)
-	return courseHeaders(mux)
 }
 
 func courseHeaders(next http.Handler) http.Handler {

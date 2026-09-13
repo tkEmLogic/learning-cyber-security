@@ -1,4 +1,4 @@
-#include "net_link.h"
+#include <course/net_link.h>
 
 #include <string.h>
 #include <zephyr/kernel.h>

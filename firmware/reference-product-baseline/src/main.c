@@ -1,5 +1,5 @@
-#include "beacon.h"
-#include "net_link.h"
+#include <course/beacon.h>
+#include <course/net_link.h>
 #include "ota_client.h"
 
 #include <string.h>
