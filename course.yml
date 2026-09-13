@@ -142,6 +142,23 @@ evidence:
       template: evidence/templates/tier-00/absent-controls.json
       schema: evidence/schemas/tier-00-evidence.schema.json
       learner_path: evidence/learner/tier-00/absent-controls.json
+  tier_01:
+    - id: threat-model-worksheet
+      template: evidence/templates/tier-01/threat-model-worksheet.md
+      format: markdown
+      learner_path: evidence/learner/tier-01/threat-model-worksheet.md
+    - id: risk-register
+      template: evidence/templates/tier-01/risk-register.md
+      format: markdown
+      learner_path: evidence/learner/tier-01/risk-register.md
+    - id: claim-record
+      template: evidence/templates/tier-01/claim-record.md
+      format: markdown
+      learner_path: evidence/learner/tier-01/claim-record.md
+    - id: mentor-review-record
+      template: evidence/templates/tier-01/mentor-review-record.md
+      format: markdown
+      learner_path: evidence/learner/tier-01/mentor-review-record.md
 
 safety:
   synthetic_data_only: true
@@ -208,10 +225,11 @@ tiers:
     title: Model the product and its risks
     kind: analysis
     track: core
-    status: planned
+    status: implemented
     start_checkpoint: course-v1.0-tier-00-complete
     complete_checkpoint: course-v1.0-tier-01-complete
     module: course-material/tiers/tier-01-threat-model/index.md
+    answers: course-material/tiers/tier-01-threat-model/answers.md
     prerequisites: ["00"]
     continue_same_workspace: true
     components: []
@@ -220,7 +238,13 @@ tiers:
     fixtures:
       - tier-00/plaintext-inspection
       - tier-00/device-id-spoofing
-    evidence: []
+      - tier-00/service-impersonation
+      - tier-00/altered-image
+    evidence:
+      - threat-model-worksheet
+      - risk-register
+      - claim-record
+      - mentor-review-record
     mentor_review: required
     destructive: false
     irreversible: false

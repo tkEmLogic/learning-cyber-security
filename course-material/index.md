@@ -34,7 +34,7 @@ A Security claim is only as good as its evidence. When you did not observe somet
 
 The core course is eleven tiers and about 43 hours of work. Two advanced tiers follow it for teams with disposable hardware.
 
-**Only Tier 0 is written and published today.** The rest of this table is the course plan. It is here so you can see where the work goes, not because you can start it yet.
+**Tier 0 and Tier 1 are written and published today.** The rest of this table is the course plan. It is here so you can see where the work goes, not because you can start it yet.
 
 | Tier | What you add | The attack it answers | Time |
 | --- | --- | --- | --- |
@@ -259,4 +259,6 @@ The command removes only the exact list of paths named in `course.yml`.
 
 Open the page named Tier 0: Build the unsecured reference product, and work through it from the top.
 
-It is the only tier published so far. When you finish it, you will have a working, deliberately insecure device, four demonstrated attacks, and the first entries in your Weakness ledger and Security evidence pack.
+When you finish it, you will have a working, deliberately insecure device, four demonstrated attacks, and the first entries in your Weakness ledger and Security evidence pack.
+
+Then open the page named Tier 1: Model the product and its risks. Tier 1 adds no control and changes no code. It turns what you observed in Tier 0 into a model of the product, its assets, its actors, and its risks, and it ends at the first Mentor review gate. Those two tiers are the ones published so far.

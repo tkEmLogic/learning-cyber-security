@@ -199,8 +199,16 @@ host-only result replace a pending hardware field.
 Five or six rows. Close with one line on when to involve a Mentor.
 
 **16. Informal Mentor conversation.** What to show, what to explain, and one
-prepared failure case to diagnose together. State that there is no grade. This
-is not a Mentor review gate.
+prepared failure case to diagnose together. State that there is no grade.
+
+The heading is fixed, but the content depends on whether the tier ends at a
+required Mentor review gate. Section 13 of `docs/course-specification.md` names
+the six tiers that do: Tier 1, Tier 3, Tier 5, Tier 7, Tier 9, and Tier 10, and
+`course.yml` carries the same fact as `mentor_review`. A tier with no gate says
+so and offers an optional conversation, which is what Tier 0 does. A tier with a
+gate says which gate it is and publishes its prompts under the four fixed
+headings from section 13: Show, Explain, Diagnose, and Plan. Every gate is still
+an informal coaching conversation with no grade, so the heading does not change.
 
 **17. Continue.** The next tier's name in bold, then two or three sentences
 previewing its attack.
@@ -223,6 +231,26 @@ Only these five sections differ between variants.
 An analysis tier must state in its Scenario and its Learning result that
 it changes no code and adds no control, so a Learner does not expect the device
 to behave differently afterwards.
+
+## Companion answers page
+
+A tier whose work is reasoning rather than commands may publish a second page
+holding the finished answers, so the Learner commits to an answer before seeing
+one. Tier 1 is the first tier to do this.
+
+Rules for an answers page:
+
+- One extra file, `course-material/tiers/tier-NN-short-name/answers.md`, and one
+  extra Docmost page created by hand as a child of the tier page.
+- It is not a module. It does not carry the 18 headings. One section per
+  exercise, in the order the tier asks them.
+- The module refers to it by page title in bold, never by a Markdown link,
+  because a pasted link does not become a Docmost page link.
+- Every answer shows the wrong version beside the right one. The wrong versions
+  are the answers engineers actually write, not strawmen, and each one carries
+  the reason it fails.
+- The page states that it is one worked model and not a marking scheme, and
+  tells the Learner to record the differences rather than copy the answer.
 
 ## Skeleton
 

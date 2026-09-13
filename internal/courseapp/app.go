@@ -504,7 +504,7 @@ func (a *app) tierStart(args []string) error {
 		}
 	}
 	if id != "00" && t.ContinueSameWorkspace {
-		return errors.New("Tier 1 will continue in the Tier 0 Course workspace when Tier 1 is implemented")
+		return errors.New("Tier 1 continues in the Tier 0 Course workspace on the same branch; there is no separate workspace to start")
 	}
 	if workspace == "" {
 		workspace = filepath.Join(filepath.Dir(a.root), "learning-cyber-security-course")
@@ -1761,12 +1761,14 @@ func (a *app) validateRepository() error {
 		"evidence/schemas/tier-00-evidence.schema.json",
 		"course-material/index.md",
 		"course-material/tiers/tier-00-unsecured/index.md",
+		"course-material/tiers/tier-01-threat-model/index.md",
+		"course-material/tiers/tier-01-threat-model/answers.md",
 	} {
 		if _, err := os.Stat(filepath.Join(a.root, path)); err != nil {
 			return fmt.Errorf("required path missing: %s", path)
 		}
 	}
-	fmt.Fprintln(a.out, "Result: course.yml and required Tier 0 repository paths are valid")
+	fmt.Fprintln(a.out, "Result: course.yml and the required Tier 0 and Tier 1 repository paths are valid")
 	return a.validateBundledEvidence()
 }
 
