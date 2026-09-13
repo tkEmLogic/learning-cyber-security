@@ -23,3 +23,8 @@ See `docs/agents/domain.md`.
 
 Write course material in plain English for non-native English speakers. Keep
 the Markdown compatible with Docmost. See `docs/agents/course-writing.md`.
+
+### Course module template
+
+Every Hardening tier module follows one section order and one page shape. See
+`docs/agents/course-module-template.md`.
