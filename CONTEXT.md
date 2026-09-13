@@ -120,8 +120,33 @@ A learner-owned Git branch or worktree created from a tier checkpoint. It holds
 the learner's code and evidence without changing the published checkpoint.
 _Avoid_: Tier checkpoint, shared working directory
 
+**Course environment**:
+The disposable local setup that `./course setup` creates for one Learner: the
+generated state, secrets, service configuration, and keys that belong to one
+run of the course on one machine. It is thrown away and recreated, and nothing
+in it is a production asset.
+_Avoid_: Test environment, deployment
+
 **Course environment marker**:
 A disposable, setup-generated identifier shared by the local course service,
 fixtures, and Course workspace. An attack fixture must match it before causing
 the intended insecure effect.
 _Avoid_: Authentication token, production environment flag
+
+**Course certificate authority**:
+The disposable authority generated for one Course environment that signs the
+Service certificate. It exists to teach certificate validation and is never a
+production certificate authority.
+_Avoid_: Root CA, company CA
+
+**Service certificate**:
+The certificate the OTA service presents to the Reference product, naming the
+course-local service name. It proves which service answered, and it proves
+nothing about who published a firmware image.
+_Avoid_: SSL certificate, device certificate
+
+**Trust anchor**:
+The public material a device checks a presented certificate against. In this
+course it is compiled into the Reference product and identifies the Course
+certificate authority.
+_Avoid_: Root certificate store, trusted key
