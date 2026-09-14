@@ -9,6 +9,11 @@ It fixes the shape settled in
 [Decide the Docmost page structure for a tier](https://github.com/tkEmLogic/learning-cyber-security/issues/32)
 and the section order fixed in section 14 of `docs/course-specification.md`.
 
+The course is now read on GitHub rather than pasted into a wiki. The section
+order and every writing rule survive that change. What does not survive is the
+page tree and the ban on linking between course pages: a tier is one file, and
+it links to the tiers and companion pages around it.
+
 The reference example is
 [`selected-cab.md`](../../prototypes/docmost-hardening-tier/selected-cab.md).
 Reuse its structure, tone, table shapes, and command-and-expected-result
@@ -16,15 +21,15 @@ pattern. Do not copy its text, which is throwaway prototype material.
 
 ## Page rules
 
-One Hardening tier is one Docmost page and one repository file. All headings
-below live on that one page, in this order.
+One Hardening tier is one repository file. All headings below live in that one
+file, in this order.
 
 - File: `course-material/tiers/tier-NN-short-name/index.md`.
-- Page title and level-1 heading: the tier name from section 11 of
+- Level-1 heading: the tier name from section 11 of
   `docs/course-specification.md`, in full. For example
   `Tier 0: Build the unsecured reference product`.
-- Parent page in the wiki: `Learning Cyber Security`. Tiers are its direct
-  children. Nothing sits between them.
+- Link it from the tier table and the closing section of
+  `course-material/index.md`, and from the previous tier's Continue section.
 - Environment setup does not belong in a tier. It lives on the landing page.
 - Follow `course-writing.md`: plain English, no em dashes, no raw HTML, simple
   pipe tables, one prose paragraph per source line.
@@ -278,12 +283,10 @@ one. Tier 1 is the first tier to do this.
 
 Rules for an answers page:
 
-- One extra file, `course-material/tiers/tier-NN-short-name/answers.md`, and one
-  extra Docmost page created by hand as a child of the tier page.
+- One extra file, `course-material/tiers/tier-NN-short-name/answers.md`.
 - It is not a module. It does not carry the 18 headings. One section per
   exercise, in the order the tier asks them.
-- The module refers to it by page title in bold, never by a Markdown link,
-  because a pasted link does not become a Docmost page link.
+- The module links to it, and it links back to the module.
 - Every answer shows the wrong version beside the right one. The wrong versions
   are the answers engineers actually write, not strawmen, and each one carries
   the reason it fails.
@@ -324,4 +327,4 @@ Rules for an answers page:
 5. Check that every canonical term matches `CONTEXT.md`.
 6. Check that each fact appears in exactly one place in the module.
 7. Check that every attack shows its steps and its real output, not a verdict.
-8. Paste it into Docmost and check that the structure survives.
+8. Read it rendered on GitHub and follow every link in it.

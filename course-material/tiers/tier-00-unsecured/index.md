@@ -552,7 +552,7 @@ Explain which of the seven weaknesses you demonstrated directly, and which you i
 
 Keep this Course workspace. Tier 1 continues on the same branch.
 
-Next: **Tier 1: Model the product and its risks**.
+Next: **[Tier 1: Model the product and its risks](../tier-01-threat-model/index.md)**.
 
 Tier 1 adds no control and changes no code. It turns everything you just observed into a model of the product, its assets, its actors, and its risks, and it ends at the first Mentor review gate.
 

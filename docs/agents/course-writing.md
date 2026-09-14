@@ -25,19 +25,28 @@ be native English speakers.
 - Separate required work from optional exploration.
 - Use the same name for a concept in every module.
 
-## Docmost-compatible Markdown
+## Markdown
+
+Course material is read on GitHub, in the repository. A Learner forks the
+repository and works through the material in their own copy, so the material
+and the code they are changing are the same checkout.
 
 - Use normal headings, paragraphs, links, blockquotes, lists, and fenced code
   blocks.
 - Use simple pipe tables.
 - Avoid raw HTML, MDX, GitHub alert syntax, and deeply nested lists.
-- Mermaid renders in Docmost. Use a fenced `mermaid` block for flow and trust
-  boundary diagrams. A plain-text diagram, a simple table, or an imported image
-  remains acceptable where it reads better.
-- Put essential meaning in text, even when a diagram also shows it.
-- Use descriptive link text and relative links for repository content.
-- Keep each prose paragraph on one source line. The tested Docmost importer
-  preserves source line wraps as visible hard breaks.
+- Mermaid renders on GitHub. Use a fenced `mermaid` block for flow and trust
+  boundary diagrams. A plain-text diagram, a simple table, or an image remains
+  acceptable where it reads better.
+- Put essential meaning in text, even when a diagram also shows it. A reader
+  who cannot see the diagram still needs the answer.
+- **Link to other course pages.** Use relative repository links and descriptive
+  link text. The next tier, a companion page, and the landing page should all
+  be one click away. This reverses an earlier rule that existed only because
+  the course was published by pasting into a wiki, where a pasted link did not
+  become a page link.
+- Keep each prose paragraph on one source line. It makes a diff show which
+  paragraph changed, and it lets a review comment land on one idea.
 
 ## Review
 
@@ -47,5 +56,5 @@ Before accepting course material:
 2. Remove unexplained terms and indirect instructions.
 3. Split long sentences and paragraphs.
 4. Check that no em dash remains.
-5. Import a representative document into Docmost.
-6. Export it to Markdown and check that the structure remains clear.
+5. Read it rendered on GitHub, not only as source.
+6. Follow every link in it.

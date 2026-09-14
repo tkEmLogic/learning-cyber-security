@@ -228,6 +228,6 @@ Write your own version of this paragraph. A model that knows its own edges is wo
 
 ## What to do with this page
 
-Go back to the Tier 1 page and finish the tier.
+Go back to **[Tier 1](index.md)** and finish the tier.
 
 Your worksheet should now hold your answers, the differences you found, and anything here you disagree with. Those three things are what you bring to the Mentor review gate. The gate is a conversation about your reasoning, not a check that your tables match these ones.

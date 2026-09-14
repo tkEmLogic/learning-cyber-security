@@ -34,13 +34,13 @@ A Security claim is only as good as its evidence. When you did not observe somet
 
 The core course is eleven tiers and about 43 hours of work. Two advanced tiers follow it for teams with disposable hardware.
 
-**Tier 0 and Tier 1 are written and published today.** The rest of this table is the course plan. It is here so you can see where the work goes, not because you can start it yet.
+**The linked tiers are written and ready to work through. The rest is the course plan**, here so you can see where the work goes rather than because you can start it yet.
 
 | Tier | What you add | The attack it answers | Time |
 | --- | --- | --- | --- |
-| Tier 0: Build the unsecured reference product | Nothing. This is the baseline with no security at all | Any local actor can read the traffic, imitate the service, and supply any firmware | 3 hours |
-| Tier 1: Model the product and its risks | Analysis only. Assets, actors, trust boundaries, and a risk register | Teams add controls without agreeing what they protect or who they defend against | 3 hours |
-| Tier 2: Authenticate and encrypt the server connection | HTTPS, a course-local service CA, certificate and hostname validation | Local eavesdropping, network modification, and service impersonation | 3 hours |
+| [Tier 0: Build the unsecured reference product](tiers/tier-00-unsecured/index.md) | Nothing. This is the baseline with no security at all | Any local actor can read the traffic, imitate the service, and supply any firmware | 3 hours |
+| [Tier 1: Model the product and its risks](tiers/tier-01-threat-model/index.md) | Analysis only. Assets, actors, trust boundaries, and a risk register | Teams add controls without agreeing what they protect or who they defend against | 3 hours |
+| [Tier 2: Authenticate and encrypt the server connection](tiers/tier-02-authenticated-https/index.md) | HTTPS, a course-local service CA, certificate and hostname validation | Local eavesdropping, network modification, and service impersonation | 3 hours |
 | Tier 3: Require authentic firmware images | An offline release-signing key and real MCUboot signature checking | A trusted but compromised OTA service supplies an altered or unsigned image | 4 hours |
 | Tier 4: Protect release metadata and block downgrade | Signed release metadata and a security counter | Replay of an old signed image, and mutable metadata | 4 hours |
 | Tier 5: Make installation recoverable | Test boot, confirmation, and rollback | Power loss, a corrupted download, or a release that crashes on boot | 4 hours |
@@ -142,7 +142,7 @@ If you are on macOS or Windows, you can still complete the work. The course reco
 }
 ```
 
-3. Clone the course repository.
+3. Fork this repository on GitHub, then clone your fork. The course is written for you to change: you will edit firmware, write evidence records, and keep a Weakness ledger in your own copy. Your fork is your workbook.
 
 4. If you have a board, attach it now, before you open the editor. The container reads the device path when it starts and refuses to start if the path is missing. Set the path first:
 
@@ -257,8 +257,10 @@ The command removes only the exact list of paths named in `course.yml`.
 
 ## Where to go next
 
-Open the page named Tier 0: Build the unsecured reference product, and work through it from the top.
+Open **[Tier 0: Build the unsecured reference product](tiers/tier-00-unsecured/index.md)** and work through it from the top.
 
 When you finish it, you will have a working, deliberately insecure device, four demonstrated attacks, and the first entries in your Weakness ledger and Security evidence pack.
 
-Then open the page named Tier 1: Model the product and its risks. Tier 1 adds no control and changes no code. It turns what you observed in Tier 0 into a model of the product, its assets, its actors, and its risks, and it ends at the first Mentor review gate. Those two tiers are the ones published so far.
+Then **[Tier 1: Model the product and its risks](tiers/tier-01-threat-model/index.md)**, which adds no control and changes no code. It turns what you observed in Tier 0 into a model of the product, its assets, its actors, and its risks, and it ends at the first Mentor review gate.
+
+Then **[Tier 2: Authenticate and encrypt the server connection](tiers/tier-02-authenticated-https/index.md)**, the first tier that stops an attack. The device learns to check who answered before it believes anything.

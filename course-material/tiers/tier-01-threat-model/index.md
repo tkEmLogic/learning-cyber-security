@@ -206,7 +206,7 @@ Answer these seven questions about that one exchange:
 
 Two of these hops trip almost everyone, so give them longer. Hop 4 is where a missing control gets written down as if it were a risk. Hop 6 is where a technology gets written down as if it were a requirement.
 
-When all seven are written, open the page **Tier 1 answers**, which sits under this page in the wiki, and read the section **Exercise 1 answer**. It shows a wrong version of each hop beside the right one, and then the whole chain end to end.
+When all seven are written, open **[Tier 1 answers](answers.md)** and read the section **Exercise 1 answer**. It shows a wrong version of each hop beside the right one, and then the whole chain end to end.
 
 Compare hop by hop. Mark every difference in your worksheet. Where you disagree with the answer, write down why, and keep it for the Mentor review gate.
 
@@ -256,7 +256,7 @@ Now do four things, in this order:
 
 Step 4 is the exercise. Those three reasons look identical in a table and mean completely different things. One is a finding about the product, one is a scope boundary, and one is a gap in your analysis. Only the third is a mistake.
 
-When you have finished, open **Tier 1 answers** and read the section **Exercise 2 answer**. It holds the finished threat model: eight misuse scenarios, the full risk register, the coverage tables, the five Security claims, the numbered requirements, the planned controls, and the Residual risks.
+When you have finished, open **[Tier 1 answers](answers.md)** and read the section **Exercise 2 answer**. It holds the finished threat model: eight misuse scenarios, the full risk register, the coverage tables, the five Security claims, the numbered requirements, the planned controls, and the Residual risks.
 
 Do not copy it into your worksheet. Record the differences instead, because the differences are the only part that is yours.
 
@@ -418,7 +418,7 @@ Only a safety or dependency problem blocks you from continuing. An incomplete mo
 
 ## Continue
 
-Next: **Tier 2: Authenticate and encrypt the server connection**.
+Next: **[Tier 2: Authenticate and encrypt the server connection](../tier-02-authenticated-https/index.md)**.
 
 Tier 2 is where the course stops analyzing and starts refusing. You will give the update service an identity the device can check, and teach the device to check it before it believes anything the service says.
 
