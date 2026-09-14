@@ -895,6 +895,17 @@ CONFIG_COURSE_TRUST_ANCHOR_FINGERPRINT=%q
 `, coursepki.ServiceName, a.manifest.Runtime.TLSPort, anchor)
 	}
 
+	// From Tier 3 the board also reports which image verification key its
+	// build trusted. The application cannot see what the bootloader holds, so
+	// this is a claim about the build; main.c says so on the line beneath it.
+	if tier == "03" {
+		fingerprint, err := a.keyFingerprint(a.publicKeyPath())
+		if err != nil {
+			return "", "", errors.New("run ./course keys create release before building Tier 3 firmware")
+		}
+		body += fmt.Sprintf("CONFIG_COURSE_SIGNING_KEY_FINGERPRINT=%q\n", fingerprint)
+	}
+
 	// The filename carries the tier as well as the variant. Tier 0 and Tier 2
 	// both have a variant called "baseline", and a shared path meant the last
 	// build won: building Tier 2 and then flashing Tier 0 re-configured the
@@ -1396,6 +1407,13 @@ func (a *app) deviceFlash(args []string) error {
 	buildDir := filepath.Join(a.zephyrWorkspace(), "build", filepath.Base(appDir)+"-"+variant.label)
 	if _, err := os.Stat(filepath.Join(buildDir, "domains.yaml")); err != nil {
 		return fmt.Errorf("no sysbuild output for the tier %s %s image; run ./course build firmware --tier %s --variant %s first", tier, variant.label, tier, variant.label)
+	}
+
+	// Tier 3's two images come from two builds, so west flash cannot place
+	// them: it would write the bootloader sysbuild produced, which does not
+	// verify anything, and the unsigned application beside it.
+	if tier == "03" {
+		return a.flashTier03(device, buildDir, variant)
 	}
 
 	workspace := a.zephyrWorkspace()

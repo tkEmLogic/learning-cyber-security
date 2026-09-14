@@ -37,3 +37,17 @@ config COURSE_TRUST_ANCHOR_FINGERPRINT
 endmenu
 
 source "Kconfig.zephyr"
+
+config COURSE_SIGNING_KEY_FINGERPRINT
+	string "Fingerprint of the image verification key this image was built beside"
+	default "unknown"
+	help
+	  Printed at boot so a Learner can see which key the build trusted, and
+	  so a key regenerated after flashing diagnoses itself instead of looking
+	  like a broken image.
+
+	  Read the wording in main.c before changing this. The application cannot
+	  see what the bootloader actually holds. This value comes from the same
+	  build that produced the bootloader, so it is a claim about the build and
+	  not an observation of the device. Verifying the bootloader itself is
+	  Advanced Tier A's subject.

@@ -27,12 +27,15 @@ ASSERT_PARTITION(coredump_partition, 0x3ff000, 0x001000);
 
 static void announce(enum beacon_state state)
 {
-	printk("ESP32-C6 Reference product: Tier 2, authenticated service connection\n");
+	printk("ESP32-C6 Reference product: Tier 3, signed firmware images\n");
 	printk("Image label: %s\n", CONFIG_COURSE_IMAGE_LABEL);
 	printk("Running release: %s\n", CONFIG_COURSE_RELEASE_ID);
 	printk("Board: %s\n", CONFIG_BOARD_TARGET);
-	printk("Tier 2 boot mode: unsigned MCUboot, swap using offset, no test boot, no rollback\n");
-	printk("Tier 2 protects the connection. It does not make an image authentic.\n");
+	printk("Tier 3 boot mode: signed MCUboot images, swap using offset, no test boot, no rollback\n");
+	printk("Image verification key this build trusted: %s\n",
+	       CONFIG_COURSE_SIGNING_KEY_FINGERPRINT);
+	printk("That is the key the build used. This application cannot read what the bootloader holds.\n");
+	printk("Tier 3 checks who published this image. It does not check the bytes it downloads.\n");
 	printk("Synthetic shared device identifier: %s\n", CONFIG_COURSE_DEVICE_ID);
 	printk("OTA service: https://%s:%d at address %s\n",
 	       CONFIG_COURSE_OTA_SERVICE_NAME, CONFIG_COURSE_OTA_TLS_PORT,

@@ -558,8 +558,11 @@ func (a *app) tier03HostileImage(target string, env environment) (string, string
 
 	a.step(2, "Publish it through your own update service.")
 	a.note("Not an imposter. The real service, with the certificate your device verifies.")
+	// The hostile release carries its own identifier. The device decides
+	// whether to install by comparing that, so reusing the good one would make
+	// it shrug and carry on, which looks like the control working and is not.
 	release := map[string]any{
-		"schema_version": 1, "release_id": "tier-03-baseline", "version": "0.3.1-hostile",
+		"schema_version": 1, "release_id": "tier-03-hostile-" + selector, "version": "0.3.1-hostile",
 		"board": a.manifest.Devices["reference_beacon"].Board, "image_path": name,
 		"image_sha256": digest, "image_size": len(image),
 		"mutable": true, "signed": true,
@@ -660,4 +663,58 @@ var tier03Proves = map[string][]string{
 		"T0-W-04 and T0-W-05: an unsigned or altered image is no longer enough, but only because the device checks.",
 		"What Tier 2 did not do: every check it added passes here, on hostile firmware.",
 	},
+}
+
+// Tier 3's flash offsets, from the pinned map in section 6 of
+// docs/course-specification.md.
+const (
+	tier03BootloaderOffset = "0x0"
+	tier03PrimarySlot      = "0x20000"
+)
+
+// flashTier03 writes the two images Tier 3 builds separately.
+//
+// The bootloader comes from its own build, against the public half of the
+// Learner's key. The application is the signed release, not the unsigned image
+// the build produced, because an unsigned image is what this tier exists to
+// have refused.
+func (a *app) flashTier03(device, buildDir string, variant firmwareVariant) error {
+	bootloader := filepath.Join(buildDir+"-bootloader", "zephyr", "zephyr.bin")
+	if _, err := os.Stat(bootloader); err != nil {
+		return errors.New("no separately built bootloader; run ./course build firmware --tier 03 first")
+	}
+	image := filepath.Join(a.releaseDir(), variant.imageName)
+	if _, err := os.Stat(image); err != nil {
+		return errors.New("no signed release to flash; run ./course release sign first")
+	}
+
+	workspace := a.zephyrWorkspace()
+	esptool := filepath.Join(workspace, ".venv", "bin", "esptool")
+	board := a.manifest.Devices["reference_beacon"].Board
+
+	fingerprint, err := a.keyFingerprint(a.publicKeyPath())
+	if err != nil {
+		return err
+	}
+	fmt.Fprintln(a.out, "Tier 3 writes two images that were built separately.")
+	fmt.Fprintf(a.out, "  bootloader: %s\n", bootloader)
+	fmt.Fprintf(a.out, "              built against %s, and it will refuse anything else\n", fingerprint)
+	fmt.Fprintf(a.out, "  application: %s\n", a.relative(image))
+	fmt.Fprintln(a.out, "              the release you signed, not the unsigned image the build produced")
+	fmt.Fprintln(a.out, "This writes normal flash only. It runs no eFuse, secure boot, or flash encryption command.")
+	fmt.Fprintf(a.out, "+ %s --chip %s -p %s write-flash %s <bootloader> %s <application>\n",
+		esptool, espChip(board), device, tier03BootloaderOffset, tier03PrimarySlot)
+
+	return runAttachedFrom(a.root, workspace, a.out, a.errOut,
+		[]string{"PATH=" + filepath.Join(workspace, ".venv", "bin") + string(os.PathListSeparator) + os.Getenv("PATH")},
+		esptool, "--chip", espChip(board), "-p", device, "write-flash",
+		tier03BootloaderOffset, bootloader, tier03PrimarySlot, image)
+}
+
+// espChip turns the board target into the chip name esptool expects.
+func espChip(board string) string {
+	if before, _, found := strings.Cut(board, "_"); found {
+		return before
+	}
+	return "esp32c6"
 }
