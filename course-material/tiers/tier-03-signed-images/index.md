@@ -487,11 +487,11 @@ You may use the course material, the logs, and the Mentor's hints.
 
 ## Continue
 
-Next: **Tier 4: Protect release metadata and block downgrade**.
+Next: **[Tier 4: Protect release metadata and block downgrade](../tier-04-release-policy/index.md)**.
 
 Tier 3 made the device sure about who wrote its firmware. It left the release record completely unprotected, and the device still believes everything that record says about which release it should be running.
 
-An attacker who owns your service cannot make you run their code any more. They can still tell your whole fleet to install last year's correctly signed release, the one with the bug you fixed in March, and every device will do it happily. Tier 4 signs the release metadata, checks the digest and the size before the bytes are written, and adds a security counter that only goes up.
+An attacker who owns your service cannot make you run their code any more. They can still tell your whole fleet to install last year's correctly signed release, the one with the bug you fixed in March, and every device will do it happily. Tier 4 signs the release metadata, makes the device check what a release claims about itself before it writes anything, and adds a security counter it refuses to move backwards.
 
 ## Primary references
 
