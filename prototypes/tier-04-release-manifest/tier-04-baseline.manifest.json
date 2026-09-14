@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "release_id": "tier-04-baseline",
+  "version": "0.4.0-release-policy",
+  "security_counter": 1,
+  "channel": "stable",
+  "board": "esp32c6_devkitc/esp32c6/hpcore",
+  "hardware_revision_min": 1,
+  "hardware_revision_max": 1,
+  "image_path": "tier-04-baseline.bin",
+  "image_size": 663611,
+  "image_sha256": "8ad643509ec835b176bd623632be35b6c21db35610ab1d74daca70bd077b69bc",
+  "created_at": "2026-09-14T13:20:00Z",
+  "supported_until": "2031-09-14T00:00:00Z"
+}
