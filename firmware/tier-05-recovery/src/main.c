@@ -176,11 +176,16 @@ static void run_trial_behaviour(void)
 	printk("trial.crash so the next boot identifies it by reset cause and by the absence\n");
 	printk("trial.crash of any written reason\n");
 	k_sleep(K_MSEC(100));
-	{
-		volatile uint32_t *nowhere = (volatile uint32_t *)0x00000001;
-
-		*nowhere = 0xdeadbeef;
-	}
+	/* __builtin_trap() emits an illegal instruction, which faults.
+	 *
+	 * The first version of this wrote to address 0x00000001 and expected a
+	 * fault that never came: nothing on this part traps that write, so the
+	 * image carried on into the health gate and failed it instead. A crash
+	 * release that quietly turns into a failed-health release is worse than
+	 * no crash release, because the tier would be demonstrating the wrong
+	 * one of its two paths and the output would nearly support it.
+	 */
+	__builtin_trap();
 #elif defined(CONFIG_COURSE_TRIAL_HANG)
 	printk("trial.hang stopping here, in the thread that feeds the watchdog\n");
 	printk("trial.hang an ordinary loop is enough. Interrupts keep being serviced and the\n");

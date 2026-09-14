@@ -460,12 +460,28 @@ static int write_image(struct http_response *rsp, enum http_final_call final,
 
 static int run_request(struct http_request *req, int32_t timeout_ms, void *user_data)
 {
-	int sock = ota_connect();
+	int sock;
 	int err;
 
+	/* Every exchange with the service is main making progress, and main is
+	 * the thread the watchdog vouches for. Feeding around each one is what
+	 * keeps ordinary work from looking like a hang.
+	 *
+	 * This matters more than it sounds. One poll opens four TLS
+	 * connections, and ECDSA handshakes on this part are not fast. Feeding
+	 * once per poll was enough while the device had nothing to download and
+	 * refused the assignment early, and stopped being enough the moment it
+	 * had a manifest to fetch. The board showed it as a healthy image
+	 * resetting partway through the poll that would have started an
+	 * install.
+	 */
+	health_gate_feed();
+
+	sock = ota_connect();
 	if (sock < 0) {
 		return sock;
 	}
+	health_gate_feed();
 	/* The Host header names the service, the socket connects to an address.
 	 * The name is never resolved: it is what the certificate is checked
 	 * against, and what the service is called.
@@ -477,6 +493,7 @@ static int run_request(struct http_request *req, int32_t timeout_ms, void *user_
 
 	err = http_client_req(sock, req, timeout_ms, user_data);
 	zsock_close(sock);
+	health_gate_feed();
 
 	if (err < 0) {
 		printk("ota.request failed url=%s err=%d\n", req->url, err);
