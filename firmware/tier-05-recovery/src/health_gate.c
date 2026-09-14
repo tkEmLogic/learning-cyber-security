@@ -28,15 +28,20 @@ static atomic_t beacon_ticks;
 /* How long the watchdog is given before it decides the device is not coming
  * back.
  *
- * Comfortably longer than one pass of the loop that feeds it, and comfortably
- * shorter than the health window, so a hang is caught during the trial rather
- * than after it. The research behind this tier could not pin down exactly how
+ * Comfortably longer than the slowest thing main legitimately does between
+ * feeds, which is a TLS handshake, and comfortably shorter than the health
+ * window, so a hang is caught during the trial rather than after it.
+ *
+ * Ten seconds was tried first and was too tight: a single poll opens four TLS
+ * connections, and the device reset itself partway through the poll that would
+ * have started an install. The window is not the only defence against that;
+ * main also feeds around every exchange with the service. Both were needed. The research behind this tier could not pin down exactly how
  * the driver's second stage relates to its first, so the reset lands somewhere
  * between one and two times this value. That is enough to size a window
  * against the 60 second gate and not enough to quote a deadline, so no course
  * text quotes one.
  */
-#define WDT_WINDOW_MS 10000
+#define WDT_WINDOW_MS 20000
 
 int health_gate_start_watchdog(void)
 {
@@ -140,6 +145,27 @@ static bool check_credentials_loaded(void)
  */
 static bool check_beacon_running(void)
 {
+	/* At boot the question is whether the beacon has run at all, not
+	 * whether it has run twice.
+	 *
+	 * Comparing against a previous sample here was a race: the gate starts
+	 * within milliseconds of the beacon thread, so the first sample was
+	 * usually taken before the first tick and read as "not advancing". It
+	 * failed the healthy image as readily as a broken one, which would have
+	 * looked exactly like the health gate doing its job.
+	 */
+	return atomic_get(&beacon_ticks) > 0;
+}
+
+/* Whether the beacon has advanced since the last time this was asked.
+ *
+ * This is the question that belongs inside the window, and it is a different
+ * question from the one above. A beacon that ticked once at boot and then
+ * stopped passes the boot check and fails this one, which is exactly the
+ * timeout-health release.
+ */
+static bool check_beacon_advancing(void)
+{
 	static atomic_val_t last;
 	atomic_val_t now = atomic_get(&beacon_ticks);
 	bool advanced = now != last;
@@ -183,8 +209,15 @@ struct health_check {
 static const struct health_check checks[] = {
 	{"image-integrity", check_image_integrity, false},
 	{"credentials-loaded", check_credentials_loaded, false},
-	{"beacon-running", check_beacon_running, true},
+	{"beacon-running", check_beacon_running, false},
 	{"update-client-ready", check_update_client_ready, false},
+};
+
+/* The one check that has to keep being true for the whole window, which is
+ * what makes the window a gate rather than a delay.
+ */
+static const struct health_check window_check = {
+	"beacon-advancing", check_beacon_advancing, true,
 };
 
 enum health_result health_gate_run(char *reason, size_t reason_len)
@@ -195,6 +228,14 @@ enum health_result health_gate_run(char *reason, size_t reason_len)
 
 	if (reason_len > 0U) {
 		reason[0] = '\0';
+	}
+
+	/* Give the beacon thread a moment to produce its first tick before the
+	 * beacon-running check asks whether it has. Without this the gate races
+	 * the thread it is judging.
+	 */
+	for (int waited = 0; waited < 3 && atomic_get(&beacon_ticks) == 0; waited++) {
+		k_sleep(K_SECONDS(1));
 	}
 
 	printk("health.gate running %zu local checks, then a %d second window\n",
@@ -237,17 +278,14 @@ enum health_result health_gate_run(char *reason, size_t reason_len)
 		k_sleep(K_SECONDS(5));
 		health_gate_feed();
 
-		for (size_t i = 0; i < ARRAY_SIZE(checks); i++) {
-			if (!checks[i].holds_for_window) {
-				continue;
-			}
-			if (!checks[i].run()) {
+		{
+			if (!window_check.run()) {
 				int64_t left = (deadline - k_uptime_get()) / 1000;
 
 				printk("health.check %-20s FAIL with %lld seconds left\n",
-				       checks[i].name, (long long)left);
+				       window_check.name, (long long)left);
 				if (reason_len > 0U) {
-					strncpy(reason, checks[i].name, reason_len - 1);
+					strncpy(reason, window_check.name, reason_len - 1);
 					reason[reason_len - 1] = '\0';
 				}
 				/* The window is still running, so this is an

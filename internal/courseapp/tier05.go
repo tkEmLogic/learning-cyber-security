@@ -294,3 +294,55 @@ func (a *app) releaseSignTier05(variantName string) error {
 	}
 	return nil
 }
+
+// releaseAssignTier05 offers an already-signed Tier 5 release to the device.
+//
+// Tier 5 is the first tier with more than one release a Learner needs to hand
+// to the board in sequence, and nothing before it needed this. Tier 3 had one
+// release. Tier 4 had two, and a fixture that re-assigned an old one to
+// demonstrate a replay. Tier 5 has five, four of which exist to be watched
+// failing, and a Learner who could only offer whichever release they signed
+// most recently could not run the tier at all.
+//
+// It signs nothing and builds nothing. The release must already exist, and
+// every value in the assignment is copied from the release's own signed
+// manifest, so this command cannot describe a release as something it is not.
+func (a *app) releaseAssignTier05(variantName string) error {
+	variant, ok := tier05Variants[variantName]
+	if !ok {
+		names := make([]string, 0, len(tier05Variants))
+		for name := range tier05Variants {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		return fmt.Errorf("unknown Tier 5 release %q; use one of: %s",
+			variantName, strings.Join(names, ", "))
+	}
+
+	data, err := os.ReadFile(a.manifestPath(variant.releaseID))
+	if err != nil {
+		return fmt.Errorf("no signed %s release yet; run ./course release sign --tier 05 --variant %s first",
+			variant.label, variant.label)
+	}
+	var manifest releaseManifest
+	if err := json.Unmarshal(data, &manifest); err != nil {
+		return fmt.Errorf("the stored %s manifest is unreadable: %w", variant.label, err)
+	}
+
+	release := a.assignmentFor(manifest)
+	state := filepath.Join(a.root, a.manifest.Paths.State, "ota")
+	if err := writeJSON(filepath.Join(state, "current-release.json"), release, 0o600); err != nil {
+		return err
+	}
+
+	fmt.Fprintf(a.out, "Result: the service now offers %s, version %s, counter %d\n",
+		manifest.ReleaseID, manifest.Version, manifest.SecurityCounter)
+	fmt.Fprintln(a.out, "Every value above came from that release's own signed manifest. This command")
+	fmt.Fprintln(a.out, "signs nothing and changes no stored release.")
+	if variant.trialBehaviour != "healthy" {
+		fmt.Fprintf(a.out, "This release is built to fail its trial by %s. The device should install it,\n",
+			variant.trialBehaviour)
+		fmt.Fprintln(a.out, "fail to confirm it, and put the last confirmed image back on its own.")
+	}
+	return nil
+}
