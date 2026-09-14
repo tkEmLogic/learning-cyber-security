@@ -385,6 +385,28 @@ static bool poll_once(enum beacon_state state)
 	return true;
 }
 
+/* Wait for the next poll without starving the watchdog.
+ *
+ * The poll interval is thirty seconds and the watchdog window is ten, so a
+ * single sleep across the interval would have the device reset itself between
+ * polls. The first build of this tier did exactly that, and the board showed
+ * it as a healthy image rebooting on rst:0x7 every half minute.
+ *
+ * Sleeping in slices keeps the two independent: the watchdog window stays
+ * short, so a hung thread is caught quickly, and the poll interval stays long,
+ * so the service is not hammered. Tying one to the other would mean choosing
+ * between catching a hang late and polling too often.
+ */
+static void idle_between_polls(void)
+{
+	const int slice = 2;
+
+	for (int waited = 0; waited < CONFIG_COURSE_POLL_INTERVAL_SECONDS; waited += slice) {
+		k_sleep(K_SECONDS(slice));
+		health_gate_feed();
+	}
+}
+
 int main(void)
 {
 	enum beacon_state state = beacon_configured_state();
@@ -437,6 +459,6 @@ int main(void)
 			k_sleep(K_MSEC(200));
 			course_reset_system();
 		}
-		k_sleep(K_SECONDS(CONFIG_COURSE_POLL_INTERVAL_SECONDS));
+		idle_between_polls();
 	}
 }
