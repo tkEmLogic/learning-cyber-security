@@ -145,8 +145,24 @@ course-local service name. It proves which service answered, and it proves
 nothing about who published a firmware image.
 _Avoid_: SSL certificate, device certificate
 
+**Release signing key**:
+The private key that signs a firmware image so a device can tell that the
+manufacturer published it. It is held offline, away from the OTA service and
+from version control, and it is separate from every device identity key and
+from the Course certificate authority.
+_Avoid_: Firmware key, code signing certificate
+
+**Image signature**:
+The signature over a firmware image, made with the Release signing key and
+checked by the bootloader before the image is allowed to run. It proves who
+published the image. It proves nothing about which service delivered it.
+_Avoid_: Checksum, image hash, firmware signature
+
 **Trust anchor**:
-The public material a device checks a presented certificate against. In this
-course it is compiled into the Reference product and identifies the Course
-certificate authority.
+The public material a device checks something against, compiled into the
+Reference product rather than fetched over the network. From Tier 3 the
+Reference product holds two, and they are unrelated. The Course certificate
+authority is the anchor for a presented Service certificate. The
+image-verification public key is the anchor for an Image signature. Always
+name which one is meant.
 _Avoid_: Root certificate store, trusted key
