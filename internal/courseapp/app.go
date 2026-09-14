@@ -737,6 +737,18 @@ var firmwareApps = map[string]string{
 	"00": "firmware/reference-product-baseline",
 	"02": "firmware/tier-02-authenticated-service",
 	"03": "firmware/tier-03-signed-images",
+	"04": "firmware/tier-04-release-policy",
+}
+
+// tierSignsItsOwnImage names the tiers whose bootloader is built separately
+// against the public half of the Learner's key, and whose image is therefore
+// signed afterwards rather than by the build.
+//
+// Written as a set rather than as a comparison against "03" and "04" because
+// the property is "this tier's bootloader checks who published an image", and
+// every tier from Tier 3 on has it.
+func tierSignsItsOwnImage(tier string) bool {
+	return tier == "03" || tier == "04"
 }
 
 func variantsForTier(tier string) map[string]firmwareVariant {
@@ -800,11 +812,23 @@ func (a *app) buildFirmware(args []string) error {
 	}
 	// From Tier 3 the bootloader is built separately, against the public half
 	// of the Learner's key. The build never sees anything that could sign.
-	if tier == "03" {
+	if tierSignsItsOwnImage(tier) {
 		if _, err := os.Stat(a.publicKeyPath()); err != nil {
 			return errors.New("no public signing key yet; run ./course keys create release first")
 		}
 		buildEnv = append(buildEnv, "COURSE_SIGNING_PUBKEY="+a.publicKeyPath())
+		printed = buildEnv
+	}
+	// Tier 4 compiles the same public key into the application as well, so it
+	// can verify a Release manifest. It is a separate variable from the trust
+	// anchor because it answers a separate question: the anchor says which
+	// service to talk to, this says whose release metadata to believe.
+	if tier == "04" {
+		keyDir, err := a.writeSigningPublicKeyInc()
+		if err != nil {
+			return err
+		}
+		buildEnv = append(buildEnv, "COURSE_RELEASE_KEY_INC_DIR="+keyDir)
 		printed = buildEnv
 	}
 	fmt.Fprintf(a.out, "+ %s ./scripts/build-zephyr-baseline.sh\n", strings.Join(printed, " "))
@@ -813,14 +837,21 @@ func (a *app) buildFirmware(args []string) error {
 		return err
 	}
 
-	// Tier 3 stops here. The image exists and it is unsigned, which is not a
-	// release: the device will refuse it. Signing is the Learner's own step,
-	// with the private key, on an image the build has already let go of.
-	if tier == "03" {
-		fmt.Fprintf(a.out, "Result: built an unsigned Tier 3 image in %s\n", buildDir)
+	// Tier 3 and Tier 4 stop here. The image exists and it is unsigned, which
+	// is not a release: the device will refuse it. Signing is the Learner's own
+	// step, with the private key, on an image the build has already let go of.
+	if tierSignsItsOwnImage(tier) {
+		fmt.Fprintf(a.out, "Result: built an unsigned Tier %s image in %s\n",
+			strings.TrimLeft(tier, "0"), buildDir)
 		fmt.Fprintln(a.out, "Nothing has been published. This image is unsigned, so the bootloader would refuse it.")
 		fmt.Fprintln(a.out, "Sign and publish it yourself with:")
-		fmt.Fprintln(a.out, "  ./course release sign")
+		if tier == "04" {
+			fmt.Fprintln(a.out, "  ./course release sign --tier 04")
+			fmt.Fprintln(a.out, "That step signs the image and the Release manifest with the same key,")
+			fmt.Fprintln(a.out, "and puts the same security counter in both.")
+		} else {
+			fmt.Fprintln(a.out, "  ./course release sign")
+		}
 		return nil
 	}
 
@@ -905,12 +936,30 @@ CONFIG_COURSE_TRUST_ANCHOR_FINGERPRINT=%q
 	// From Tier 3 the board also reports which image verification key its
 	// build trusted. The application cannot see what the bootloader holds, so
 	// this is a claim about the build; main.c says so on the line beneath it.
-	if tier == "03" {
+	if tierSignsItsOwnImage(tier) {
 		fingerprint, err := a.keyFingerprint(a.publicKeyPath())
 		if err != nil {
-			return "", "", errors.New("run ./course keys create release before building Tier 3 firmware")
+			return "", "", errors.New("run ./course keys create release before building signed firmware")
 		}
 		body += fmt.Sprintf("CONFIG_COURSE_SIGNING_KEY_FINGERPRINT=%q\n", fingerprint)
+	}
+
+	// Tier 4 decides what to install from signed metadata, so the build has to
+	// state the three facts that decision is made against.
+	//
+	// The counter comes from the variant, which is the same constant that
+	// reaches imgtool's --security-counter and the manifest's security_counter
+	// field. One value, three places, and no way for them to disagree: an
+	// application that refused a release its own image TLV would have accepted
+	// would be a bug nobody could see from the console.
+	//
+	// The hardware revision is asserted here and nowhere read. The channel is
+	// a policy choice, not a property of the device.
+	if tier == "04" {
+		body += fmt.Sprintf(`CONFIG_COURSE_SECURITY_COUNTER=%d
+CONFIG_COURSE_HARDWARE_REVISION=%d
+CONFIG_COURSE_RELEASE_CHANNEL=%q
+`, variant.securityCounter, tier04HardwareRevision, tier04Channel)
 	}
 
 	// The filename carries the tier as well as the variant. Tier 0 and Tier 2

@@ -1,0 +1,21 @@
+/*
+ * Route MCUboot's console to the built-in USB-Serial/JTAG peripheral, for the
+ * same reason the application does it. See
+ * boards/esp32c6_devkitc_esp32c6_hpcore.overlay.
+ *
+ * Without this, MCUboot's own messages go to the physical uart0 pins, which
+ * the DevKitC and nanoESP32-C6 connectors do not expose, so an update that
+ * stalls inside the bootloader looks like silence.
+ *
+ * scripts/build-zephyr-baseline.sh passes this file to the mcuboot image.
+ */
+
+&usb_serial {
+	status = "okay";
+};
+
+/ {
+	chosen {
+		zephyr,console = &usb_serial;
+	};
+};

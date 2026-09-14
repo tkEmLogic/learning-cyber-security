@@ -49,6 +49,15 @@ const (
 	// Five years, which is the support period section 4 fixes for the
 	// Reference product.
 	tier04SupportYears = 5
+
+	// The channel this build publishes to and the channel the device is
+	// configured to follow. One constant, for the same reason the counter is
+	// one constant: a device that refused the channel its own build published
+	// to would be a puzzle rather than a lesson.
+	//
+	// Two channels exist, stable and candidate. Nothing here creates the
+	// second one; the fixture that publishes to it does.
+	tier04Channel = "stable"
 )
 
 var tier04Variants = map[string]firmwareVariant{
@@ -106,10 +115,11 @@ func (a *app) buildManifest(variant firmwareVariant, image []byte, now time.Time
 		ReleaseID:       variant.releaseID,
 		Version:         variant.version,
 		SecurityCounter: variant.securityCounter,
-		// Two channels exist. A device refuses a manifest for a channel it was
-		// not configured for, which is one more thing a mistaken release can
-		// get wrong without anybody being an attacker.
-		Channel:             "stable",
+		// A device refuses a manifest for a channel it was not configured for,
+		// which is one more thing a mistaken release can get wrong without
+		// anybody being an attacker. ./course build firmware writes the same
+		// constant into CONFIG_COURSE_RELEASE_CHANNEL.
+		Channel:             tier04Channel,
 		Board:               a.manifest.Devices["reference_beacon"].Board,
 		HardwareRevisionMin: tier04HardwareRevision,
 		HardwareRevisionMax: tier04HardwareRevision,
