@@ -309,6 +309,9 @@ func (a *app) release(args []string) error {
 	}
 	switch args[0] {
 	case "sign":
+		if tier := releaseTierOption(args[1:]); tier == "04" {
+			return a.releaseSignTier04()
+		}
 		return a.releaseSign()
 	case "hostile":
 		return a.releaseHostile()
@@ -353,7 +356,7 @@ func (a *app) releaseSign() error {
 		return err
 	}
 	fmt.Fprintf(a.out, "Signing with the %s key, fingerprint %s\n", "release", fingerprint)
-	if err := a.signImage(key, raw, out); err != nil {
+	if err := a.signImage(key, raw, out, ""); err != nil {
 		return err
 	}
 
@@ -367,7 +370,11 @@ func (a *app) releaseSign() error {
 }
 
 // signImage runs imgtool and shows the command, the same way key creation does.
-func (a *app) signImage(key, in, out string) error {
+// counter is the security counter to place in the image's protected TLV area,
+// or "" for no counter at all. Tier 3 and everything before it pass "", which
+// is why those images have no protected TLV area: imgtool creates one only
+// when something needs to go in it.
+func (a *app) signImage(key, in, out, counter string) error {
 	python, imgtool := a.imgtool()
 	arguments := []string{
 		imgtool, "sign",
@@ -375,6 +382,9 @@ func (a *app) signImage(key, in, out string) error {
 		"--header-size", tier03HeaderSize,
 		"--slot-size", tier03SlotSize,
 		"--align", tier03Align,
+	}
+	if counter != "" {
+		arguments = append(arguments, "--security-counter", counter)
 	}
 	shown := append([]string{}, arguments...)
 	if key != "" {
@@ -445,14 +455,14 @@ func (a *app) releaseHostile() error {
 		var err error
 		switch image.name {
 		case "unsigned":
-			err = a.signImage("", raw, out)
+			err = a.signImage("", raw, out, "")
 		case "wrong-key":
 			fingerprint, ferr := a.keyFingerprint(attacker)
 			if ferr != nil {
 				return ferr
 			}
 			fmt.Fprintf(a.out, "  attacker key fingerprint %s, as valid as yours and trusted by nothing\n", fingerprint)
-			err = a.signImage(attacker, raw, out)
+			err = a.signImage(attacker, raw, out, "")
 		case "modified":
 			err = deriveModified(good, out)
 		case "truncated":
@@ -717,4 +727,16 @@ func espChip(board string) string {
 		return before
 	}
 	return "esp32c6"
+}
+
+// releaseTierOption reads an optional --tier from a release subcommand. The
+// default stays Tier 3, so every command a published module prints keeps
+// working unchanged.
+func releaseTierOption(args []string) string {
+	for i := 0; i+1 < len(args); i++ {
+		if args[i] == "--tier" {
+			return normalizeTier(args[i+1])
+		}
+	}
+	return "03"
 }
