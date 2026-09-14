@@ -286,6 +286,18 @@ verification:
       wrong_name_certificate_refused: validated
       recovery_after_refusal: validated
       certificate_dates_checked: not_checked_no_clock
+      # Issue #62. The application's TLS buffer was sized for the small JSON
+      # Tier 2 fetches, so a firmware image in full sized records was refused
+      # before a byte reached the flash writer. Raised to 16384 and observed on
+      # the nanoESP32-C6: a 663292 byte image published under a fresh release
+      # identifier was downloaded over the verified connection, written to the
+      # secondary slot, swapped in by MCUboot, and run.
+      ota_download_over_tls: validated
+      ota_install_completed: validated
+      # Tier 2 installs whatever the verified service names. The device says so
+      # itself while doing it: "installing without any check". Tier 3 is where
+      # that closes.
+      image_authenticity_checked: not_checked_no_control_yet
   tier_03:
     command: [./scripts/verify-tier-00.sh]
     receipt: .course-state/receipts/tier-03.json

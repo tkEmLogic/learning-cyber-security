@@ -55,7 +55,7 @@ Check that the service and the board are where you left them:
 
 You should see the Tier 2 banner and a verified connection. If you do not, finish Tier 2 before starting this tier.
 
-One thing to know before you begin, because it will otherwise cost you an afternoon. The Tier 2 application cannot download a firmware image over its verified connection. Its TLS buffer is sized for the small records the service sends, and a firmware image arrives in much larger ones, so the transfer is refused before any of it reaches the flash. Tier 3's application raises that limit, and the Troubleshooting table shows what the failure looks like if you meet it. It is recorded as a known limit rather than hidden, and it is why the reproduction below is done from the service side.
+One thing to be clear about before you begin, because this tier is built on it. The Tier 2 product installs updates perfectly well. It downloads a firmware image over its verified connection, writes it to the secondary slot, and swaps it in, and its own log says what it is doing while it does it: `installing without any check`. Nothing on that path asks who produced the image. That is the weakness you still carry into this tier, and it is the one this tier closes.
 
 ## Weakness ledger before the work
 
@@ -451,7 +451,7 @@ Every refusal row must come from a board you watched. A host result never stands
 
 | Observation | First check |
 | --- | --- |
-| `ota.request failed url=/v1/firmware/... err=-113` | The response was too large for the device's TLS buffer. Tier 3's application raises `CONFIG_MBEDTLS_SSL_MAX_CONTENT_LEN` to 16384 for exactly this reason. If you see it on Tier 3, check you flashed the Tier 3 image and not Tier 2's |
+| `ota.request failed url=/v1/firmware/... err=-113` | The response was too large for the device's TLS buffer, whatever the handshake line above it says. Tier 2 and Tier 3 both set `CONFIG_MBEDTLS_SSL_MAX_CONTENT_LEN` to 16384 for exactly this reason. Check that the image on the board was built from this tree and not from an older checkout |
 | The board refuses an image you are sure you signed, printing `key=other` | The bootloader holds a different key from the one you signed with. This usually means you regenerated a key after flashing. Compare `./course keys list` with the fingerprint on the boot line, then rebuild and reflash |
 | The board stops at `E: Unable to find bootable image` and does nothing | The image in the primary slot does not verify, so there is nothing to run. This needs a full reflash of both images with `./course device flash --tier 03`, not an application reflash |
 | The board refuses every image including the good one | Its bootloader and its application came from different builds. Run `./course build firmware --tier 03`, then `./course release sign`, then flash again |
