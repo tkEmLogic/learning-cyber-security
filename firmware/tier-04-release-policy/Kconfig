@@ -1,0 +1,112 @@
+# Configuration Tier 4 adds on top of the shared options in firmware/common.
+#
+# The first block is inherited from Tier 2, which taught the device to verify
+# the service it talks to. Tier 4 keeps every word of it: the manifest is
+# fetched over that same verified connection, and a signed manifest does not
+# make an unverified connection acceptable.
+
+menu "Tier 2 authenticated service"
+
+config COURSE_OTA_SERVICE_NAME
+	string "Name the service certificate must carry"
+	default "ota.course.example"
+	help
+	  The device connects to CONFIG_COURSE_OTA_HOST, a literal address, and
+	  then requires the certificate presented there to carry this name.
+
+	  The name is never resolved. There is no DNS resolver in this image.
+	  It is the value the TLS layer compares the certificate against, which
+	  is why a wrong name is refused even though the address was right.
+
+config COURSE_OTA_TLS_PORT
+	int "OTA service TLS port"
+	default 8443
+	help
+	  Tier 2 moves release records, firmware bytes, and status events to
+	  this port. Health and the Course environment marker stay on the plain
+	  HTTP port, because a safety check must not depend on the control it
+	  is used to test.
+
+config COURSE_TRUST_ANCHOR_FINGERPRINT
+	string "Fingerprint of the trust anchor compiled into this image"
+	default "unknown"
+	help
+	  Printed at boot so a stale trust anchor diagnoses itself instead of
+	  looking like a broken network. ./course build firmware writes this
+	  value, and ./course service certificate prints the same one.
+
+	  The device does not compute it. Computing a digest on the board to
+	  describe material the board already holds would prove nothing that the
+	  build cannot state.
+
+endmenu
+
+menu "Tier 4 release policy"
+
+config COURSE_SECURITY_COUNTER
+	int "Security counter of the running image"
+	default 1
+	help
+	  The anti-rollback counter this image was signed with. The same value
+	  goes into the signed MCUboot image TLV and into the signed Release
+	  manifest, and ./course build firmware writes it from the one constant
+	  in internal/courseapp/tier04.go so the two cannot disagree.
+
+	  The application refuses a manifest whose counter is lower than this
+	  one. Equal is allowed; lower never is. That check saves a wasted
+	  download and is not the boundary: the bootloader is what actually
+	  stops a downgrade, by comparing the candidate's counter against the
+	  counter in the image already in the primary slot.
+
+	  It is deliberately not derived from the human-readable version.
+	  "Human-readable versions override the security counter" is the
+	  failure this tier is about.
+
+config COURSE_HARDWARE_REVISION
+	int "Product hardware revision this build asserts"
+	default 1
+	help
+	  The product hardware revision a release is targeted at, compared
+	  against the manifest's signed hardware_revision_min..max range.
+
+	  It is asserted, not read. The chip reports its silicon stepping from
+	  eFuse and the boot banner prints that beside this value, but nothing
+	  on this part reports which product a board was built into. Product
+	  identity is asserted and protected; a value the device reads is not a
+	  claim anybody signed.
+
+config COURSE_RELEASE_CHANNEL
+	string "Release channel this device follows"
+	default "stable"
+	help
+	  One of stable or candidate. The device refuses a manifest published
+	  to any other channel, even a correctly signed one.
+
+	  This is the check that has no attacker behind it. Nobody without the
+	  Release signing key can produce a manifest that gets this far, so a
+	  channel mismatch means whoever holds the key published something for
+	  the wrong devices. The device cannot tell that from a leaked key, and
+	  refusing is the same either way.
+
+endmenu
+
+source "Kconfig.zephyr"
+
+config COURSE_SIGNING_KEY_FINGERPRINT
+	string "Fingerprint of the image verification key this image was built beside"
+	default "unknown"
+	help
+	  Printed at boot so a Learner can see which key the build trusted, and
+	  so a key regenerated after flashing diagnoses itself instead of looking
+	  like a broken image.
+
+	  Read the wording in main.c before changing this. The application cannot
+	  see what the bootloader actually holds. This value comes from the same
+	  build that produced the bootloader, so it is a claim about the build and
+	  not an observation of the device. Verifying the bootloader itself is
+	  Advanced Tier A's subject.
+
+	  From Tier 4 the same fingerprint also describes the release manifest
+	  verification key compiled into the application, because section 7 fixes
+	  that one key signs both. Unlike the bootloader's copy, that one this
+	  application does hold, and release_policy.c reports when it is absent.

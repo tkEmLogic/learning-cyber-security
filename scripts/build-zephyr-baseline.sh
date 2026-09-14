@@ -76,6 +76,25 @@ if [[ -n "${COURSE_CA_INC_DIR:-}" ]]; then
 	export COURSE_CA_INC_DIR
 fi
 
+# COURSE_RELEASE_KEY_INC_DIR holds the generated release manifest verification
+# key, for tiers that verify signed release metadata. It is separate from the
+# trust anchor above because it answers a separate question: the anchor says
+# which service to talk to, this says whose release metadata to believe.
+#
+# A tier that needs it and does not get it falls back to its own anchor/
+# directory, which holds no key, and produces an image that verifies no
+# manifest and says so at boot and at every refusal.
+if [[ -n "${COURSE_RELEASE_KEY_INC_DIR:-}" ]]; then
+	if [[ ! -f "$COURSE_RELEASE_KEY_INC_DIR/release_pubkey.inc" ]]; then
+		printf 'Generated release verification key is missing: %s/release_pubkey.inc\n' \
+			"$COURSE_RELEASE_KEY_INC_DIR" >&2
+		exit 1
+	fi
+	# Exported for the same reason COURSE_CA_INC_DIR is. See above.
+	COURSE_RELEASE_KEY_INC_DIR="$(cd "$COURSE_RELEASE_KEY_INC_DIR" && pwd)"
+	export COURSE_RELEASE_KEY_INC_DIR
+fi
+
 # MCUboot needs its console routed to the USB-Serial/JTAG peripheral too,
 # otherwise its messages are invisible on this board.
 #
