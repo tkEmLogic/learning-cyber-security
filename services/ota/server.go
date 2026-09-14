@@ -21,6 +21,21 @@ type Config struct {
 	ReleaseDir    string
 }
 
+// Release is the Update assignment: the service's mutable choice of which
+// release it is currently offering. It is not the Release manifest. See
+// manifest.go for that, and CONTEXT.md for why they are different objects.
+//
+// This shape does not change, and no field is added to it. Tiers 0, 2 and 3 are
+// published and quote what this record looks like on the wire, down to `signed`
+// being a value the record states about itself and nothing checks. Adding a
+// field would change what every one of those modules shows a Learner, and
+// `decodeJSON` uses DisallowUnknownFields, so it would also turn every Tier 0
+// through Tier 3 PUT into a 400.
+//
+// From Tier 4 the device reads this record only to learn which release it is
+// being offered. Everything the device acts on comes from the signed manifest
+// it fetches next. The record keeps saying `"signed": true`; the device simply
+// stops believing it.
 type Release struct {
 	SchemaVersion int    `json:"schema_version"`
 	ReleaseID     string `json:"release_id"`
@@ -109,6 +124,7 @@ var dataRoutes = []string{
 	"GET /v1/releases/current",
 	"PUT /v1/releases/current",
 	"GET /v1/releases/{release_id}/manifest",
+	"GET /v1/releases/{release_id}/manifest.sig",
 	"GET /v1/firmware/{name}",
 	"POST /v1/devices/{device_id}/events",
 	"POST /v1/lab/seed",
@@ -124,6 +140,7 @@ func (s *Server) routeData(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/releases/current", s.currentRelease)
 	mux.HandleFunc("PUT /v1/releases/current", s.updateRelease)
 	mux.HandleFunc("GET /v1/releases/{release_id}/manifest", s.releaseManifest)
+	mux.HandleFunc("GET /v1/releases/{release_id}/manifest.sig", s.releaseManifestSignature)
 	mux.HandleFunc("GET /v1/firmware/{name}", s.firmware)
 	mux.HandleFunc("POST /v1/devices/{device_id}/events", s.deviceEvent)
 	mux.HandleFunc("POST /v1/lab/seed", s.seed)
@@ -179,19 +196,6 @@ func (s *Server) updateRelease(w http.ResponseWriter, r *http.Request) {
 	release.Signed = false
 	if err := s.saveRelease(release); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	writeJSON(w, http.StatusOK, release)
-}
-
-func (s *Server) releaseManifest(w http.ResponseWriter, r *http.Request) {
-	release, err := s.loadRelease()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusServiceUnavailable)
-		return
-	}
-	if r.PathValue("release_id") != release.ReleaseID {
-		http.NotFound(w, r)
 		return
 	}
 	writeJSON(w, http.StatusOK, release)
