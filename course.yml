@@ -56,6 +56,19 @@ components:
         beacon_state: steady
         image: artifacts/generated/releases/tier-02-baseline.bin
         app: firmware/tier-02-authenticated-service
+      tier-03-baseline:
+        release_id: tier-03-baseline
+        beacon_state: steady
+        image: artifacts/generated/releases/tier-03-baseline.bin
+        app: firmware/tier-03-signed-images
+        # From Tier 3 the bootloader checks who published an image. The
+        # component level image_mode above describes Tier 0 and Tier 2, which
+        # do not, and it stays true of them.
+        image_mode: signed_ecdsa_p256
+        # Only the public half is ever a build input, and this is it. The
+        # Release signing key is deliberately absent from this manifest: it is
+        # named by ./course release sign and by nothing else.
+        public_key: artifacts/generated/signing/release.pub.pem
 
 services:
   ota:
@@ -128,6 +141,23 @@ fixtures:
       - artifacts/generated/releases/tier-00-altered.bin
       - artifacts/generated/attacks/tier-00/altered-image
     reset: ./course attack reset tier-00/altered-image
+    reset_keeps_built_image: true
+    hardware_required: true
+  tier-03/hostile-image:
+    tier: "03"
+    uses_tls_port: true
+    target: http://127.0.0.1:8080
+    interface: loopback
+    expected_effect: The genuine service publishes a manifest-owned hostile image and delivers it unchanged. What the device does with it is not known to the fixture.
+    images:
+      unsigned: tier-03-hostile-unsigned.bin
+      modified: tier-03-hostile-modified.bin
+      wrong-key: tier-03-hostile-wrong-key.bin
+      truncated: tier-03-hostile-truncated.bin
+    changes:
+      - .course-state/ota/current-release.json
+      - artifacts/generated/attacks/tier-03/hostile-image
+    reset: ./course attack reset tier-03/hostile-image
     reset_keeps_built_image: true
     hardware_required: true
   tier-02/plaintext-inspection:
@@ -345,6 +375,17 @@ tiers:
     complete_checkpoint: course-v1.0-tier-03-complete
     module: course-material/tiers/tier-03-signed-images/index.md
     prerequisites: ["02"]
+    fixtures:
+      - tier-03/hostile-image
+    evidence:
+      - signed-release-evidence
+      - refusal-observations
+      - claim-and-residual-risk
+    # Tier 3 is the first tier with a required gate. Section 13 of
+    # docs/course-specification.md names the six tiers that have one.
+    mentor_review: required
+    destructive: false
+    irreversible: false
   "04":
     title: Protect release metadata and block downgrade
     kind: control

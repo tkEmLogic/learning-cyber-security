@@ -78,12 +78,56 @@ fi
 
 # MCUboot needs its console routed to the USB-Serial/JTAG peripheral too,
 # otherwise its messages are invisible on this board.
-cmake_args+=("-Dmcuboot_EXTRA_DTC_OVERLAY_FILE=$app_dir/sysbuild/mcuboot-console.overlay")
+#
+# From Tier 3 the bootloader sysbuild builds here is discarded and the real one
+# is built below, so the overlay lives in bootloader/ instead and this is
+# skipped. A tier that has no sysbuild/ directory is saying exactly that.
+if [[ -f "$app_dir/sysbuild/mcuboot-console.overlay" ]]; then
+	cmake_args+=("-Dmcuboot_EXTRA_DTC_OVERLAY_FILE=$app_dir/sysbuild/mcuboot-console.overlay")
+fi
 
 if [[ ${#cmake_args[@]} -gt 0 ]]; then
 	west_args+=(-- "${cmake_args[@]}")
 fi
 
 "$west" "${west_args[@]}"
+
+# COURSE_SIGNING_PUBKEY builds the bootloader a second time, on its own.
+#
+# From Tier 3 the bootloader checks who published an image, and sysbuild cannot
+# express that here. It has one setting for a signing key and it feeds two
+# jobs: "imgtool getpub" for the bootloader, which needs only the public half,
+# and "imgtool sign" for the application, which needs the private half. One
+# value cannot be both, and naming the private key in a build command is what
+# docs/fixture-safety-contract.md forbids.
+#
+# So the sysbuild pass above builds the application unsigned and its bootloader
+# is discarded. This pass builds the bootloader that actually ships, against the
+# public half and nothing else. The two were compared: this one resolves to a
+# Kconfig identical to sysbuild's apart from the key path, and to the same
+# binary size.
+if [[ -n "${COURSE_SIGNING_PUBKEY:-}" ]]; then
+	if [[ ! -f "$COURSE_SIGNING_PUBKEY" ]]; then
+		printf 'No public signing key at %s\n' "$COURSE_SIGNING_PUBKEY" >&2
+		printf 'Run ./course keys create release first.\n' >&2
+		exit 1
+	fi
+	bootloader_dir="${build_dir}-bootloader"
+	key_fragment="$repo_root/build/tmp/mcuboot-signing.conf"
+	mkdir -p "$(dirname "$key_fragment")"
+	printf 'CONFIG_BOOT_SIGNATURE_KEY_FILE="%s"\n' "$COURSE_SIGNING_PUBKEY" > "$key_fragment"
+
+	printf '\nBuilding the bootloader separately, against the public key only.\n'
+	"$west" build \
+		--pristine=always \
+		--board esp32c6_devkitc/esp32c6/hpcore \
+		--build-dir "$bootloader_dir" \
+		"$workspace/bootloader/mcuboot/boot/zephyr" \
+		-- \
+		"-DEXTRA_CONF_FILE=$app_dir/bootloader/mcuboot.conf;$key_fragment" \
+		"-DEXTRA_DTC_OVERLAY_FILE=$app_dir/bootloader/mcuboot-console.overlay" \
+		"-DEXTRA_ZEPHYR_MODULES=$repo_root/firmware/mcuboot-refusal-reason"
+	printf 'Bootloader completed: %s\n' "$bootloader_dir"
+fi
 
 printf 'Build completed: %s\n' "$build_dir"

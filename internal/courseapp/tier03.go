@@ -9,17 +9,25 @@ package courseapp
 // .course-secrets/, and no firmware build command ever names it.
 
 import (
+	"bytes"
 	"crypto/ecdsa"
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/hex"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
+
+	"github.com/tkEmLogic/learning-cyber-security/internal/coursepki"
 )
 
 // signingRoles are the two keys a Learner makes, and they are made by the same
@@ -260,8 +268,396 @@ func (a *app) keysList() error {
 }
 
 func (a *app) relative(path string) string {
-	if rel, err := filepath.Rel(a.root, path); err == nil {
-		return rel
+	rel, err := filepath.Rel(a.root, path)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		// Outside the repository, such as the Zephyr build tree. An absolute
+		// path reads better there than a chain of parent directories.
+		return path
 	}
-	return path
+	return rel
+}
+
+// Tier 3's flash geometry, from the pinned map in section 6 of
+// docs/course-specification.md. The map is a fixed contract asserted in CI, so
+// these are constants rather than something read back out of a build tree.
+const (
+	tier03HeaderSize = "0x20"
+	tier03SlotSize   = "1835008"
+	tier03Align      = "4"
+	tier03Version    = "0.3.0+0"
+)
+
+// hostileImages are the four images the device must refuse.
+//
+// Every one is derived from the Learner's own good image, at the moment they
+// ask for them. None is committed, so a fork of this repository never carries a
+// ready made attack payload.
+var hostileImages = []struct {
+	name   string
+	suffix string
+	why    string
+}{
+	{"unsigned", "unsigned", "Nobody signed it. The bootloader finds no signature at all."},
+	{"modified", "modified", "Signed correctly, then one byte was changed afterwards."},
+	{"wrong-key", "wrong-key", "Signed properly, by a key the bootloader was not built to trust."},
+	{"truncated", "truncated", "The download stopped before the signature arrived."},
+}
+
+func (a *app) release(args []string) error {
+	if len(args) == 0 {
+		return errors.New("release requires sign or hostile")
+	}
+	switch args[0] {
+	case "sign":
+		return a.releaseSign()
+	case "hostile":
+		return a.releaseHostile()
+	default:
+		return fmt.Errorf("unknown release command %q; use sign or hostile", args[0])
+	}
+}
+
+func (a *app) tier03BuildDir() string {
+	return filepath.Join(a.zephyrWorkspace(), "build", "tier-03-signed-images-baseline")
+}
+
+func (a *app) tier03RawImage() string {
+	return filepath.Join(a.tier03BuildDir(), "tier-03-signed-images", "zephyr", "zephyr.bin")
+}
+
+func (a *app) releaseDir() string {
+	return filepath.Join(a.root, a.manifest.Paths.GeneratedArtifacts, "releases")
+}
+
+// releaseSign is the step the build deliberately does not do.
+//
+// The private key is named here and nowhere else. The firmware build never sees
+// it, which is the whole reason the bootloader is built separately.
+func (a *app) releaseSign() error {
+	key := a.signingKeyPath("release")
+	if _, err := os.Stat(key); err != nil {
+		return errors.New("no Release signing key yet; run ./course keys create release first")
+	}
+	raw := a.tier03RawImage()
+	if _, err := os.Stat(raw); err != nil {
+		return errors.New("no Tier 3 image to sign; run ./course build firmware --tier 03 first")
+	}
+	variant := tier03Variants["baseline"]
+	out := filepath.Join(a.releaseDir(), variant.imageName)
+	if err := os.MkdirAll(a.releaseDir(), 0o700); err != nil {
+		return err
+	}
+
+	fingerprint, err := a.keyFingerprint(key)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(a.out, "Signing with the %s key, fingerprint %s\n", "release", fingerprint)
+	if err := a.signImage(key, raw, out); err != nil {
+		return err
+	}
+
+	release, err := a.publishSigned(variant, out, fingerprint)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(a.out, "Result: published %s, %d bytes, signed\n", variant.releaseID, release["image_size"])
+	fmt.Fprintln(a.out, "The device will run this one, because its bootloader holds the matching public key.")
+	return nil
+}
+
+// signImage runs imgtool and shows the command, the same way key creation does.
+func (a *app) signImage(key, in, out string) error {
+	python, imgtool := a.imgtool()
+	arguments := []string{
+		imgtool, "sign",
+		"--version", tier03Version,
+		"--header-size", tier03HeaderSize,
+		"--slot-size", tier03SlotSize,
+		"--align", tier03Align,
+	}
+	shown := append([]string{}, arguments...)
+	if key != "" {
+		arguments = append(arguments, "--key", key)
+		shown = append(shown, "--key", a.relative(key))
+	}
+	arguments = append(arguments, in, out)
+	shown = append(shown, a.relative(in), a.relative(out))
+	fmt.Fprintf(a.out, "+ %s %s\n", python, strings.Join(shown, " "))
+	return runAttached(a.root, a.out, a.errOut, python, arguments...)
+}
+
+// publishSigned writes the release record the OTA service serves.
+//
+// "signed": true is the service's claim about itself. No device reads it, and a
+// compromised service would write it happily over a hostile image. Tier 4 is
+// where the downloaded bytes start being checked by the application.
+func (a *app) publishSigned(variant firmwareVariant, image, fingerprint string) (map[string]any, error) {
+	data, err := os.ReadFile(image)
+	if err != nil {
+		return nil, err
+	}
+	sum := sha256.Sum256(data)
+	release := map[string]any{
+		"schema_version": 1, "release_id": variant.releaseID, "version": variant.version,
+		"board": a.manifest.Devices["reference_beacon"].Board, "image_path": variant.imageName,
+		"image_sha256": hex.EncodeToString(sum[:]), "image_size": len(data),
+		"mutable": true, "signed": true, "signing_key_fingerprint": fingerprint,
+	}
+	state := filepath.Join(a.root, a.manifest.Paths.State, "ota")
+	if err := os.MkdirAll(state, 0o700); err != nil {
+		return nil, err
+	}
+	for _, name := range []string{"built-baseline.json", "seed-release.json", "current-release.json"} {
+		if err := writeJSON(filepath.Join(state, name), release, 0o600); err != nil {
+			return nil, err
+		}
+	}
+	fmt.Fprintf(a.out, "  digest: %s\n", release["image_sha256"])
+	return release, nil
+}
+
+// releaseHostile builds the four images the device must refuse.
+//
+// They are made from the Learner's own good image, here, rather than shipped.
+// The attacker key that signs one of them came from the same command as the
+// Release signing key and is exactly as valid.
+func (a *app) releaseHostile() error {
+	raw := a.tier03RawImage()
+	if _, err := os.Stat(raw); err != nil {
+		return errors.New("no Tier 3 image to work from; run ./course build firmware --tier 03 first")
+	}
+	attacker := a.signingKeyPath("attacker")
+	if _, err := os.Stat(attacker); err != nil {
+		return errors.New("no attacker key yet; run ./course keys create attacker first")
+	}
+	good := filepath.Join(a.releaseDir(), tier03Variants["baseline"].imageName)
+	if _, err := os.Stat(good); err != nil {
+		return errors.New("no signed release to work from; run ./course release sign first")
+	}
+
+	fmt.Fprintln(a.out, "Building four images your device should refuse, from your own good image.")
+	fmt.Fprintln(a.out, "None of them is shipped with this course. They are made here, now, from what you just signed.")
+
+	for _, image := range hostileImages {
+		out := filepath.Join(a.releaseDir(), "tier-03-hostile-"+image.suffix+".bin")
+		fmt.Fprintf(a.out, "\n%s: %s\n", image.name, image.why)
+		var err error
+		switch image.name {
+		case "unsigned":
+			err = a.signImage("", raw, out)
+		case "wrong-key":
+			fingerprint, ferr := a.keyFingerprint(attacker)
+			if ferr != nil {
+				return ferr
+			}
+			fmt.Fprintf(a.out, "  attacker key fingerprint %s, as valid as yours and trusted by nothing\n", fingerprint)
+			err = a.signImage(attacker, raw, out)
+		case "modified":
+			err = deriveModified(good, out)
+		case "truncated":
+			err = deriveTruncated(good, out)
+		}
+		if err != nil {
+			return err
+		}
+		info, serr := os.Stat(out)
+		if serr != nil {
+			return serr
+		}
+		fmt.Fprintf(a.out, "  wrote %s, %d bytes\n", a.relative(out), info.Size())
+	}
+
+	fmt.Fprintln(a.out, "\nResult: four hostile images ready.")
+	fmt.Fprintln(a.out, "Publish one through your own service with ./course attack run tier-03/hostile-image")
+	return nil
+}
+
+// deriveModified flips one byte well inside the payload of a correctly signed
+// image, so everything about it still looks right except the bytes the
+// signature covers.
+func deriveModified(good, out string) error {
+	data, err := os.ReadFile(good)
+	if err != nil {
+		return err
+	}
+	const offset = 0x8000
+	if len(data) <= offset {
+		return errors.New("the signed image is too small to modify")
+	}
+	changed := append([]byte{}, data...)
+	changed[offset] ^= 0xff
+	return os.WriteFile(out, changed, 0o600)
+}
+
+// deriveTruncated cuts the tail off a correctly signed image, which is what a
+// download that stops early leaves behind.
+func deriveTruncated(good, out string) error {
+	data, err := os.ReadFile(good)
+	if err != nil {
+		return err
+	}
+	const missing = 120
+	if len(data) <= missing {
+		return errors.New("the signed image is too small to truncate")
+	}
+	return os.WriteFile(out, data[:len(data)-missing], 0o600)
+}
+
+// fixtureUsesTLS says whether a fixture's data traffic goes over the verified
+// connection Tier 2 added. It is true from Tier 2 onward: a later tier never
+// goes back to plain HTTP for release data. The marker handshake is separate
+// and stays in the clear in every tier, for the reason the safety contract
+// gives.
+func fixtureUsesTLS(id string) bool {
+	return strings.HasPrefix(id, "tier-02/") || strings.HasPrefix(id, "tier-03/")
+}
+
+// fixtureCommand is the exact command that reproduces a run, including the
+// image selector when the fixture takes one. It goes in the evidence record, so
+// it has to be the whole command and not an approximation of it.
+func (a *app) fixtureCommand(id, image string) string {
+	command := fmt.Sprintf("./course attack run %s --execute %s", id, id)
+	if image != "" {
+		command += " --image " + image
+	}
+	return command
+}
+
+// tier03HostileImage publishes a hostile image through the genuine service.
+//
+// This is the Tier 0 altered-image attack with the Learner standing somewhere
+// new. In Tier 0 they stood beside the service with an imposter. Here they are
+// inside it: the service is the real one, its certificate verifies, the
+// connection is encrypted, and it hands out exactly what they tell it to.
+//
+// Nothing in this function refuses anything, and that is the point. Every step
+// succeeds. The refusal happens on the board, after the download, and the
+// Learner reads it there.
+func (a *app) tier03HostileImage(target string, env environment) (string, string, map[string]string, error) {
+	selector := a.selectedImage
+	f := a.manifest.Fixtures["tier-03/hostile-image"]
+	name := f.Images[selector]
+	path := filepath.Join(a.releaseDir(), name)
+
+	image, err := os.ReadFile(path)
+	if err != nil {
+		return "", "", nil, fmt.Errorf("no %s image yet; run ./course release hostile first", selector)
+	}
+	sum := sha256.Sum256(image)
+	digest := hex.EncodeToString(sum[:])
+
+	a.step(1, fmt.Sprintf("Take the %s image you built from your own good release.", selector))
+	for _, described := range hostileImages {
+		if described.name == selector {
+			a.note("%s", described.why)
+		}
+	}
+	a.note("%d bytes, sha256 %s", len(image), digest)
+	a.note("Compare that digest with the one ./course release sign printed. The bytes are not the same bytes.")
+
+	a.step(2, "Publish it through your own update service.")
+	a.note("Not an imposter. The real service, with the certificate your device verifies.")
+	release := map[string]any{
+		"schema_version": 1, "release_id": "tier-03-baseline", "version": "0.3.1-hostile",
+		"board": a.manifest.Devices["reference_beacon"].Board, "image_path": name,
+		"image_sha256": digest, "image_size": len(image),
+		"mutable": true, "signed": true,
+	}
+	a.note("The record even says \"signed\": true. Nothing checks that, and nothing ever has.")
+	if err := a.putRelease(target, env, release); err != nil {
+		return "", "", nil, err
+	}
+	a.got("The service now offers this image to every device that asks.")
+
+	a.step(3, "Confirm it comes back, the way the device will fetch it.")
+	body, err := a.fetchFirmware(target, name)
+	if err != nil {
+		return "", "", nil, err
+	}
+	if !bytes.Equal(body, image) {
+		return "", "", nil, errors.New("the service did not return the image unchanged")
+	}
+	a.got("%d bytes, byte for byte what you published, over a connection the device verified.", len(body))
+
+	a.step(4, "Stop. Nothing here can refuse this image.")
+	a.note("Every check Tier 2 added passed. The service is authentic, the connection is private,")
+	a.note("the name matched, and the bytes arrived intact. All of that is true of hostile firmware.")
+	a.note("The only thing that can still refuse it is the bootloader on the board.")
+	a.note("Watch it with ./course device logs, and reset the board to make it install.")
+
+	return fmt.Sprintf("the genuine service published the %s image and delivered it unchanged; the device outcome is not known to this fixture", selector),
+		"The refusal under test is the bootloader's. This fixture records only what it published. Read the board.",
+		map[string]string{name: digest}, nil
+}
+
+// putRelease overwrites the record that decides what every device installs.
+//
+// The service asks who is changing it in exactly the way Tier 0 showed: it does
+// not. Tier 3 changes nothing about that, which is why this is still one PUT.
+func (a *app) putRelease(target string, env environment, release map[string]any) error {
+	body, err := json.Marshal(release)
+	if err != nil {
+		return err
+	}
+	client, endpoint := a.tier03Client(target)
+	a.sent(http.MethodPut, endpoint+"/v1/releases/current")
+	a.sentBody("replacing the current release with:", release)
+	request, err := http.NewRequest(http.MethodPut, endpoint+"/v1/releases/current", bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("X-Course-Environment-ID", env.EnvironmentID)
+	response, err := client.Do(request)
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return fmt.Errorf("the service refused the release update: %s", response.Status)
+	}
+	return nil
+}
+
+func (a *app) fetchFirmware(target, name string) ([]byte, error) {
+	client, endpoint := a.tier03Client(target)
+	a.sent(http.MethodGet, endpoint+"/v1/firmware/"+url.PathEscape(name))
+	response, err := client.Get(endpoint + "/v1/firmware/" + url.PathEscape(name))
+	if err != nil {
+		return nil, err
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("the service returned %s for the firmware", response.Status)
+	}
+	return io.ReadAll(response.Body)
+}
+
+// tier03Client talks to the service the way the device does, over the verified
+// connection Tier 2 added. The attack runs inside that, not around it.
+func (a *app) tier03Client(target string) (*http.Client, string) {
+	pool, err := a.trustAnchorPool()
+	if err != nil {
+		return a.client, target
+	}
+	return a.verifyingClient(pool, coursepki.ServiceName, a.tlsAddress(target)),
+		"https://" + coursepki.ServiceName + ":" + strconv.Itoa(a.manifest.Runtime.TLSPort)
+}
+
+var tier03Plan = map[string][]string{
+	"tier-03/hostile-image": {
+		"Take one of the four images you built from your own good release.",
+		"Publish it through your own update service, over the connection the device verifies.",
+		"Fetch it back to prove the service delivers it unchanged.",
+		"Stop. Nothing on this host can refuse it, and that is the finding.",
+	},
+}
+
+var tier03Proves = map[string][]string{
+	"tier-03/hostile-image": {
+		"REQ-06: an operator with full control of the update service still cannot make a device run their firmware.",
+		"T0-W-04 and T0-W-05: an unsigned or altered image is no longer enough, but only because the device checks.",
+		"What Tier 2 did not do: every check it added passes here, on hostile firmware.",
+	},
 }
