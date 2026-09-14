@@ -1,4 +1,5 @@
 #include "ota_client.h"
+#include "health_gate.h"
 #include "recovery_state.h"
 
 #include <stdio.h>
@@ -404,6 +405,14 @@ static int write_image(struct http_response *rsp, enum http_final_call final,
 			       "runs on the delivered bytes instead\n");
 		}
 	}
+
+	/* A download runs for longer than the watchdog window, and it runs in
+	 * main, which is the thread the watchdog is vouching for. Without this
+	 * the device resets itself part way through every transfer. Feeding here
+	 * is correct rather than a workaround: bytes arriving and being written
+	 * is exactly the thread doing its job.
+	 */
+	health_gate_feed();
 
 	if (rsp->body_frag_len > 0) {
 		writer->err = stream_flash_buffered_write(&writer->stream,
