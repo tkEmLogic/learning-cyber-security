@@ -13,14 +13,27 @@
  * past with a fault injection glitch than a set of them, and a bootloader is
  * exactly where that trade is worth making.
  *
- * A Learner still has to be able to tell four failures apart. So this hook
+ * A Learner still has to be able to tell the failures apart. So this hook
  * reports facts and leaves the verdict alone. It prints what is actually in
  * the image, then returns FIH_BOOT_HOOK_REGULAR, and MCUboot runs its normal
  * validation and makes every accept and reject decision. Read the two lines
  * together:
  *
- *     I: course: slot=secondary header=ok tlv=ok signature=none key=n/a
+ *     I: course: slot=secondary header=ok tlv=ok signature=none key=n/a counter=none
  *     E: Image in the secondary slot is not valid!
+ *
+ * From Tier 4 a refusal can also happen to an image that is entirely valid,
+ * and then there is no error line at all. Downgrade prevention prints an
+ * informational line and says nothing about why, and it prints the same line
+ * whether the version or the counter refused. So the counter is reported for
+ * both slots and the Learner reads three lines together:
+ *
+ *     I: course: slot=primary   header=ok tlv=ok signature=present key=match counter=5
+ *     I: course: slot=secondary header=ok tlv=ok signature=present key=match counter=3
+ *     I: Image 0 in slot 1 erased due to downgrade prevention
+ *
+ * Every field on the candidate says the image is genuine, because it is. It
+ * was refused for what it claims about itself, not for who signed it.
  *
  * Nothing in the MCUboot tree is modified. This file is a Zephyr module that
  * reaches the bootloader build through mcuboot_EXTRA_ZEPHYR_MODULES, using the
@@ -79,6 +92,13 @@ struct course_image_facts {
 	const char *tlv;
 	const char *signature;
 	const char *key;
+	/* The security counter this image carries, and whether it carries one
+	 * at all. An image with no counter is not an error: it is every image
+	 * built before Tier 4, and it is the reason MCUboot allows a swap it
+	 * would otherwise refuse. See course_read_protected_tlvs().
+	 */
+	bool counter_present;
+	uint32_t counter;
 };
 
 /* Find the image header.
@@ -141,6 +161,64 @@ static int course_own_key_hash(uint8_t *out)
 	return rc;
 }
 
+/* Walk the protected TLV area for the security counter.
+ *
+ * The counter lives in the protected area, which is covered by the image hash
+ * and therefore by the signature. The unprotected area holds the hash and the
+ * signature themselves, which cannot cover themselves. So a counter an
+ * attacker edits invalidates the signature, and reporting it here reports
+ * something the Learner's key vouched for.
+ *
+ * Reading it matters because of what MCUboot compares. Downgrade prevention on
+ * this target has no hardware counter and no stored value: it reads this TLV
+ * out of the image in the primary slot and compares it with the same TLV in
+ * the candidate. The reference is a field in flash, not a memory. Printing
+ * both slots is what lets a Learner see that.
+ *
+ * An absent counter is reported rather than treated as zero, because MCUboot
+ * treats the two differently. Its own comment reads "If there was security no
+ * counter in slot 0, allow swap", so a primary image without one disables
+ * downgrade prevention entirely, and a Learner meeting that needs to see why.
+ */
+static void course_read_protected_tlvs(const struct flash_area *fap, uint32_t off,
+				       uint16_t tot, uint32_t area_size,
+				       struct course_image_facts *facts)
+{
+	uint32_t end = off + tot;
+
+	if (end > area_size) {
+		return;
+	}
+
+	off += sizeof(struct image_tlv_info);
+
+	while (off + sizeof(struct image_tlv) <= end) {
+		struct image_tlv tlv;
+
+		if (flash_area_read(fap, off, &tlv, sizeof(tlv)) != 0) {
+			return;
+		}
+		off += sizeof(tlv);
+
+		if (off + tlv.it_len > end) {
+			return;
+		}
+
+		if (tlv.it_type == IMAGE_TLV_SEC_CNT &&
+		    tlv.it_len == sizeof(facts->counter)) {
+			uint32_t seen;
+
+			if (flash_area_read(fap, off, &seen, sizeof(seen)) == 0) {
+				facts->counter = seen;
+				facts->counter_present = true;
+			}
+			return;
+		}
+
+		off += tlv.it_len;
+	}
+}
+
 /* Walk the TLV area and record what is there.
  *
  * This deliberately does not verify anything. It does not hash the image and
@@ -169,6 +247,8 @@ static void course_read_tlvs(const struct flash_area *fap, uint32_t image_off,
 	 * reach the unprotected area, which is where the signature lives.
 	 */
 	if (info.it_magic == IMAGE_TLV_PROT_INFO_MAGIC) {
+		course_read_protected_tlvs(fap, off, info.it_tlv_tot, area_size,
+					   facts);
 		off += info.it_tlv_tot;
 		if (off + sizeof(info) > area_size ||
 		    flash_area_read(fap, off, &info, sizeof(info)) != 0) {
@@ -276,9 +356,16 @@ static void course_report(int img_index, int slot)
 
 	flash_area_close(fap);
 
-	BOOT_LOG_INF("course: slot=%s header=%s tlv=%s signature=%s key=%s",
-		     slot == BOOT_SLOT_PRIMARY ? "primary" : "secondary",
-		     facts.header, facts.tlv, facts.signature, facts.key);
+	if (facts.counter_present) {
+		BOOT_LOG_INF("course: slot=%s header=%s tlv=%s signature=%s key=%s counter=%u",
+			     slot == BOOT_SLOT_PRIMARY ? "primary" : "secondary",
+			     facts.header, facts.tlv, facts.signature, facts.key,
+			     facts.counter);
+	} else {
+		BOOT_LOG_INF("course: slot=%s header=%s tlv=%s signature=%s key=%s counter=none",
+			     slot == BOOT_SLOT_PRIMARY ? "primary" : "secondary",
+			     facts.header, facts.tlv, facts.signature, facts.key);
+	}
 }
 
 /* The hook itself.
