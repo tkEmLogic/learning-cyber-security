@@ -310,10 +310,13 @@ func (a *app) release(args []string) error {
 	switch args[0] {
 	case "sign":
 		if tier := releaseTierOption(args[1:]); tier == "04" {
-			return a.releaseSignTier04()
+			return a.releaseSignTier04(releaseVariantOption(args[1:]))
 		}
 		return a.releaseSign()
 	case "hostile":
+		if tier := releaseTierOption(args[1:]); tier == "04" {
+			return a.releaseHostileTier04()
+		}
 		return a.releaseHostile()
 	default:
 		return fmt.Errorf("unknown release command %q; use sign or hostile", args[0])
@@ -520,18 +523,25 @@ func deriveTruncated(good, out string) error {
 // and stays in the clear in every tier, for the reason the safety contract
 // gives.
 func fixtureUsesTLS(id string) bool {
-	return strings.HasPrefix(id, "tier-02/") || strings.HasPrefix(id, "tier-03/")
+	return strings.HasPrefix(id, "tier-02/") ||
+		strings.HasPrefix(id, "tier-03/") ||
+		strings.HasPrefix(id, "tier-04/")
 }
 
 // fixtureCommand is the exact command that reproduces a run, including the
-// image selector when the fixture takes one. It goes in the evidence record, so
-// it has to be the whole command and not an approximation of it.
-func (a *app) fixtureCommand(id, image string) string {
+// selector when the fixture takes one. It goes in the evidence record, so it
+// has to be the whole command and not an approximation of it.
+//
+// The option name comes from the fixture, because Tier 3 selects an image and
+// Tier 4 selects a signed release. A command that named the wrong one would not
+// reproduce anything.
+func (a *app) fixtureCommand(id, selector string) string {
 	command := fmt.Sprintf("./course attack run %s --execute %s", id, id)
-	if image != "" {
-		command += " --image " + image
+	if selector == "" {
+		return command
 	}
-	return command
+	_, option := a.manifest.Fixtures[id].selectors()
+	return command + " " + option + " " + selector
 }
 
 // tier03HostileImage publishes a hostile image through the genuine service.
@@ -545,7 +555,7 @@ func (a *app) fixtureCommand(id, image string) string {
 // succeeds. The refusal happens on the board, after the download, and the
 // Learner reads it there.
 func (a *app) tier03HostileImage(target string, env environment) (string, string, map[string]string, error) {
-	selector := a.selectedImage
+	selector := a.selector
 	f := a.manifest.Fixtures["tier-03/hostile-image"]
 	name := f.Images[selector]
 	path := filepath.Join(a.releaseDir(), name)
@@ -618,7 +628,7 @@ func (a *app) putRelease(target string, env environment, release map[string]any)
 	if err != nil {
 		return err
 	}
-	client, endpoint := a.tier03Client(target)
+	client, endpoint := a.serviceClient(target)
 	a.sent(http.MethodPut, endpoint+"/v1/releases/current")
 	a.sentBody("replacing the current release with:", release)
 	request, err := http.NewRequest(http.MethodPut, endpoint+"/v1/releases/current", bytes.NewReader(body))
@@ -639,7 +649,7 @@ func (a *app) putRelease(target string, env environment, release map[string]any)
 }
 
 func (a *app) fetchFirmware(target, name string) ([]byte, error) {
-	client, endpoint := a.tier03Client(target)
+	client, endpoint := a.serviceClient(target)
 	a.sent(http.MethodGet, endpoint+"/v1/firmware/"+url.PathEscape(name))
 	response, err := client.Get(endpoint + "/v1/firmware/" + url.PathEscape(name))
 	if err != nil {
@@ -652,9 +662,9 @@ func (a *app) fetchFirmware(target, name string) ([]byte, error) {
 	return io.ReadAll(response.Body)
 }
 
-// tier03Client talks to the service the way the device does, over the verified
+// serviceClient talks to the service the way the device does, over the verified
 // connection Tier 2 added. The attack runs inside that, not around it.
-func (a *app) tier03Client(target string) (*http.Client, string) {
+func (a *app) serviceClient(target string) (*http.Client, string) {
 	pool, err := a.trustAnchorPool()
 	if err != nil {
 		return a.client, target
@@ -687,20 +697,25 @@ const (
 	tier03PrimarySlot      = "0x20000"
 )
 
-// flashTier03 writes the two images Tier 3 builds separately.
+// flashSignedRelease writes the two images a signing tier builds separately.
 //
 // The bootloader comes from its own build, against the public half of the
 // Learner's key. The application is the signed release, not the unsigned image
-// the build produced, because an unsigned image is what this tier exists to
+// the build produced, because an unsigned image is what these tiers exist to
 // have refused.
-func (a *app) flashTier03(device, buildDir string, variant firmwareVariant) error {
+//
+// Tier 4 uses this unchanged. Its flash map is the same pinned map, its
+// bootloader is built the same separate way, and its application is signed by
+// the same command, so a second copy of this would only be a second thing to
+// keep in step.
+func (a *app) flashSignedRelease(device, buildDir string, variant firmwareVariant, tier string) error {
 	bootloader := filepath.Join(buildDir+"-bootloader", "zephyr", "zephyr.bin")
 	if _, err := os.Stat(bootloader); err != nil {
-		return errors.New("no separately built bootloader; run ./course build firmware --tier 03 first")
+		return fmt.Errorf("no separately built bootloader; run ./course build firmware --tier %s --variant %s first", tier, variant.label)
 	}
 	image := filepath.Join(a.releaseDir(), variant.imageName)
 	if _, err := os.Stat(image); err != nil {
-		return errors.New("no signed release to flash; run ./course release sign first")
+		return fmt.Errorf("no signed release to flash; run ./course release sign%s first", signCommandSuffix(tier, variant))
 	}
 
 	workspace := a.zephyrWorkspace()
@@ -711,7 +726,7 @@ func (a *app) flashTier03(device, buildDir string, variant firmwareVariant) erro
 	if err != nil {
 		return err
 	}
-	fmt.Fprintln(a.out, "Tier 3 writes two images that were built separately.")
+	fmt.Fprintf(a.out, "Tier %s writes two images that were built separately.\n", strings.TrimLeft(tier, "0"))
 	fmt.Fprintf(a.out, "  bootloader: %s\n", bootloader)
 	fmt.Fprintf(a.out, "              built against %s, and it will refuse anything else\n", fingerprint)
 	fmt.Fprintf(a.out, "  application: %s\n", a.relative(image))
@@ -724,6 +739,15 @@ func (a *app) flashTier03(device, buildDir string, variant firmwareVariant) erro
 		[]string{"PATH=" + filepath.Join(workspace, ".venv", "bin") + string(os.PathListSeparator) + os.Getenv("PATH")},
 		esptool, "--chip", espChip(board), "-p", device, "write-flash",
 		tier03BootloaderOffset, bootloader, tier03PrimarySlot, image)
+}
+
+// signCommandSuffix names the options ./course release sign needs for a tier
+// that has more than the one release Tier 3 had.
+func signCommandSuffix(tier string, variant firmwareVariant) string {
+	if tier == "03" {
+		return ""
+	}
+	return " --tier " + tier + " --variant " + variant.label
 }
 
 // espChip turns the board target into the chip name esptool expects.
@@ -744,4 +768,16 @@ func releaseTierOption(args []string) string {
 		}
 	}
 	return "03"
+}
+
+// releaseVariantOption reads an optional --variant from a release subcommand.
+// Tier 4 has more than one good release, because a downgrade needs something to
+// downgrade from, and the Learner signs each one separately.
+func releaseVariantOption(args []string) string {
+	for i := 0; i+1 < len(args); i++ {
+		if args[i] == "--variant" {
+			return args[i+1]
+		}
+	}
+	return "baseline"
 }

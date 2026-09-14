@@ -160,6 +160,44 @@ fixtures:
     reset: ./course attack reset tier-03/hostile-image
     reset_keeps_built_image: true
     hardware_required: true
+  # Tier 4 publishes hostile release metadata, not hostile firmware. All six
+  # variants point at the Learner's own good image; what is wrong with them is
+  # the signed description of it, so the selector names a release rather than a
+  # file. See docs/fixture-safety-contract.md, "Tier 4 fixtures".
+  tier-04/hostile-release:
+    tier: "04"
+    uses_tls_port: true
+    target: http://127.0.0.1:8080
+    interface: loopback
+    expected_effect: The genuine service publishes a manifest-owned hostile Release manifest and serves it and its detached signature back unchanged. What the device does with it is not known to the fixture.
+    releases:
+      modified: tier-04-hostile-modified
+      wrong-key: tier-04-hostile-wrong-key
+      hardware: tier-04-hostile-hardware
+      channel: tier-04-hostile-channel
+      size: tier-04-hostile-size
+      digest: tier-04-hostile-digest
+    changes:
+      - .course-state/ota/current-release.json
+      - artifacts/generated/attacks/tier-04/hostile-release
+    reset: ./course attack reset tier-04/hostile-release
+    reset_keeps_built_image: true
+    hardware_required: true
+  # The replay forges nothing, so it has no selector at all. It re-assigns a
+  # release this environment produced, chosen by comparing signed security
+  # counters, and it never edits a manifest or a signature.
+  tier-04/replay-release:
+    tier: "04"
+    uses_tls_port: true
+    target: http://127.0.0.1:8080
+    interface: loopback
+    expected_effect: The genuine service re-assigns an older release of its own, unedited and still verifying. What the device does with it is not known to the fixture, and the check is inert unless a counter-carrying image is already in the primary slot.
+    changes:
+      - .course-state/ota/current-release.json
+      - artifacts/generated/attacks/tier-04/replay-release
+    reset: ./course attack reset tier-04/replay-release
+    reset_keeps_built_image: true
+    hardware_required: true
   tier-02/plaintext-inspection:
     tier: "02"
     uses_tls_port: true
@@ -426,6 +464,9 @@ tiers:
     complete_checkpoint: course-v1.0-tier-04-complete
     module: course-material/tiers/tier-04-release-policy/index.md
     prerequisites: ["03"]
+    fixtures:
+      - tier-04/hostile-release
+      - tier-04/replay-release
   "05":
     title: Make installation recoverable
     kind: control
