@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: Apache-2.0
+
+config COURSE_REFUSAL_REASON
+	bool "Report what the bootloader saw in an image before it judged it"
+	depends on BOOT_IMAGE_ACCESS_HOOKS
+	help
+	  Print four observable facts about a candidate image before MCUboot
+	  decides whether to accept it: whether it has an image header, whether
+	  it has a TLV area, whether it carries a signature, and whether that
+	  signature names the key compiled into this bootloader.
+
+	  MCUboot itself reports only that an image is not valid. It never says
+	  why, because bootutil_img_validate() returns a single fih_ret with no
+	  cause attached. That is fault injection hardening rather than an
+	  oversight: one return value is harder to skip past with a glitch than
+	  a set of them.
+
+	  This hook does not change that decision and must never appear to. It
+	  reports and then returns FIH_BOOT_HOOK_REGULAR, so MCUboot performs
+	  its normal validation and makes every accept and reject call.
+
+if COURSE_REFUSAL_REASON
+
+config COURSE_REFUSAL_REASON_SLOT_OFFSET
+	hex "Second offset to look for an image header"
+	default 0x1000
+	help
+	  Swap using offset places a downloaded image one flash sector into the
+	  secondary slot rather than at its start. MCUboot knows that offset
+	  from its own swap state, but boot_image_check_hook() is handed only an
+	  image index and a slot number, so this code has to find the image on
+	  its own.
+
+	  It looks for the image magic at the start of the slot first, then
+	  here. The value is the erase sector size of the flash device, which is
+	  4096 bytes on the ESP32-C6.
+
+endif # COURSE_REFUSAL_REASON

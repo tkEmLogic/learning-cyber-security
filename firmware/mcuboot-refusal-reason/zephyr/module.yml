@@ -1,0 +1,4 @@
+name: course-refusal-reason
+build:
+  cmake: .
+  kconfig: Kconfig
