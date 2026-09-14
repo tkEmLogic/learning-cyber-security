@@ -10,8 +10,8 @@ jobs:
   host:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
       - run: python3 -m pip install -r requirements.txt
@@ -25,8 +25,8 @@ jobs:
   container:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
       - run: ./course setup
@@ -45,7 +45,7 @@ jobs:
       # The full history is needed to diff against the base of the pull
       # request. Without it the scope step below sees one commit and cannot
       # tell what changed.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
       # Decide whether this change can possibly affect a firmware build.
