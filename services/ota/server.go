@@ -5,9 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -19,6 +21,26 @@ type Config struct {
 	Tier          string
 	StateDir      string
 	ReleaseDir    string
+	// RangeBehaviour makes the service answer a firmware download badly, on
+	// purpose, so that a control which refuses a bad answer can be seen
+	// refusing it. Empty means the service behaves correctly, which is what
+	// every tier before Tier 5 runs with.
+	//
+	// This is Tier 5's version of Tier 2's --present untrusted: a control
+	// that has never been observed failing has not been taught. Two tiers out
+	// of two found this work as large as the control itself, and Tier 5 is
+	// the third.
+	//
+	//   ""             answer correctly, including honouring Range
+	//   "ignore"       answer 200 with the whole body when Range was asked,
+	//                  which is the failure most likely to be got wrong,
+	//                  because it looks like success while restarting the
+	//                  image from byte zero under a device that believes it
+	//                  is appending
+	//   "interrupt:N"  begin answering correctly and drop the connection
+	//                  after N bytes of body, which is a genuine partial
+	//                  transfer rather than a simulated one
+	RangeBehaviour string
 }
 
 // Release is the Update assignment: the service's mutable choice of which
@@ -229,7 +251,96 @@ func (s *Server) firmware(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/octet-stream")
+
+	if s.cfg.RangeBehaviour == "ignore" && r.Header.Get("Range") != "" {
+		// The whole body, with a 200, to a request that asked for part of
+		// it. A client that does not check the status code appends this to
+		// what it already has and builds an image out of two overlapping
+		// copies.
+		log.Printf("COURSE RANGE BEHAVIOUR: ignoring Range and answering 200 with the whole body")
+		w.Header().Set("Content-Length", strconv.FormatInt(info.Size(), 10))
+		w.WriteHeader(http.StatusOK)
+		_, _ = io.Copy(w, file)
+		return
+	}
+
+	if limit, ok := interruptAfter(s.cfg.RangeBehaviour); ok {
+		s.serveInterrupted(w, r, file, info, limit)
+		return
+	}
+
 	http.ServeContent(w, r, name, info.ModTime(), file)
+}
+
+// interruptAfter reads the byte count out of an "interrupt:N" behaviour.
+func interruptAfter(behaviour string) (int64, bool) {
+	rest, found := strings.CutPrefix(behaviour, "interrupt:")
+	if !found {
+		return 0, false
+	}
+	limit, err := strconv.ParseInt(rest, 10, 64)
+	if err != nil || limit <= 0 {
+		return 0, false
+	}
+	return limit, true
+}
+
+// serveInterrupted answers correctly and then stops talking.
+//
+// The headers describe the whole transfer, so the client is told how much is
+// coming and then does not receive it. That is what a real interruption looks
+// like from the client's side, and it is the difference between this and
+// simply serving a short file: a short file is a size mismatch, which the
+// device refuses, while this is a partial download, which the device is
+// supposed to resume.
+//
+// The connection is aborted rather than closed politely. panic with
+// http.ErrAbortHandler is the documented way to drop a connection from inside
+// a handler without logging a stack trace.
+func (s *Server) serveInterrupted(w http.ResponseWriter, r *http.Request, file *os.File,
+	info os.FileInfo, limit int64) {
+	var start int64
+
+	// The device only ever sends the open-ended form, which is all a resume
+	// needs. Anything else is answered from the beginning rather than
+	// guessed at.
+	if rest, found := strings.CutPrefix(r.Header.Get("Range"), "bytes="); found {
+		if value, _, _ := strings.Cut(rest, "-"); value != "" {
+			if parsed, err := strconv.ParseInt(value, 10, 64); err == nil {
+				start = parsed
+			}
+		}
+	}
+	if start < 0 || start >= info.Size() {
+		http.Error(w, "range outside the image", http.StatusRequestedRangeNotSatisfiable)
+		return
+	}
+	if _, err := file.Seek(start, io.SeekStart); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	remaining := info.Size() - start
+	if start > 0 {
+		w.Header().Set("Content-Range",
+			fmt.Sprintf("bytes %d-%d/%d", start, info.Size()-1, info.Size()))
+		w.Header().Set("Content-Length", strconv.FormatInt(remaining, 10))
+		w.WriteHeader(http.StatusPartialContent)
+	} else {
+		w.Header().Set("Content-Length", strconv.FormatInt(remaining, 10))
+		w.WriteHeader(http.StatusOK)
+	}
+
+	sent, _ := io.CopyN(w, file, min(limit, remaining))
+	if flusher, ok := w.(http.Flusher); ok {
+		flusher.Flush()
+	}
+	log.Printf("COURSE RANGE BEHAVIOUR: sent %d of %d bytes from offset %d, then dropped the connection",
+		sent, remaining, start)
+
+	if sent < remaining {
+		panic(http.ErrAbortHandler)
+	}
 }
 
 func (s *Server) deviceEvent(w http.ResponseWriter, r *http.Request) {

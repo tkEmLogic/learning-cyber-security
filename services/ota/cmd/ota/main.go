@@ -42,6 +42,9 @@ func main() {
 		Tier:          env("COURSE_TIER", "00"),
 		StateDir:      env("COURSE_STATE_DIR", ".course-state/ota"),
 		ReleaseDir:    env("COURSE_RELEASE_DIR", "artifacts/generated/releases"),
+		// Empty unless a Learner deliberately started a misbehaving service.
+		// Tier 5 is the only tier that sets it.
+		RangeBehaviour: os.Getenv("COURSE_RANGE_BEHAVIOUR"),
 	})
 	if err != nil {
 		log.Fatal(err)
