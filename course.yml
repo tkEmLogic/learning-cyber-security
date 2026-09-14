@@ -286,6 +286,25 @@ verification:
       wrong_name_certificate_refused: validated
       recovery_after_refusal: validated
       certificate_dates_checked: not_checked_no_clock
+  tier_03:
+    command: [./scripts/verify-tier-00.sh]
+    receipt: .course-state/receipts/tier-03.json
+    revision_bound: true
+    hardware:
+      # Every row below was observed through the real update path: published by
+      # the genuine service, downloaded over the verified connection, written
+      # to the secondary slot, and judged by the bootloader on the next boot.
+      signed_image_installed: validated
+      unsigned_image_refused: validated
+      modified_image_refused: validated
+      wrong_key_image_refused: validated
+      truncated_image_refused: validated
+      running_release_preserved_after_refusal: validated
+      trusted_key_reported_at_boot: validated
+      # Nothing authenticates the bootloader that holds the key. This is the
+      # software chain the specification describes, recorded as T3-W-10, and it
+      # needs Secure Boot v2 in Advanced Tier A.
+      bootloader_authenticity: not_checked_software_chain
 
 tiers:
   "00":

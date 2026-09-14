@@ -2169,20 +2169,44 @@ func (a *app) hardwareStatus(id string) map[string]string {
 	return status
 }
 
+// deviceStatus prints every hardware claim the course makes, tier by tier.
+//
+// It used to print Tier 0's rows only, while the Tier 2 module already told a
+// Learner to run it to see "which hardware results the course currently
+// claims". A command that answers a question about the whole course with one
+// tier's answer is worse than one that refuses to answer.
 func (a *app) deviceStatus() error {
-	status := a.hardwareStatus("00")
-	if len(status) == 0 {
-		fmt.Fprintln(a.out, "No hardware claim is recorded for Tier 0.")
+	tiers := make([]string, 0, len(a.manifest.Verification))
+	for key := range a.manifest.Verification {
+		tiers = append(tiers, key)
+	}
+	sort.Strings(tiers)
+
+	printed := 0
+	for _, key := range tiers {
+		status := a.manifest.Verification[key].Hardware
+		if len(status) == 0 {
+			continue
+		}
+		names := make([]string, 0, len(status))
+		for name := range status {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		if printed > 0 {
+			fmt.Fprintln(a.out)
+		}
+		fmt.Fprintf(a.out, "Tier %s\n", strings.TrimPrefix(key, "tier_"))
+		for _, name := range names {
+			fmt.Fprintf(a.out, "  %s: %s\n", strings.ReplaceAll(name, "_", " "), status[name])
+		}
+		printed++
+	}
+	if printed == 0 {
+		fmt.Fprintln(a.out, "No hardware claim is recorded for any tier.")
 		return nil
 	}
-	names := make([]string, 0, len(status))
-	for name := range status {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	for _, name := range names {
-		fmt.Fprintf(a.out, "Hardware %s: %s\n", strings.ReplaceAll(name, "_", " "), status[name])
-	}
+	fmt.Fprintln(a.out, "\nA result that is not validated is not a claim. A skipped check never supports one.")
 	return nil
 }
 

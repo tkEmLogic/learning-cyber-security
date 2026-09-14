@@ -19,6 +19,7 @@ Everything runs in a dev container. Your own machine needs a container engine an
 | [Tier 0: Build the unsecured reference product](course-material/tiers/tier-00-unsecured/index.md) | Nothing. The baseline, with no security at all |
 | [Tier 1: Model the product and its risks](course-material/tiers/tier-01-threat-model/index.md) | Analysis only. Assets, actors, trust boundaries, and a risk register |
 | [Tier 2: Authenticate and encrypt the server connection](course-material/tiers/tier-02-authenticated-https/index.md) | HTTPS, a course-local certificate authority, certificate and hostname validation |
+| [Tier 3: Require authentic firmware images](course-material/tiers/tier-03-signed-images/index.md) | Your own signing key, and a bootloader that refuses any image it did not sign |
 
 Eleven core tiers and two advanced tiers are planned. [The course page](course-material/index.md) lists all of them, so you can see where the work goes.
 
@@ -26,7 +27,7 @@ Eleven core tiers and two advanced tiers are planned. [The course page](course-m
 
 A physical ESP32-C6 development kit is optional for most work and required for flashing, serial output, Wi-Fi behavior, and anything the device itself must prove.
 
-Tier 0 and Tier 2 are validated on a nanoESP32-C6 1.0. `course.yml` records exactly which hardware results the course claims, and which it does not. A skipped hardware check never supports a hardware claim.
+Tier 0, Tier 2, and Tier 3 are validated on a nanoESP32-C6 1.0. `course.yml` records exactly which hardware results the course claims, and which it does not. A skipped hardware check never supports a hardware claim.
 
 Flashing needs a Linux machine. You can complete every other part of the course on macOS or Windows with the hardware results recorded as pending, which is a normal and honest state.
 
