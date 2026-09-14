@@ -121,17 +121,25 @@ config COURSE_TRIAL_CRASH
 	  reset cause and by the absence of a written reason.
 
 config COURSE_TRIAL_HANG
-	bool "Hang: block interrupts and spin"
+	bool "Hang: stop in the thread that feeds the watchdog"
 	help
-	  Takes irq_lock() and spins, which is the only kind of hang this
-	  configuration actually catches.
+	  An ordinary loop, in main. Interrupts keep being serviced and the
+	  beacon thread keeps running; what stops is the watchdog feed, because
+	  main is the only thing that ever performs one.
 
-	  The Zephyr esp32 watchdog driver programs stage 0 as an interrupt and
-	  its ISR feeds the watchdog at the end, so stage 1, the stage that
-	  resets the chip, is reached only when interrupts are blocked. A hang
-	  that still services interrupts is fed forever and never reset. That is
-	  a real residual availability risk and it is in the Tier 5 ledger
-	  rather than hidden behind a watchdog that appears to catch everything.
+	  Feeding from the thread that does the work, rather than from a timer,
+	  is what makes this catchable at all. A feed on a timer keeps running
+	  while the thread it vouches for is dead, and the watchdog would be
+	  guarding nothing.
+
+	  This was checked on the board. The driver programs stage 0 as an
+	  interrupt whose handler is documented as clearing the interrupt and
+	  feeding the watchdog, which would mean only a hang that also blocked
+	  interrupts ever reached the resetting stage. It does not work out that
+	  way: that function must be called with write protection disabled, and
+	  wdt_esp32_isr() does not disable it, so its feed has no effect and
+	  stage 1 resets the chip. That is a property of this driver rather than
+	  a guarantee, and an upstream fix would change it silently.
 
 config COURSE_TRIAL_FAIL_HEALTH
 	bool "Fail health: fail one named check"

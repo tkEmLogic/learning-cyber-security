@@ -50,14 +50,21 @@ enum health_result {
  * runs. An image that hangs on a board with no watchdog running looks exactly
  * like a control working.
  *
- * What this catches is narrower than it looks. The Zephyr esp32 driver
- * programs stage 0 as an interrupt and its own ISR feeds the watchdog at the
- * end, so the stage that resets the chip is reached only when interrupts are
- * blocked. A hang that still services interrupts is fed forever and never
- * reset, which includes a plain loop in a thread and an ordinary deadlock.
- * That is a real residual availability risk and it is in the Tier 5 weakness
- * ledger rather than hidden behind a watchdog that appears to catch
- * everything.
+ * This catches an ordinary hung thread, which was checked on the board rather
+ * than assumed from the driver source. The driver programs stage 0 as an
+ * interrupt whose handler calls wdt_hal_handle_intr(), documented as clearing
+ * the interrupt and feeding the watchdog, which would mean only a hang that
+ * also blocked interrupts ever reached the resetting stage.
+ *
+ * It does not work out that way. wdt_hal_handle_intr() must be called with
+ * write protection disabled, wdt_esp32_feed() unseals and reseals around its
+ * own feed, and wdt_esp32_isr() does neither. So the handler's feed does not
+ * take effect and stage 1 resets the chip, which is what the board shows as
+ * rst:0x7 (TG0_WDT_HPSYS).
+ *
+ * That is a property of this driver rather than a guarantee, and an upstream
+ * fix to the handler would change it silently. Tier 5 says so rather than
+ * presenting it as a promise.
  */
 int health_gate_start_watchdog(void);
 
@@ -71,11 +78,24 @@ enum health_result health_gate_run(char *reason, size_t reason_len);
 
 /* Reports that the reference product did a unit of work.
  *
- * This is what beacon-running observes, and it is also what feeds the
- * watchdog. One loop proves liveness and feeds the dog, so there is a single
- * thing whose stopping is the failure rather than two mechanisms to reason
- * about.
+ * Called from the beacon's own thread, and observed by the beacon-running
+ * check. It does not feed the watchdog: the two questions are different, and
+ * collapsing them breaks one of the trial behaviours.
  */
 void health_gate_note_beacon(void);
+
+/* Feeds the watchdog.
+ *
+ * Called only from the thread that drives the device's main work, and never
+ * from a timer or an interrupt. That is the whole reason a hung thread is
+ * caught at all: a feed on a k_timer keeps running while the thread it is
+ * supposed to be vouching for is dead, so the watchdog would guard nothing.
+ *
+ * It is deliberately not conditional on the beacon advancing. The watchdog's
+ * job is a thread that has stopped entirely; a beacon that has stopped while
+ * the thread still runs is the health gate's job, and it produces a controlled
+ * reboot after the window rather than a reset ten seconds in.
+ */
+void health_gate_feed(void);
 
 #endif /* COURSE_HEALTH_GATE_H */

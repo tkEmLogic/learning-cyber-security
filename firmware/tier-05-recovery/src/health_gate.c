@@ -69,16 +69,19 @@ int health_gate_start_watchdog(void)
 	}
 
 	printk("health.watchdog armed at %d ms on channel %d\n", WDT_WINDOW_MS, wdt_channel);
-	printk("health.watchdog it resets the chip only when a hang also blocks interrupts.\n");
-	printk("health.watchdog The driver's own stage 0 handler feeds the watchdog, so a hang\n");
-	printk("health.watchdog that still takes interrupts is fed forever. That gap is T5-W-03.\n");
+	printk("health.watchdog Only the thread doing the work feeds it, never a timer. A feed on\n");
+	printk("health.watchdog a timer would keep running while the thread it vouches for was\n");
+	printk("health.watchdog dead, and the watchdog would be guarding nothing.\n");
 	return 0;
 }
 
 void health_gate_note_beacon(void)
 {
 	atomic_inc(&beacon_ticks);
+}
 
+void health_gate_feed(void)
+{
 	if (wdt != NULL && wdt_channel >= 0) {
 		(void)wdt_feed(wdt, wdt_channel);
 	}
@@ -232,6 +235,7 @@ enum health_result health_gate_run(char *reason, size_t reason_len)
 	deadline = k_uptime_get() + (int64_t)CONFIG_COURSE_HEALTH_GATE_SECONDS * 1000;
 	while (k_uptime_get() < deadline) {
 		k_sleep(K_SECONDS(5));
+		health_gate_feed();
 
 		for (size_t i = 0; i < ARRAY_SIZE(checks); i++) {
 			if (!checks[i].holds_for_window) {
