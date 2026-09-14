@@ -111,34 +111,54 @@ static void course_reset_system(void)
 	}
 }
 
-/* The beacon's heartbeat.
+/* The reference product's own work, in its own thread.
  *
- * One timer both proves the reference product is alive and feeds the watchdog,
- * so there is a single thing whose stopping is the failure rather than two
- * mechanisms to reason about. health_gate_note_beacon() does both.
+ * This is what the beacon-running health check observes. It is a thread rather
+ * than a timer because a timer would keep ticking while the application was
+ * dead, and a liveness signal that outlives the thing it describes is not a
+ * liveness signal.
+ *
+ * It does not feed the watchdog. The watchdog is fed by the thread driving the
+ * device's work, which is main, and keeping the two separate is what lets a
+ * stalled beacon produce a controlled reboot after the health window while a
+ * stalled main thread produces a watchdog reset ten seconds in.
  */
-static void beacon_tick(struct k_timer *timer)
+static void beacon_thread(void *a, void *b, void *c)
 {
-	ARG_UNUSED(timer);
+	ARG_UNUSED(a);
+	ARG_UNUSED(b);
+	ARG_UNUSED(c);
+
+	for (;;) {
+		k_sleep(K_SECONDS(1));
 
 #ifdef CONFIG_COURSE_TRIAL_TIMEOUT_HEALTH
-	/* The timeout-health release stops after the boot-time checks have seen
-	 * one tick. Every check passes, the window opens, and then nothing ever
-	 * advances again, so the window expires without a verdict rather than
-	 * refusing at boot. That is the distinction section 6 draws between a
-	 * failed check and an expired timer, and it is why this release and
-	 * fail-health are two images instead of one.
-	 */
-	static int ticks;
+		/* The timeout-health release stops after the boot checks have
+		 * seen one tick. Every check passes, the window opens, and then
+		 * nothing advances again, so the window expires without a
+		 * verdict rather than refusing at boot. That is the distinction
+		 * section 6 draws between a failed check and an expired timer.
+		 *
+		 * It stops only while the image is on trial. A trial behaviour
+		 * that kept running after the image was confirmed would be a
+		 * permanent defect rather than a failed trial: the first build
+		 * of this tier did exactly that, and a confirmed
+		 * timeout-health image rebooted on the watchdog every ten
+		 * seconds forever. An unhealthy release must fail its trial and
+		 * nothing else.
+		 */
+		static int ticks;
 
-	if (++ticks > 1) {
-		return;
-	}
+		if (!boot_is_img_confirmed() && ++ticks > 1) {
+			continue;
+		}
 #endif
-	health_gate_note_beacon();
+		health_gate_note_beacon();
+	}
 }
 
-K_TIMER_DEFINE(beacon_timer, beacon_tick, NULL);
+K_THREAD_STACK_DEFINE(beacon_stack, 1024);
+static struct k_thread beacon_thread_data;
 
 /* What this image does during its trial boot.
  *
@@ -162,14 +182,13 @@ static void run_trial_behaviour(void)
 		*nowhere = 0xdeadbeef;
 	}
 #elif defined(CONFIG_COURSE_TRIAL_HANG)
-	printk("trial.hang blocking interrupts and spinning\n");
-	printk("trial.hang irq_lock() rather than an ordinary loop, because the esp32 driver\n");
-	printk("trial.hang programs stage 0 as an interrupt and its own handler feeds the\n");
-	printk("trial.hang watchdog. A hang that still takes interrupts is fed forever and is\n");
-	printk("trial.hang never reset. That gap is real and it is T5-W-03 in the ledger.\n");
+	printk("trial.hang stopping here, in the thread that feeds the watchdog\n");
+	printk("trial.hang an ordinary loop is enough. Interrupts keep being serviced and the\n");
+	printk("trial.hang beacon thread keeps running; what stops is the feed, because only\n");
+	printk("trial.hang this thread ever performs one.\n");
+	printk("trial.hang the next boot shows rst:0x7 (TG0_WDT_HPSYS) and no written reason\n");
 	k_sleep(K_MSEC(100));
-	(void)irq_lock();
-	while (true) {
+	for (;;) {
 	}
 #endif
 }
@@ -385,7 +404,10 @@ int main(void)
 	 * being watched by the time it hangs.
 	 */
 	(void)health_gate_start_watchdog();
-	k_timer_start(&beacon_timer, K_SECONDS(1), K_SECONDS(1));
+	k_thread_create(&beacon_thread_data, beacon_stack,
+			K_THREAD_STACK_SIZEOF(beacon_stack), beacon_thread,
+			NULL, NULL, NULL, K_PRIO_PREEMPT(10), 0, K_NO_WAIT);
+	k_thread_name_set(&beacon_thread_data, "beacon");
 
 	if (!report_boot_state()) {
 		confirm_or_revert();
@@ -406,6 +428,10 @@ int main(void)
 	}
 
 	while (true) {
+		/* main is the thread the watchdog vouches for, so main is the
+		 * only thing that feeds it.
+		 */
+		health_gate_feed();
 		if (poll_once(state)) {
 			printk("Rebooting into the newly installed image\n");
 			k_sleep(K_MSEC(200));
