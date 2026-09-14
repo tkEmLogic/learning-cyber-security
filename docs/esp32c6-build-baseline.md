@@ -6,7 +6,7 @@ It uses Zephyr 4.4.2, MCUboot 2.4.0, Zephyr SDK 1.0.1, and board target `esp32c6
 
 The build uses unsigned MCUboot because this is the Tier 0 baseline. It does not enable image signatures, downgrade prevention, serial recovery, secure boot, flash encryption, or any eFuse change.
 
-MCUboot runs in overwrite-only mode. An update replaces the running image with whatever the OTA service supplied. There is no test boot and no way back. Recoverable installation belongs to a later Hardening tier.
+MCUboot runs in swap-using-offset mode, which is the mode the whole course uses. An update is swapped into the primary slot and the displaced image is kept in the secondary slot, so a way back exists on the flash. Tier 0 never uses it: the application asks for the swap to be permanent and runs no check afterwards, so there is still no test boot and no revert. Recoverable installation belongs to Tier 5.
 
 ## External workspace
 
@@ -78,7 +78,7 @@ The application contains compile-time checks for every flash partition offset an
 
 The checked-in map is `firmware/reference-product-baseline/dts/esp32c6_4m_flash_map.dtsi`.
 
-The scratch partition stays reserved but is unused. Overwrite-only mode needs no scratch area. Keeping the partition leaves room for a later tier to move to a swap mode without changing the flash map.
+The scratch partition stays reserved but is unused. Swap-using-offset needs no scratch area. Keeping the partition means the pinned flash map does not move, and the mode is selected explicitly rather than left to the default that follows from an absent scratch node.
 
 Zephyr 4.4.2 selects a 2 MiB esptool image header by default even though this board includes an 8 MiB module and the course uses a 4 MiB partition contract. The baseline explicitly selects the 4 MiB header for both MCUboot and the application.
 
@@ -98,7 +98,7 @@ The supporting tool versions were west 1.5.0, Python 3.14.7, CMake 4.3.0, Ninja 
 
 The MCUboot binary was 39,600 bytes in its 64 KiB partition. The application binary was 133,364 bytes. The unsigned MCUboot image with its header and hash trailer was 133,404 bytes in the 1,792 KiB primary slot.
 
-The resolved MCUboot configuration includes `CONFIG_BOOT_SIGNATURE_TYPE_NONE=y`, `CONFIG_BOOT_UPGRADE_ONLY=y`, `CONFIG_BOOT_VALIDATE_SLOT0=y`, and `CONFIG_UPDATEABLE_IMAGE_NUMBER=1`.
+The resolved MCUboot configuration includes `CONFIG_BOOT_SIGNATURE_TYPE_NONE=y`, `CONFIG_BOOT_SWAP_USING_OFFSET=y`, `CONFIG_BOOT_VALIDATE_SLOT0=y`, and `CONFIG_UPDATEABLE_IMAGE_NUMBER=1`. Sysbuild sets the matching `CONFIG_MCUBOOT_BOOTLOADER_MODE_SWAP_USING_OFFSET=y` in the application, which is what makes Zephyr's image utilities write the download one sector into the secondary slot.
 
 The resolved application configuration includes `CONFIG_MCUBOOT_GENERATE_UNSIGNED_IMAGE=y`, `CONFIG_FLASH_LOAD_OFFSET=0x20000`, and `CONFIG_FLASH_LOAD_SIZE=0x1c0000`.
 
@@ -153,7 +153,7 @@ ESP32-C6 Reference product: intentionally unsecured Tier 0
 Image label: baseline
 Running release: tier-00-baseline
 Board: esp32c6_devkitc/esp32c6/hpcore
-Tier 0 boot mode: unsigned MCUboot, overwrite only, no rollback
+Tier 0 boot mode: unsigned MCUboot, swap using offset, no test boot, no rollback
 Synthetic shared device identifier: beacon-development-shared
 OTA service: http://192.168.68.81:8080
 Beacon state: steady, toggle period: 0 ms
@@ -204,16 +204,18 @@ A complete update looked like this on the console:
 ```
 ota.assignment release_id=tier-00-altered version=0.0.0-altered image=tier-00-altered.bin
 ota.assignment differs from running release tier-00-baseline, installing without any check
-ota.install starting release_id=tier-00-altered version=0.0.0-altered size=590396
+ota.install starting release_id=tier-00-altered version=0.0.0-altered size=590412
 ota.install declared_sha256=... (Tier 0 does not check it)
-ota.install wrote 590396 bytes to the secondary slot
-ota.upgrade requested permanent overwrite, no test boot, no rollback
+ota.install wrote 590412 bytes to the secondary slot
+ota.upgrade requested a permanent swap, no test boot, no rollback
 Rebooting into the newly installed image
 ...
 I: Image index: 0, Swap type: perm
-I: Image 0 upgrade secondary slot -> primary slot
-I: Erasing the primary slot
-I: Image 0 copying the secondary slot to the primary slot: 0x90240 bytes
+I: Primary image: magic=good, swap_type=0x3, copy_done=0x1, image_ok=0x1
+I: Secondary image: magic=good, swap_type=0x3, copy_done=0x3, image_ok=0x1
+I: Boot source: none
+I: Starting swap using offset algorithm.
+I: Bootloader chainload address offset: 0x20000
 I: Jumping to the first image slot
 ...
 Image label: altered
@@ -261,9 +263,15 @@ See `course_reset_system()` in
 `firmware/reference-product-baseline/src/main.c`.
 
 Three MCUboot upgrade modes were tried before the debug session, and all three
-hung identically, which is what pointed away from the upgrade path. The
-baseline now uses overwrite-only because it is the simplest mode and it
-matches the Tier 0 posture, not because the others were broken.
+hung identically, which is what pointed away from the upgrade path. None of
+them was broken: the reset was.
+
+The baseline first shipped on overwrite-only because it was the simplest mode
+and matched the Tier 0 posture. It moved to swap-using-offset once the course
+needed one upgrade mode for every tier, and the move was validated on the board
+rather than assumed: the altered-image install was run end to end, MCUboot
+printed `Starting swap using offset algorithm.`, the altered image booted, and
+the fixture reset swapped the baseline back.
 
 ### Debugging the board
 

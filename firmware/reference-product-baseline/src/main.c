@@ -31,7 +31,7 @@ static void announce(enum beacon_state state)
 	printk("Image label: %s\n", CONFIG_COURSE_IMAGE_LABEL);
 	printk("Running release: %s\n", CONFIG_COURSE_RELEASE_ID);
 	printk("Board: %s\n", CONFIG_BOARD_TARGET);
-	printk("Tier 0 boot mode: unsigned MCUboot, overwrite only, no rollback\n");
+	printk("Tier 0 boot mode: unsigned MCUboot, swap using offset, no test boot, no rollback\n");
 	printk("Synthetic shared device identifier: %s\n", CONFIG_COURSE_DEVICE_ID);
 	printk("OTA service: http://%s:%d\n", CONFIG_COURSE_OTA_HOST, CONFIG_COURSE_OTA_PORT);
 	printk("Beacon state: %s, toggle period: %u ms\n",

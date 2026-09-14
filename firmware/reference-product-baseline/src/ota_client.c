@@ -321,6 +321,6 @@ int ota_client_install(const struct ota_release *release)
 		printk("ota.upgrade request failed err=%d\n", err);
 		return err;
 	}
-	printk("ota.upgrade requested permanent overwrite, no test boot, no rollback\n");
+	printk("ota.upgrade requested a permanent swap, no test boot, no rollback\n");
 	return 0;
 }

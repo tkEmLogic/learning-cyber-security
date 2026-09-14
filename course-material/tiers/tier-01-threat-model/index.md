@@ -87,7 +87,7 @@ All seven Tier 0 weaknesses are still present and all seven still work. Tier 1 c
 | T0-W-04 | MCUboot accepts unsigned images | Serve the generated altered image | The device installs and runs it | Signed images in Tier 3 |
 | T0-W-05 | The release record is mutable | Replace the current release record | The new record is served | Signed release metadata in Tier 4 |
 | T0-W-06 | No anti-rollback policy exists | Assign an older release after a newer one | The device installs the older release | Security counter in Tier 4 |
-| T0-W-07 | No test boot or recovery proof exists | Install any image | The install is a permanent overwrite with no revert | Test boot and revert in Tier 5 |
+| T0-W-07 | No test boot or recovery proof exists | Install any image | The install is a permanent swap with no test boot and no revert | Test boot and revert in Tier 5 |
 
 This table is inherited context, not your work. It is the same ledger you closed Tier 0 with, and the last column is the only part this tier will change.
 

@@ -77,7 +77,7 @@ A physical ESP32-C6 is optional for the host work and required for flash, serial
 | T0-W-04 | MCUboot accepts unsigned images | Serve the generated altered image | The device installs and runs it | Tier 3 |
 | T0-W-05 | The release record is mutable | Replace the current release record | The new record is served | Tier 4 |
 | T0-W-06 | No anti-rollback policy exists | Assign an older release after a newer one | The device installs the older release | Tier 4 |
-| T0-W-07 | No test boot or recovery proof exists | Install any image | The install is a permanent overwrite with no revert | Tier 5 |
+| T0-W-07 | No test boot or recovery proof exists | Install any image | The install is a permanent swap with no test boot and no revert | Tier 5 |
 
 Seven weaknesses, four fixtures. One fixture can expose more than one weakness, and two of them are shown by the reset step rather than the attack step.
 
@@ -169,8 +169,10 @@ Expected result:
 ```text
 Generated: .course-state/firmware/baseline.conf for 192.168.0.10:8080, network "course-lab"
 + COURSE_FIRMWARE_CONF=<path> ZEPHYR_BUILD_DIR=<path> ./scripts/build-zephyr-baseline.sh
-Result: built baseline release tier-00-baseline, 590396 bytes
+Result: built baseline release tier-00-baseline, 590428 bytes
 ```
+
+Your byte count will be close to that rather than equal to it. The Wi-Fi network name and the service address are compiled into the image, so a longer network name makes a slightly larger image. A difference of a few tens of bytes is normal and means nothing is wrong.
 
 `ZEPHYR_WORKSPACE` needs no prefix. The container already sets it.
 
@@ -380,22 +382,27 @@ Within one poll interval the device reads the new assignment and installs it. Ex
 ```text
 ota.assignment release_id=tier-00-altered version=0.0.0-altered image=tier-00-altered.bin
 ota.assignment differs from running release tier-00-baseline, installing without any check
-ota.install starting release_id=tier-00-altered version=0.0.0-altered size=590396
+ota.install starting release_id=tier-00-altered version=0.0.0-altered size=590412
 ota.install declared_sha256=... (Tier 0 does not check it)
-ota.install wrote 590396 bytes to the secondary slot
-ota.upgrade requested permanent overwrite, no test boot, no rollback
+ota.install wrote 590412 bytes to the secondary slot
+ota.upgrade requested a permanent swap, no test boot, no rollback
 Rebooting into the newly installed image
 ```
 
-MCUboot then overwrites the running image with the downloaded one:
+MCUboot then swaps the downloaded image into the primary slot:
 
 ```text
+I: Starting bootloader
 I: Image index: 0, Swap type: perm
-I: Image 0 upgrade secondary slot -> primary slot
-I: Erasing the primary slot
-I: Image 0 copying the secondary slot to the primary slot: 0x90240 bytes
+I: Primary image: magic=good, swap_type=0x3, copy_done=0x1, image_ok=0x1
+I: Secondary image: magic=good, swap_type=0x3, copy_done=0x3, image_ok=0x1
+I: Boot source: none
+I: Starting swap using offset algorithm.
+I: Bootloader chainload address offset: 0x20000
 I: Jumping to the first image slot
 ```
+
+`Swap type: perm` is the bootloader reading the request the application made. The device asked for a permanent swap, so MCUboot moves the new image into the primary slot and makes it the image that boots from now on.
 
 After the reboot the board runs the altered image:
 
@@ -407,7 +414,7 @@ Beacon state: fast, toggle period: 200 ms
 
 The device accepted firmware from an unauthenticated service, with no signature and no publisher identity. Nothing in Tier 0 could have stopped it. That is `T0-W-04`.
 
-The permanent overwrite is `T0-W-07`. There was no test boot and no way back.
+The permanent swap is `T0-W-07`. MCUboot put the image it displaced into the secondary slot, so a way back physically exists on the flash. Nothing in Tier 0 uses it: the device asked for the swap to be permanent before it had any idea whether the new image works, and no check ever runs afterwards. A path you never take is not a recovery mechanism. Tier 5 is where the device learns to boot a candidate on trial and go back on its own.
 
 Return the device to the baseline:
 

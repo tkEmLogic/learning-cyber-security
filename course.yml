@@ -41,7 +41,7 @@ components:
     zephyr: 4.4.2
     mcuboot: 2.4.0
     image_mode: unsigned
-    upgrade_mode: overwrite_only
+    upgrade_mode: swap_using_offset
     variants:
       baseline:
         release_id: tier-00-baseline

@@ -177,7 +177,7 @@ Every claim below is `unsupported` at the end of Tier 1. Tier 1 produced no cont
 | SC-02 | The device installs only the release the manufacturer currently approves, and never an earlier one | A-05 | unsupported | The device installed an older release during the Tier 0 reset | REQ-02, REQ-06 | Tier 4 |
 | SC-03 | The device exchanges updates and status only with the genuine update service, and the network can neither read nor change what they exchange | A-04, A-06 | unsupported | The impersonation fixture answered in place of the service and was believed | REQ-03 | Tier 2 |
 | SC-04 | A status report can only be produced by the device it names | A-06, A-03 | unsupported | The spoofing fixture reported as a device it was not | REQ-04 | Tier 6, Tier 7 |
-| SC-05 | An interrupted or failed update never leaves the device without a working image | A-07 | unsupported | The install is a permanent overwrite with no test boot and no revert | REQ-05 | Tier 5 |
+| SC-05 | An interrupted or failed update never leaves the device without a working image | A-07 | unsupported | The install is a permanent swap with no test boot and no revert | REQ-05 | Tier 5 |
 
 ### The requirements
 

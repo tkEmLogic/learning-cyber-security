@@ -31,7 +31,7 @@ static void announce(enum beacon_state state)
 	printk("Image label: %s\n", CONFIG_COURSE_IMAGE_LABEL);
 	printk("Running release: %s\n", CONFIG_COURSE_RELEASE_ID);
 	printk("Board: %s\n", CONFIG_BOARD_TARGET);
-	printk("Tier 2 boot mode: unsigned MCUboot, overwrite only, no rollback\n");
+	printk("Tier 2 boot mode: unsigned MCUboot, swap using offset, no test boot, no rollback\n");
 	printk("Tier 2 protects the connection. It does not make an image authentic.\n");
 	printk("Synthetic shared device identifier: %s\n", CONFIG_COURSE_DEVICE_ID);
 	printk("OTA service: https://%s:%d at address %s\n",

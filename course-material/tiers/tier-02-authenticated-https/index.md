@@ -81,7 +81,7 @@ All seven Tier 0 weaknesses are still present when this tier starts. This tier c
 | T0-W-04 | MCUboot accepts unsigned images | Serve the generated altered image | The device installs and runs it | Signed images in Tier 3 |
 | T0-W-05 | The release record is mutable | Replace the current release record | The new record is served | Signed release metadata in Tier 4 |
 | T0-W-06 | No anti-rollback policy exists | Assign an older release after a newer one | The device installs the older release | Security counter in Tier 4 |
-| T0-W-07 | No test boot or recovery proof exists | Install any image | The install is a permanent overwrite with no revert | Test boot and revert in Tier 5 |
+| T0-W-07 | No test boot or recovery proof exists | Install any image | The install is a permanent swap with no test boot and no revert | Test boot and revert in Tier 5 |
 
 This table is inherited context. Tier 2 changes the first and third rows and leaves the rest exactly as they are.
 
@@ -231,10 +231,10 @@ Build the image:
 Expected result:
 
 ```text
-Result: built baseline release tier-02-baseline, 663276 bytes
+Result: built baseline release tier-02-baseline, 663292 bytes
 ```
 
-Your size will be within a few bytes of that. Compare it with Tier 0's 590396: TLS costs about seventy thousand bytes of flash on this target, and takes static RAM from roughly 37 percent to roughly 50 percent. That is not free, it fits the existing flash map with room to spare, and it is worth knowing the number rather than guessing it.
+Your size will be close to that rather than identical, because the Wi-Fi network name is compiled into the image and yours is a different length from the one this was measured on. Compare it with Tier 0's 590428 from the same environment: TLS costs about seventy thousand bytes of flash on this target, and takes static RAM from roughly 37 percent to roughly 50 percent. That is not free, it fits the existing flash map with room to spare, and it is worth knowing the number rather than guessing it.
 
 Then flash it and watch it start:
 
@@ -250,7 +250,7 @@ ESP32-C6 Reference product: Tier 2, authenticated service connection
 Image label: baseline
 Running release: tier-02-baseline
 Board: esp32c6_devkitc/esp32c6/hpcore
-Tier 2 boot mode: unsigned MCUboot, overwrite only, no rollback
+Tier 2 boot mode: unsigned MCUboot, swap using offset, no test boot, no rollback
 Tier 2 protects the connection. It does not make an image authentic.
 Synthetic shared device identifier: beacon-development-shared
 OTA service: https://ota.course.example:8443 at address 192.168.68.81

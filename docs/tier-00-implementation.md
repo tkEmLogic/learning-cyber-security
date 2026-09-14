@@ -30,7 +30,7 @@ The service uses HTTP. It runs as a process inside the dev container, listening 
 
 ## Firmware boundary
 
-The firmware builds with Zephyr 4.4.2 and MCUboot 2.4.0 in unsigned swap-with-scratch mode.
+The firmware builds with Zephyr 4.4.2 and MCUboot 2.4.0 in unsigned swap-using-offset mode.
 
 The source models steady, fast-blink, and slow-blink states and names the prepared HTTP assignment and status endpoints.
 
