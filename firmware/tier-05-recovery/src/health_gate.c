@@ -288,12 +288,21 @@ enum health_result health_gate_run(char *reason, size_t reason_len)
 					strncpy(reason, window_check.name, reason_len - 1);
 					reason[reason_len - 1] = '\0';
 				}
-				/* The window is still running, so this is an
-				 * expiry rather than a boot-time refusal. The
-				 * timeout-health release reaches this line and
-				 * the fail-health one does not.
+				/* This is the window's failure rather than a
+				 * boot check's, which is the distinction
+				 * section 6 draws between a failed check and an
+				 * expired health timer. The timeout-health
+				 * release reaches this line and the fail-health
+				 * one does not.
+				 *
+				 * The wording says what happened rather than
+				 * claiming the timer ran out. It did not: the
+				 * gate gives up the moment the beacon stops,
+				 * because waiting out the remaining seconds
+				 * would delay the revert without learning
+				 * anything.
 				 */
-				printk("health.gate window expired without a verdict\n");
+				printk("health.gate the window did not complete: the beacon stopped\n");
 				return HEALTH_TIMEOUT;
 			}
 		}

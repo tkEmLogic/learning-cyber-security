@@ -818,8 +818,21 @@ int ota_client_install(const struct release_manifest *manifest)
 		return err;
 	}
 
+	/* The writer's own reason wins over the transport's.
+	 *
+	 * When a response callback returns an error the HTTP client aborts the
+	 * connection, and http_client_req() reports that abort rather than the
+	 * reason for it: a refused range response comes back as -113, which is
+	 * indistinguishable from the network dropping. Taking the transport's
+	 * word for it sent a refused response down the resume path instead of
+	 * the discard path, so the device kept a partial download it had already
+	 * decided not to trust.
+	 *
+	 * It would also have pointed a Learner at the network for a failure that
+	 * had nothing to do with it.
+	 */
 	err = run_request(&req, OTA_DOWNLOAD_TIMEOUT_MS, &writer);
-	if (err == 0) {
+	if (writer.err != 0) {
 		err = writer.err;
 	}
 	if (err != 0) {
