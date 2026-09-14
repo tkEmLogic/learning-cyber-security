@@ -299,7 +299,7 @@ The fixture narrates every step, and every step succeeds:
 ```text
 Step 2. Publish it through your own update service.
      Not an imposter. The real service, with the certificate your device verifies.
-     The record even says "signed": true. Nothing checks that, and nothing ever has.
+     This record claims "signed": true. The service refuses to store that claim, and nothing verifies it either way.
   -> PUT https://ota.course.example:8443/v1/releases/current
   <- The service now offers this image to every device that asks.
 
