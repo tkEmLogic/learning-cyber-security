@@ -1,0 +1,39 @@
+# Configuration Tier 2 adds on top of the shared options in firmware/common.
+
+menu "Tier 2 authenticated service"
+
+config COURSE_OTA_SERVICE_NAME
+	string "Name the service certificate must carry"
+	default "ota.course.example"
+	help
+	  The device connects to CONFIG_COURSE_OTA_HOST, a literal address, and
+	  then requires the certificate presented there to carry this name.
+
+	  The name is never resolved. There is no DNS resolver in this image.
+	  It is the value the TLS layer compares the certificate against, which
+	  is why a wrong name is refused even though the address was right.
+
+config COURSE_OTA_TLS_PORT
+	int "OTA service TLS port"
+	default 8443
+	help
+	  Tier 2 moves release records, firmware bytes, and status events to
+	  this port. Health and the Course environment marker stay on the plain
+	  HTTP port, because a safety check must not depend on the control it
+	  is used to test.
+
+config COURSE_TRUST_ANCHOR_FINGERPRINT
+	string "Fingerprint of the trust anchor compiled into this image"
+	default "unknown"
+	help
+	  Printed at boot so a stale trust anchor diagnoses itself instead of
+	  looking like a broken network. ./course build firmware writes this
+	  value, and ./course service certificate prints the same one.
+
+	  The device does not compute it. Computing a digest on the board to
+	  describe material the board already holds would prove nothing that the
+	  build cannot state.
+
+endmenu
+
+source "Kconfig.zephyr"
