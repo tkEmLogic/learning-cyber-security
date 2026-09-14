@@ -309,8 +309,11 @@ func (a *app) release(args []string) error {
 	}
 	switch args[0] {
 	case "sign":
-		if tier := releaseTierOption(args[1:]); tier == "04" {
+		switch releaseTierOption(args[1:]) {
+		case "04":
 			return a.releaseSignTier04(releaseVariantOption(args[1:]))
+		case "05":
+			return a.releaseSignTier05(releaseVariantOption(args[1:]))
 		}
 		return a.releaseSign()
 	case "hostile":
@@ -377,7 +380,12 @@ func (a *app) releaseSign() error {
 // or "" for no counter at all. Tier 3 and everything before it pass "", which
 // is why those images have no protected TLV area: imgtool creates one only
 // when something needs to go in it.
-func (a *app) signImage(key, in, out, counter, version string) error {
+// signImage runs imgtool sign.
+//
+// extra carries arguments only some tiers need. Tier 5 uses it for the
+// protected custom TLV that holds the source revision; nothing before Tier 5
+// passes anything, and their call sites are unchanged.
+func (a *app) signImage(key, in, out, counter, version string, extra ...string) error {
 	python, imgtool := a.imgtool()
 	if version == "" {
 		version = tier03Version
@@ -392,6 +400,7 @@ func (a *app) signImage(key, in, out, counter, version string) error {
 	if counter != "" {
 		arguments = append(arguments, "--security-counter", counter)
 	}
+	arguments = append(arguments, extra...)
 	shown := append([]string{}, arguments...)
 	if key != "" {
 		arguments = append(arguments, "--key", key)

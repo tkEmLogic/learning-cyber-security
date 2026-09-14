@@ -1108,6 +1108,7 @@ func (a *app) service(args []string) error {
 	case "start":
 		https := false
 		present := ""
+		rangeBehaviour := ""
 		for i := 1; i < len(args); i++ {
 			switch args[i] {
 			case "--https":
@@ -1118,6 +1119,12 @@ func (a *app) service(args []string) error {
 				}
 				present = args[i+1]
 				i++
+			case "--range":
+				if i+1 >= len(args) {
+					return errors.New("--range requires ignore or interrupt:<bytes>")
+				}
+				rangeBehaviour = args[i+1]
+				i++
 			default:
 				return fmt.Errorf("unknown service start option %s", args[i])
 			}
@@ -1125,7 +1132,10 @@ func (a *app) service(args []string) error {
 		if present != "" && !https {
 			return errors.New("--present applies only with --https")
 		}
-		return a.serviceStart(https, present)
+		if err := checkRangeBehaviour(rangeBehaviour); err != nil {
+			return err
+		}
+		return a.serviceStart(https, present, rangeBehaviour)
 	case "stop":
 		return a.serviceStop()
 	case "status":
@@ -1195,7 +1205,25 @@ var presentedCertificate = map[string][2]string{
 	"wrong-name": {coursepki.WrongNameCert, coursepki.WrongNameKey},
 }
 
-func (a *app) serviceStart(https bool, present string) error {
+// checkRangeBehaviour rejects a misspelled misbehaviour rather than starting a
+// service that quietly behaves correctly.
+//
+// A Learner who typed the option expects the service to answer badly. A
+// service that silently answered well would look like the device's control
+// working, which is the failure this whole family of options exists to avoid.
+func checkRangeBehaviour(behaviour string) error {
+	if behaviour == "" || behaviour == "ignore" {
+		return nil
+	}
+	if rest, found := strings.CutPrefix(behaviour, "interrupt:"); found {
+		if n, err := strconv.Atoi(rest); err == nil && n > 0 {
+			return nil
+		}
+	}
+	return fmt.Errorf("unknown --range value %q; use ignore or interrupt:<bytes>", behaviour)
+}
+
+func (a *app) serviceStart(https bool, present string, rangeBehaviour string) error {
 	if _, running := a.runningService(); running {
 		return errors.New("the OTA service is already running; run ./course service stop first")
 	}
@@ -1246,6 +1274,7 @@ func (a *app) serviceStart(https bool, present string) error {
 		"COURSE_PORT="+settings.port,
 		"COURSE_STATE_DIR="+filepath.Join(a.root, a.manifest.Paths.State, "ota"),
 		"COURSE_RELEASE_DIR="+filepath.Join(a.root, a.manifest.Paths.GeneratedArtifacts, "releases"),
+		"COURSE_RANGE_BEHAVIOUR="+rangeBehaviour,
 	)
 	if https {
 		material, ok := presentedCertificate[present]

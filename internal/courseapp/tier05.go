@@ -1,9 +1,16 @@
 package courseapp
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
+	"time"
 )
 
 // Tier 5 makes an install recoverable, and its five releases differ only in
@@ -19,14 +26,24 @@ import (
 // pins swap-using-offset in every tier. No tier has ever taken it. T0-W-07 has
 // been open since Tier 0 saying exactly that, and this is the tier that closes
 // it.
-// tier05Version is deliberately absent until the signing path needs it.
-//
-// Tier 4 declared tier04Version, never wired it to imgtool, and shipped an
-// image whose --version was wrong. An unused Go constant does not fail a
-// build, so the only protection is not to write one down before the code that
-// consumes it exists. It arrives with ./course release sign for this tier.
-
 const (
+	// The human-readable version imgtool stamps into the image header.
+	//
+	// It is written here only because releaseSignTier05 below consumes it.
+	// Tier 4 declared tier04Version, never wired it to imgtool, and shipped
+	// an image whose --version was wrong; an unused Go constant does not
+	// fail a build, so the protection is to add the constant and its
+	// consumer together.
+	tier05Version = "0.5.0+0"
+
+	// The protected MCUboot TLV that carries the source revision.
+	//
+	// 0x00A0 is the first tag in MCUboot's vendor-reserved xxA0-xxFF range.
+	// imgtool puts custom TLVs in the protected area, so the value is covered
+	// by the image signature and cannot be rewritten without invalidating the
+	// image.
+	tier05RevisionTLV = "0x00A0"
+
 	// Every Tier 5 release carries the same security counter, and that is a
 	// decision rather than an oversight.
 	//
@@ -167,4 +184,113 @@ func (a *app) sourceRevision() string {
 		revision += "-dirty"
 	}
 	return revision
+}
+
+func (a *app) tier05BuildDir(variant firmwareVariant) string {
+	return filepath.Join(a.zephyrWorkspace(), "build", "tier-05-recovery-"+variant.label)
+}
+
+func (a *app) tier05RawImage(variant firmwareVariant) string {
+	return filepath.Join(a.tier05BuildDir(variant), "tier-05-recovery", "zephyr", "zephyr.bin")
+}
+
+// releaseSignTier05 signs one Tier 5 release and publishes it.
+//
+// It is Tier 4's sequence with one addition: the source revision goes into a
+// protected custom TLV at signing time, so the bootloader can say what it is
+// swapping in. After a revert the device is running an image whose Release
+// manifest it consumed long ago and no longer holds, and the TLV is the only
+// self-description that survives that.
+//
+// The manifest is Tier 4's, unchanged. Tier 5 changes what the device does
+// with an image, not what a release says about itself, and inventing a second
+// manifest shape would imply a difference that does not exist.
+func (a *app) releaseSignTier05(variantName string) error {
+	variant, ok := tier05Variants[variantName]
+	if !ok {
+		names := make([]string, 0, len(tier05Variants))
+		for name := range tier05Variants {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		return fmt.Errorf("unknown Tier 5 release %q; use one of: %s",
+			variantName, strings.Join(names, ", "))
+	}
+	key := a.signingKeyPath("release")
+	if _, err := os.Stat(key); err != nil {
+		return errors.New("no Release signing key yet; run ./course keys create release first")
+	}
+	raw := a.tier05RawImage(variant)
+	if _, err := os.Stat(raw); err != nil {
+		return fmt.Errorf("no Tier 5 %s image to sign; run ./course build firmware --tier 05 --variant %s first",
+			variant.label, variant.label)
+	}
+	out := filepath.Join(a.releaseDir(), variant.imageName)
+	if err := os.MkdirAll(a.releaseDir(), 0o700); err != nil {
+		return err
+	}
+
+	fingerprint, err := a.keyFingerprint(key)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(a.out, "Signing with the release key, fingerprint %s\n", fingerprint)
+
+	revision := a.sourceRevision()
+	if err := a.signImage(key, raw, out, strconv.Itoa(variant.securityCounter), tier05Version,
+		"--custom-tlv", tier05RevisionTLV, revision); err != nil {
+		return err
+	}
+	fmt.Fprintf(a.out, "+ source revision %s written to protected TLV %s\n",
+		revision, tier05RevisionTLV)
+	fmt.Fprintln(a.out, "  It is in the protected area, so the signature covers it. It identifies the")
+	fmt.Fprintln(a.out, "  build and not the release, and your build will not match a published one.")
+
+	image, err := os.ReadFile(out)
+	if err != nil {
+		return err
+	}
+	manifest := a.buildManifest(variant, image, time.Now())
+	data, err := json.MarshalIndent(manifest, "", "  ")
+	if err != nil {
+		return err
+	}
+	data = append(data, '\n')
+
+	manifestFile := a.manifestPath(variant.releaseID)
+	if err := os.WriteFile(manifestFile, data, 0o600); err != nil {
+		return err
+	}
+
+	keyPEM, err := os.ReadFile(key)
+	if err != nil {
+		return err
+	}
+	signature, err := signManifest(keyPEM, data)
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(a.manifestSignaturePath(variant.releaseID), signature, 0o600); err != nil {
+		return err
+	}
+
+	fmt.Fprintf(a.out, "+ signed %d manifest bytes with ECDSA P-256 over SHA-256\n", len(data))
+	fmt.Fprintf(a.out, "  manifest:  %s\n", a.relative(manifestFile))
+	fmt.Fprintf(a.out, "  digest:    %s\n", manifest.ImageSHA256)
+	fmt.Fprintf(a.out, "  counter:   %d, in the image TLV and in the manifest\n",
+		manifest.SecurityCounter)
+
+	release, err := a.publishSigned(variant, out, fingerprint)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(a.out, "Result: published %s, %d bytes, trial behaviour %s\n",
+		variant.releaseID, release["image_size"], variant.trialBehaviour)
+	if variant.trialBehaviour != "healthy" {
+		fmt.Fprintln(a.out, "This release is correctly signed and genuinely broken. Nobody without the")
+		fmt.Fprintln(a.out, "Release signing key could have produced it, so it is the manufacturer")
+		fmt.Fprintln(a.out, "publishing something that does not work, which section 11 names beside the")
+		fmt.Fprintln(a.out, "attacks. The device cannot tell it from a leaked key and recovers either way.")
+	}
+	return nil
 }

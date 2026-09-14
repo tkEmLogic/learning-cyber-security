@@ -202,6 +202,26 @@ Both fixtures test a refusal that only the physical ESP32-C6 can produce, becaus
 
 Reset restores the assignment the Learner last signed and leaves the generated manifests in place, exactly as Tier 3 leaves its images.
 
+## Tier 5 fixtures
+
+**Tier 5 has no attack fixture, and that is a finding rather than an omission.**
+
+Every other control tier needed one because something had to be made to behave badly: Tier 2 needed a service holding the wrong certificate, Tier 3 needed hostile images published, Tier 4 needed hostile metadata signed. Tier 5's five prepared releases need none of that. They are correctly signed by the Learner's own key, published through the genuine service by the ordinary `./course release sign --tier 05` path, and served unchanged. Four of them simply do not work.
+
+There is nothing for a fixture to narrate. A fixture whose whole story is "a valid release was published normally" would be a wrapper around the command a Learner already runs, and `docs/fixture-safety-contract.md` exists to stop fixtures claiming refusals they did not see, not to require one per tier.
+
+What an unhealthy release demonstrates is not an attack at all. Nobody without the Release signing key can produce one, so a release that crashes, hangs, fails its health checks or never reaches a verdict is the manufacturer publishing something broken, which section 11 names beside the attacks in its threat list. The device cannot tell a broken release from a leaked key, and it recovers from either the same way.
+
+**The service may answer a firmware download badly, on request, following Tier 2's precedent.** `./course service start --range ignore` makes the genuine service answer `200` with the whole body to a request that asked for part of it, and `--range interrupt:<bytes>` makes it begin answering correctly and then drop the connection.
+
+Both are options on the real service, exactly as `--present untrusted` is, and both are bound by the same rules. The service says loudly on every affected request what it is doing. Starting it again without the option restores correct behaviour. Neither mode alters a stored image, a manifest or a signature, and neither touches key material: the bytes served are the Learner's own signed release either way, and what is wrong is the shape of the answer rather than its content.
+
+`--range ignore` exists because it is the failure most likely to be got wrong. It looks like success while restarting an image from byte zero underneath a device that believes it is appending, and a device that checks only whether bytes arrived will build a corrupt image out of two overlapping copies. A check that has never been observed firing has not been taught.
+
+`--range interrupt:<bytes>` is how a Learner produces a genuine partial download without pulling power. It is deliberately not the same as serving a short file: the response headers promise the whole image and the connection then dies, which is a partial transfer the device is supposed to resume, where a short file is a size mismatch the device is supposed to refuse. Both cases exist in Tier 5 and they must not be confused, because they have opposite correct outcomes.
+
+Neither mode can claim the device did anything. Host validation may prove the service answered badly. Only the physical ESP32-C6 can show a download resuming, an image being refused, or a trial being reverted.
+
 ## Capture rules
 
 A fixture may capture traffic only under these bounds.
