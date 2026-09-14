@@ -243,14 +243,26 @@ func TestEveryHostileReleaseHasItsOwnIdentifier(t *testing.T) {
 		}
 		seen[id] = true
 	}
-	if len(hostileManifests) != 6 {
-		t.Errorf("Tier 4 has six hostile releases, found %d", len(hostileManifests))
+	if len(hostileManifests) != 7 {
+		t.Errorf("Tier 4 has seven hostile releases, found %d", len(hostileManifests))
+	}
+	// Exactly one of them is refused by the bootloader rather than the
+	// application. It is the only artifact that can show the two verifiers
+	// disagreeing, so losing it would quietly cost the tier half its claim.
+	bootloader := 0
+	for _, variant := range hostileManifests {
+		if variant.bootloader {
+			bootloader++
+		}
+	}
+	if bootloader != 1 {
+		t.Errorf("exactly one hostile release must be refused by the bootloader, found %d", bootloader)
 	}
 }
 
 // The split is the lesson, so it is asserted rather than left to prose. Two of
-// the six are forgeries anyone could make. The other four can only be signed by
-// whoever holds the Release signing key.
+// the seven are forgeries anyone could make. The other five can only be signed
+// by whoever holds the Release signing key.
 func TestOnlyTheTwoSignatureFailuresAreForgeries(t *testing.T) {
 	forgeries := map[string]bool{}
 	for _, variant := range hostileManifests {
@@ -297,9 +309,21 @@ func TestEachHostileVariantChangesOnlyWhatItIsNamedFor(t *testing.T) {
 		"channel":   {"release_id", "channel"},
 		"size":      {"release_id", "image_size"},
 		"digest":    {"release_id", "image_sha256"},
+		// Everything the application checks is true of this one. What it points
+		// at is the older image, whose own signed counter the application never
+		// sees and MCUboot does.
+		"counter-mismatch": {"release_id", "image_path", "image_size", "image_sha256"},
+	}
+	older := good
+	older.ReleaseID = "tier-04-older"
+	older.ImagePath = "tier-04-older.bin"
+	older.ImageSize = len(image) - 14
+	older.ImageSHA256 = wrongDigest(image)
+	if older.ImagePath == good.ImagePath {
+		t.Fatal("the stand-in older release must name a different image, or the check proves nothing")
 	}
 	for _, variant := range hostileManifests {
-		hostile := deriveHostileManifest(variant.name, good, image)
+		hostile := deriveHostileManifest(variant.name, good, image, &older)
 		var changed []string
 		for _, line := range manifestDifferences(good, hostile) {
 			changed = append(changed, strings.SplitN(line, ",", 2)[0])
@@ -332,7 +356,7 @@ func TestSizeAndDigestVariantsDisagreeWithTheDeliveredImage(t *testing.T) {
 	good.ImageSHA256 = hex.EncodeToString(sum[:])
 	good.ImageSize = len(image)
 
-	size := deriveHostileManifest("size", good, image)
+	size := deriveHostileManifest("size", good, image, nil)
 	if size.ImageSize == len(image) {
 		t.Error("the size variant must declare a size the delivery will not match")
 	}
@@ -340,7 +364,7 @@ func TestSizeAndDigestVariantsDisagreeWithTheDeliveredImage(t *testing.T) {
 		t.Error("the declared size should be below the delivery, so Content-Length gives it away before a byte is written")
 	}
 
-	digest := deriveHostileManifest("digest", good, image)
+	digest := deriveHostileManifest("digest", good, image, nil)
 	if digest.ImageSHA256 == good.ImageSHA256 {
 		t.Error("the digest variant must declare a digest the delivered bytes will not produce")
 	}
@@ -361,7 +385,7 @@ func TestEditingAfterSigningBreaksTheSignatureItKeeps(t *testing.T) {
 	sum := sha256.Sum256(image)
 	good.ImageSHA256 = hex.EncodeToString(sum[:])
 
-	hostile := deriveHostileManifest("modified", good, image)
+	hostile := deriveHostileManifest("modified", good, image, nil)
 	body, err := marshalManifest(hostile)
 	if err != nil {
 		t.Fatal(err)
@@ -390,7 +414,7 @@ func TestAnotherKeysSignatureIsValidAndStillRefused(t *testing.T) {
 	_, public := testReleaseKey(t)
 	attackerPEM, attackerPublic := testReleaseKey(t)
 
-	body, err := marshalManifest(deriveHostileManifest("wrong-key", testGoodManifest(), nil))
+	body, err := marshalManifest(deriveHostileManifest("wrong-key", testGoodManifest(), nil, nil))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -600,14 +624,21 @@ func signTestRelease(t *testing.T, a *app, variant firmwareVariant) {
 // the signature has passed, and two must not, because they are forgeries.
 func TestHostileReleaseGeneratorProducesBothKinds(t *testing.T) {
 	a, out, public := testTier04Environment(t)
+	// counter-mismatch needs an older release to point at, so this environment
+	// carries two. The single-release case is covered by
+	// TestHostileGeneratorSkipsCounterMismatchWithOneRelease.
+	signTestRelease(t, a, tier04Variants["security-fix"])
 	if err := a.releaseHostileTier04(); err != nil {
 		t.Fatal(err)
 	}
 
-	good, _, err := a.loadStoredManifest(tier04Variants["baseline"].releaseID)
+	// The generator derives from the NEWEST signed release, so that is what the
+	// hostile manifests must describe.
+	newest, err := a.newestRelease()
 	if err != nil {
 		t.Fatal(err)
 	}
+	good := newest.manifest
 	for _, variant := range hostileManifests {
 		id := hostileReleaseID(variant.name)
 		manifest, body, err := a.loadStoredManifest(id)
@@ -623,8 +654,15 @@ func TestHostileReleaseGeneratorProducesBothKinds(t *testing.T) {
 		if manifest.ReleaseID != id {
 			t.Errorf("%s names release %s, want %s", variant.name, manifest.ReleaseID, id)
 		}
-		if manifest.ImagePath != good.ImagePath {
-			t.Errorf("%s publishes its own image %s; every hostile release points at the good one",
+		if variant.bootloader {
+			// This one must point somewhere else on purpose: at the older
+			// image, whose signed counter MCUboot reads and the application
+			// never does.
+			if manifest.ImagePath == good.ImagePath {
+				t.Errorf("counter-mismatch points at the newest image %s; it must point at an older one", manifest.ImagePath)
+			}
+		} else if manifest.ImagePath != good.ImagePath {
+			t.Errorf("%s publishes its own image %s; every hostile release points at an image the Learner signed",
 				variant.name, manifest.ImagePath)
 		}
 		if got := manifestVerifies(public, body, signature); got != variant.learnerSigned {
@@ -648,7 +686,7 @@ func TestHostileReleaseGeneratorProducesBothKinds(t *testing.T) {
 	}
 }
 
-// The replay may only name a release this environment produced. Four of the six
+// The replay may only name a release this environment produced. Five of the seven
 // hostile manifests carry a valid signature and sit in the same directory, so a
 // scan of the directory would happily offer one of them.
 func TestReplayNeverOffersAHostileRelease(t *testing.T) {
@@ -700,9 +738,48 @@ func TestHostileReleasesTrackTheNewestSignedRelease(t *testing.T) {
 			t.Errorf("%s carries counter %d, want the newest release's %d",
 				variant.name, manifest.SecurityCounter, later.securityCounter)
 		}
+		if variant.name == "counter-mismatch" {
+			// This one exists to point at the older image while describing the
+			// newer release. Its counter must still be the newest, or the
+			// application would refuse it and the bootloader would never look.
+			if manifest.ImagePath == later.imageName {
+				t.Errorf("counter-mismatch points at the newest image %s; it must point at an older one or there is nothing for MCUboot to disagree with",
+					manifest.ImagePath)
+			}
+			continue
+		}
 		if manifest.ImagePath != later.imageName {
 			t.Errorf("%s points at %s, want the newest release's image %s",
 				variant.name, manifest.ImagePath, later.imageName)
 		}
+	}
+}
+
+// With only one signed release there is nothing for counter-mismatch to point
+// at. The generator must still produce the other six and say why the seventh is
+// missing, rather than refusing the lot: a Learner who has signed one release
+// should not be blocked from the six that work.
+func TestHostileGeneratorSkipsCounterMismatchWithOneRelease(t *testing.T) {
+	a, out, _ := testTier04Environment(t)
+	if err := a.releaseHostileTier04(); err != nil {
+		t.Fatal(err)
+	}
+	for _, variant := range hostileManifests {
+		_, _, err := a.loadStoredManifest(hostileReleaseID(variant.name))
+		if variant.bootloader {
+			if err == nil {
+				t.Error("counter-mismatch must not be built when there is no older release to point at")
+			}
+			continue
+		}
+		if err != nil {
+			t.Errorf("%s should still be built: %v", variant.name, err)
+		}
+	}
+	if !strings.Contains(out.String(), "counter-mismatch: skipped.") {
+		t.Error("the generator must say that counter-mismatch was skipped")
+	}
+	if !strings.Contains(out.String(), "--variant security-fix") {
+		t.Error("the generator must name the command that makes counter-mismatch possible")
 	}
 }

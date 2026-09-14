@@ -359,7 +359,7 @@ func (a *app) releaseSign() error {
 		return err
 	}
 	fmt.Fprintf(a.out, "Signing with the %s key, fingerprint %s\n", "release", fingerprint)
-	if err := a.signImage(key, raw, out, ""); err != nil {
+	if err := a.signImage(key, raw, out, "", tier03Version); err != nil {
 		return err
 	}
 
@@ -377,11 +377,14 @@ func (a *app) releaseSign() error {
 // or "" for no counter at all. Tier 3 and everything before it pass "", which
 // is why those images have no protected TLV area: imgtool creates one only
 // when something needs to go in it.
-func (a *app) signImage(key, in, out, counter string) error {
+func (a *app) signImage(key, in, out, counter, version string) error {
 	python, imgtool := a.imgtool()
+	if version == "" {
+		version = tier03Version
+	}
 	arguments := []string{
 		imgtool, "sign",
-		"--version", tier03Version,
+		"--version", version,
 		"--header-size", tier03HeaderSize,
 		"--slot-size", tier03SlotSize,
 		"--align", tier03Align,
@@ -458,14 +461,14 @@ func (a *app) releaseHostile() error {
 		var err error
 		switch image.name {
 		case "unsigned":
-			err = a.signImage("", raw, out, "")
+			err = a.signImage("", raw, out, "", tier03Version)
 		case "wrong-key":
 			fingerprint, ferr := a.keyFingerprint(attacker)
 			if ferr != nil {
 				return ferr
 			}
 			fmt.Fprintf(a.out, "  attacker key fingerprint %s, as valid as yours and trusted by nothing\n", fingerprint)
-			err = a.signImage(attacker, raw, out, "")
+			err = a.signImage(attacker, raw, out, "", tier03Version)
 		case "modified":
 			err = deriveModified(good, out)
 		case "truncated":
