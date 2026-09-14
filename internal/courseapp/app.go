@@ -679,6 +679,11 @@ type firmwareVariant struct {
 	beaconState string
 	version     string
 	imageName   string
+	// securityCounter is zero for every tier before Tier 4, which is exactly
+	// what those images carry: no counter TLV at all. MCUboot treats an image
+	// with no counter in the primary slot as permission to swap, so this being
+	// unset is not a default, it is the migration case.
+	securityCounter int
 }
 
 var firmwareVariants = map[string]firmwareVariant{
@@ -740,6 +745,8 @@ func variantsForTier(tier string) map[string]firmwareVariant {
 		return tier02Variants
 	case "03":
 		return tier03Variants
+	case "04":
+		return tier04Variants
 	default:
 		return firmwareVariants
 	}
