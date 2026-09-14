@@ -215,6 +215,37 @@ gate says which gate it is and publishes its prompts under the four fixed
 headings from section 13: Show, Explain, Diagnose, and Plan. Every gate is still
 an informal coaching conversation with no grade, so the heading does not change.
 
+Three rules came out of writing the first gate, in Tier 3. They are the pattern
+for Tier 5, Tier 7, Tier 9, and Tier 10.
+
+**Show is one success and one failure the Mentor chooses.** Never a fixed
+script. A Learner who knows in advance which failure they will demonstrate can
+rehearse exactly that one, and a rehearsed demonstration checks nothing. Tier 3
+has four refusals that are four identical cycles, so watching all of them
+teaches nothing the first one did not: the Mentor picks one and the rest come
+from evidence records.
+
+**Publish at least one prepared failure whose symptom points somewhere other
+than its cause.** Tier 3's is a bootloader built against the wrong key, where
+the device refuses an image the Learner knows is theirs. Every instinct says the
+image is bad and the cause is in the bootloader. That inversion is the most
+valuable half hour in the tier, and it is the mistake a Learner will make for
+real when they regenerate a key after flashing. A prepared failure that is
+simply one of the tier's own attacks replayed is not worth the session, because
+the Learner has just spent the tier running it.
+
+**Explain always asks what the attacker can still do.** Overreading the control
+is the failure mode of every control tier, not just one of them, and the
+specification names it as the stated failure criterion for several. Tier 3 asks
+the Learner to name three things an attacker who owns the update service
+completely can still do. A Learner who cannot name one has overread the control,
+and the question finds that out in seconds without anyone feeling caught out,
+which section 13 explicitly asks for.
+
+Section 13 of `docs/course-specification.md` already fixes the rest: the three
+outcomes, that only safety and dependency prerequisites may block progress, and
+what the Mentor review record contains. Do not reinvent any of it per tier.
+
 **17. Continue.** The next tier's name in bold, then two or three sentences
 previewing its attack.
 
