@@ -42,8 +42,52 @@ jobs:
   firmware:
     runs-on: ubuntu-24.04
     steps:
+      # The full history is needed to diff against the base of the pull
+      # request. Without it the scope step below sees one commit and cannot
+      # tell what changed.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # Decide whether this change can possibly affect a firmware build.
+      #
+      # The job always runs and always reports, rather than being filtered out
+      # of the workflow. A path filter would make this check absent on a
+      # documentation change instead of passing, and an absent check cannot
+      # satisfy a required one. This way the check is green either way and a
+      # documentation change stops costing a five minute Zephyr build.
+      #
+      # The list is deliberately an allowlist of things that cannot affect a
+      # build. Anything not named here builds, so a new directory is built
+      # until someone decides otherwise, which is the safe direction.
+      - name: Decide whether firmware can be affected
+        id: scope
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base="${{ github.event.pull_request.base.sha }}"
+          else
+            base="${{ github.event.before }}"
+          fi
+          if ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+            echo "No usable base commit, so building."
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          changed="$(git diff --name-only "$base" HEAD)"
+          echo "Changed files:"
+          echo "$changed"
+          if [ -z "$changed" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if echo "$changed" | grep -qvE '^(course-material/|docs/|prototypes/|evidence/|README\.md$|CONTEXT\.md$|\.github/ISSUE_TEMPLATE/)'; then
+            echo "Something outside the documentation allowlist changed, so building."
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Only documentation changed, so the firmware build is skipped."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
       - name: Install Zephyr host packages
+        if: steps.scope.outputs.skip != 'true'
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
@@ -54,16 +98,21 @@ jobs:
       # rather than repeating its steps keeps one source of truth: the two
       # drifted once already and broke this job (see 5bf92f3).
       - name: Provision pinned workspace
+        if: steps.scope.outputs.skip != 'true'
         run: |
           export ZEPHYR_WORKSPACE="$GITHUB_WORKSPACE/../zephyr-v4.4.2"
           export WORKSPACE_ROOT="$GITHUB_WORKSPACE"
           bash .devcontainer/post-create.sh
       - name: Build pinned ESP32-C6 sysbuild
+        if: steps.scope.outputs.skip != 'true'
         run: |
           ZEPHYR_WORKSPACE="$GITHUB_WORKSPACE/../zephyr-v4.4.2" \
             ./scripts/build-zephyr-baseline.sh
       - name: Hardware status
         run: |
+          if [ "${{ steps.scope.outputs.skip }}" = "true" ]; then
+            echo "Firmware unchanged by this change; no build was run."
+          fi
           echo "ESP32-C6 flash: pending"
           echo "ESP32-C6 serial: pending"
           echo "Altered-image execution: pending"
