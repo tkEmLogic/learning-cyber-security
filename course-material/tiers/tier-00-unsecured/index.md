@@ -167,7 +167,7 @@ If you gave a loopback address, a physical board cannot reach the service. Run s
 Expected result:
 
 ```text
-Generated: .course-state/firmware/baseline.conf for 192.168.0.10:8080, network "course-lab"
+Generated: .course-state/firmware/tier-00-baseline.conf for 192.168.0.10:8080, network "course-lab"
 + COURSE_FIRMWARE_CONF=<path> ZEPHYR_BUILD_DIR=<path> ./scripts/build-zephyr-baseline.sh
 Result: built baseline release tier-00-baseline, 590428 bytes
 ```
