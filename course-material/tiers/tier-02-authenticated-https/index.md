@@ -222,6 +222,8 @@ Third, the trust anchor. `tls_credential_add` registers the Course certificate a
 
 Note what the credential store does, because it catches people: it keeps a pointer to your certificate rather than a copy, so the array has to have static storage. If you moved it onto a stack, the handshake would read freed memory.
 
+One option in `prj.conf` is worth a moment, because it is not obvious and it has already cost an afternoon. `CONFIG_MBEDTLS_SSL_MAX_CONTENT_LEN` is set to 16384, which is the largest a TLS record is allowed to be. Every response this tier fetches is small JSON, so 2048 fits all of them, and 2048 is what this file said at first. But the peer decides how large a record it sends, and a firmware image arrives in full sized ones. Tier 3 is the first tier to download an image over this connection, and it found the limit the hard way: the transfer is refused before a single byte reaches the flash, and the failure reads `err=-113` on the line after a handshake the same log says succeeded. Sizing a buffer for the traffic you have seen so far is a reasonable thing to do and a miserable thing to debug afterwards.
+
 Build the image:
 
 ```text
@@ -537,6 +539,7 @@ Set the host results to observed. Keep the two device rows, `E-2-06` and `E-2-07
 | Observation | First check |
 | --- | --- |
 | The board reports `errno=116` and prints no verification flags | A timeout, not a refusal: the connection never reached the service, so nothing was verified. Check that the TLS port is published by the container and open in the host firewall. On Fedora, `sudo firewall-cmd --add-port=8443/tcp` |
+| The board reports `ota.request failed url=/v1/firmware/... err=-113` | The response was too large for the device's TLS buffer, whatever the handshake line above it says. `CONFIG_MBEDTLS_SSL_MAX_CONTENT_LEN` must be 16384. Check that the image on the board was built from this tree rather than an older checkout |
 | The board says it trusts nothing | Its image was built without a trust anchor. Run `./course setup`, then `./course build firmware --tier 02`, then flash again |
 | The board's trust anchor fingerprint differs from `./course service certificate` | The image was built against a different Course environment. Rebuild and reflash |
 | A host tool fails with "doesn't contain any IP SANs" | It connected by address without stating the name. That is correct behavior, not a fault |
