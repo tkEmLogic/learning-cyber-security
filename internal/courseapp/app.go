@@ -113,6 +113,23 @@ type fixture struct {
 	// value like every other mutable input, never a path from the command
 	// line. See docs/fixture-safety-contract.md.
 	Images map[string]string `yaml:"images"`
+
+	// Releases are the hostile release identifiers a fixture may publish,
+	// keyed the same way. Tier 4 needs its own field because what it
+	// publishes is a signed Release manifest and not an image at all, and a
+	// map called images holding release identifiers would be a lie in the
+	// manifest. The guardrail is identical: the selector is allowlisted here,
+	// never supplied as a path.
+	Releases map[string]string `yaml:"releases"`
+}
+
+// selectors returns the allowlist a fixture's selector must come from, and the
+// option name that chooses it. A fixture has at most one of the two.
+func (f fixture) selectors() (map[string]string, string) {
+	if len(f.Releases) > 0 {
+		return f.Releases, "--release"
+	}
+	return f.Images, "--image"
 }
 
 // maxFixtureHoldSeconds bounds how long a fixture may leave the Course
@@ -137,10 +154,11 @@ type app struct {
 	errOut   io.Writer
 	client   *http.Client
 
-	// selectedImage is the manifest key of the hostile image the running
-	// fixture was asked to publish. It is set by the attack runner after the
-	// key has been checked against the manifest, never taken as a path.
-	selectedImage string
+	// selector is the manifest key of the hostile artifact the running fixture
+	// was asked to publish: an image in Tier 3, a signed Release manifest in
+	// Tier 4. It is set by the attack runner after the key has been checked
+	// against the manifest, never taken as a path.
+	selector string
 }
 
 func Run(args []string, out, errOut io.Writer) int {
@@ -846,9 +864,9 @@ func (a *app) buildFirmware(args []string) error {
 		fmt.Fprintln(a.out, "Nothing has been published. This image is unsigned, so the bootloader would refuse it.")
 		fmt.Fprintln(a.out, "Sign and publish it yourself with:")
 		if tier == "04" {
-			fmt.Fprintln(a.out, "  ./course release sign --tier 04")
+			fmt.Fprintf(a.out, "  ./course release sign%s\n", signCommandSuffix(tier, variant))
 			fmt.Fprintln(a.out, "That step signs the image and the Release manifest with the same key,")
-			fmt.Fprintln(a.out, "and puts the same security counter in both.")
+			fmt.Fprintf(a.out, "puts security counter %d in both, and publishes the release.\n", variant.securityCounter)
 		} else {
 			fmt.Fprintln(a.out, "  ./course release sign")
 		}
@@ -1465,11 +1483,11 @@ func (a *app) deviceFlash(args []string) error {
 		return fmt.Errorf("no sysbuild output for the tier %s %s image; run ./course build firmware --tier %s --variant %s first", tier, variant.label, tier, variant.label)
 	}
 
-	// Tier 3's two images come from two builds, so west flash cannot place
-	// them: it would write the bootloader sysbuild produced, which does not
-	// verify anything, and the unsigned application beside it.
-	if tier == "03" {
-		return a.flashTier03(device, buildDir, variant)
+	// From Tier 3 the two images come from two builds, so west flash cannot
+	// place them: it would write the bootloader sysbuild produced, which does
+	// not verify anything, and the unsigned application beside it.
+	if tierSignsItsOwnImage(tier) {
+		return a.flashSignedRelease(device, buildDir, variant, tier)
 	}
 
 	workspace := a.zephyrWorkspace()
@@ -1543,7 +1561,8 @@ func (a *app) attackRun(args []string) error {
 	selectedInterface := f.Interface
 	interfaceSpecified := false
 	hold := 0
-	selectedImage := ""
+	selected := ""
+	allowed, option := f.selectors()
 	target = a.serviceURL()
 	for i := 1; i < len(args); i++ {
 		if i+1 >= len(args) {
@@ -1557,8 +1576,14 @@ func (a *app) attackRun(args []string) error {
 		case "--interface":
 			selectedInterface = args[i+1]
 			interfaceSpecified = true
-		case "--image":
-			selectedImage = args[i+1]
+		case "--image", "--release":
+			if len(allowed) == 0 {
+				return fmt.Errorf("%s takes no %s", id, args[i])
+			}
+			if args[i] != option {
+				return fmt.Errorf("%s selects its artifact with %s, not %s", id, option, args[i])
+			}
+			selected = args[i+1]
 		case "--hold":
 			seconds, err := strconv.Atoi(args[i+1])
 			if err != nil || seconds < 0 || seconds > maxFixtureHoldSeconds {
@@ -1579,23 +1604,21 @@ func (a *app) attackRun(args []string) error {
 	if err := validateSelectedInterface(target, selectedInterface, interfaceSpecified); err != nil {
 		return err
 	}
-	// The image is chosen from the manifest, never supplied as a path. A
+	// The artifact is chosen from the manifest, never supplied as a path. A
 	// fixture that accepted a filename would be a way to make the course serve
 	// arbitrary bytes to a board.
-	if len(f.Images) > 0 {
-		if selectedImage == "" {
-			names := make([]string, 0, len(f.Images))
-			for name := range f.Images {
+	if len(allowed) > 0 {
+		if selected == "" {
+			names := make([]string, 0, len(allowed))
+			for name := range allowed {
 				names = append(names, name)
 			}
 			sort.Strings(names)
-			return fmt.Errorf("%s needs --image, one of: %s", id, strings.Join(names, ", "))
+			return fmt.Errorf("%s needs %s, one of: %s", id, option, strings.Join(names, ", "))
 		}
-		if _, ok := f.Images[selectedImage]; !ok {
-			return fmt.Errorf("unknown image %q for %s", selectedImage, id)
+		if _, ok := allowed[selected]; !ok {
+			return fmt.Errorf("unknown %s %q for %s", strings.TrimPrefix(option, "--"), selected, id)
 		}
-	} else if selectedImage != "" {
-		return fmt.Errorf("%s takes no --image", id)
 	}
 	if _, err := os.Stat(a.fixtureBlockPath(id)); err == nil {
 		return fmt.Errorf("fixture is blocked after a failed reset; run %s", f.Reset)
@@ -1617,6 +1640,10 @@ func (a *app) attackRun(args []string) error {
 		plans = tier03Plan
 		proofs = tier03Proves
 	}
+	if strings.HasPrefix(id, "tier-04/") {
+		plans = tier04Plan
+		proofs = tier04Proves
+	}
 	if plan, ok := plans[id]; ok {
 		fmt.Fprintln(a.out, "Plan:")
 		for i, line := range plan {
@@ -1631,7 +1658,7 @@ func (a *app) attackRun(args []string) error {
 	}
 	if executeID == "" {
 		fmt.Fprintln(a.out, "Result: dry run only")
-		fmt.Fprintf(a.out, "Execute: %s\n", a.fixtureCommand(id, selectedImage))
+		fmt.Fprintf(a.out, "Execute: %s\n", a.fixtureCommand(id, selected))
 		return nil
 	}
 	if executeID != id {
@@ -1641,7 +1668,7 @@ func (a *app) attackRun(args []string) error {
 		return fmt.Errorf("--hold applies only to a fixture that needs hardware; %s does not", id)
 	}
 	start := time.Now().UTC()
-	a.selectedImage = selectedImage
+	a.selector = selected
 	observed, limitation, artifactHashes, runErr := a.executeFixture(id, target, env)
 	// A device polls on its own schedule. Without a hold, the reset below
 	// restores the baseline release before any board can read the insecure
@@ -1666,7 +1693,7 @@ func (a *app) attackRun(args []string) error {
 	record := map[string]any{
 		"schema_version": 1, "fixture_id": id, "marker_fingerprint": fingerprint,
 		"target": target, "selected_interface": selectedInterface, "started_at": start,
-		"ended_at": time.Now().UTC(), "command": a.fixtureCommand(id, selectedImage), "image": selectedImage,
+		"ended_at": time.Now().UTC(), "command": a.fixtureCommand(id, selected), "selector": selected,
 		"expected_effect": f.ExpectedEffect, "observed_effect": observed, "result": result,
 		"reset_result": resetResult, "artifact_hashes": artifactHashes, "hardware_limitation": limitation,
 	}
@@ -1896,6 +1923,10 @@ func (a *app) executeFixture(id, target string, env environment) (string, string
 		return a.runTier02NameMismatch(env, target)
 	case "tier-03/hostile-image":
 		return a.tier03HostileImage(target, env)
+	case "tier-04/hostile-release":
+		return a.tier04HostileRelease(target, env)
+	case "tier-04/replay-release":
+		return a.tier04ReplayRelease(target, env)
 	case "tier-00/altered-image":
 		a.step(1, "Take an altered, unsigned firmware image.")
 		release, image, runnable, err := a.alteredImageRelease()

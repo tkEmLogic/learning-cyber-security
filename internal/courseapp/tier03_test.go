@@ -11,7 +11,10 @@ func TestFixtureUsesTLSFromTierTwoOnward(t *testing.T) {
 	// A tier added later that quietly went back to plain HTTP would be a
 	// regression in a published control, so this is asserted rather than
 	// assumed.
-	for _, id := range []string{"tier-02/plaintext-inspection", "tier-03/hostile-image"} {
+	for _, id := range []string{
+		"tier-02/plaintext-inspection", "tier-03/hostile-image",
+		"tier-04/hostile-release", "tier-04/replay-release",
+	} {
 		if !fixtureUsesTLS(id) {
 			t.Errorf("%s should use the verified connection", id)
 		}
