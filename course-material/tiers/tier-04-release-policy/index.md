@@ -257,7 +257,45 @@ The replay needs something to fall from, so build a second release carrying a hi
 ./course release sign --tier 04 --variant security-fix
 ```
 
-That one carries `counter: 2`. The device installs it, and now it is running a release that a replay of the first one would take it backwards from.
+That one carries `counter: 2`. Watch the device install it, because this is the accept path and every refusal later in the tier is a departure from it:
+
+```text
+ota.assignment release_id=tier-04-security-fix version=0.4.1-security-fix image=tier-04-security-fix.bin
+ota.assignment it also claims size=668744 sha256=39fd5cd269121163873ce22762e6fcd1c697ddd03702353f8e5fcfdf219fac30
+ota.assignment this device believes neither; they are the service's claims
+ota.assignment about itself. Only release_id is used, to know what to ask about.
+ota.assignment offers tier-04-security-fix instead of the running tier-04-baseline; asking for its signed manifest
+ota.manifest fetched 493 manifest bytes and a 71 byte detached signature
+release.verified signature over 493 manifest bytes, ECDSA P-256 over SHA-256
+release.verified nothing has parsed these bytes yet; that is the point
+release.admitted release_id=tier-04-security-fix version=0.4.1-security-fix counter=2 channel=stable
+release.admitted board=esp32c6_devkitc/esp32c6/hpcore hardware_revision 1..1 covers this product's 1
+release.admitted created_at=2026-09-14T20:23:49Z supported_until=2031-09-14T20:23:49Z, carried and signed, not checked: this device has no clock
+ota.install starting release_id=tier-04-security-fix version=0.4.1-security-fix size=668744
+ota.install every value above came from the signed manifest
+release.accepted sha256=39fd5cd269121163873ce22762e6fcd1c697ddd03702353f8e5fcfdf219fac30 matches the signed manifest
+ota.install wrote 668744 bytes to the secondary slot
+ota.install six checks ran and none refused
+ota.upgrade requested a permanent swap, no test boot, no rollback
+ota.upgrade the bootloader now checks the signature and the security counter itself, and its refusal is the one that stops a downgrade
+Rebooting into the newly installed image
+I: course: slot=secondary header=ok tlv=ok signature=present key=match counter=2
+I: course: slot=primary   header=ok tlv=ok signature=present key=match counter=2
+```
+
+Four lines in there are the tier in miniature.
+
+`release.verified nothing has parsed these bytes yet; that is the point` is the ordering the specification requires. The signature is checked against the bytes exactly as they arrived, before any field is read out of them. A device that parsed first and verified afterwards would already have acted on attacker-controlled structure.
+
+`release.admitted ... created_at ... carried and signed, not checked: this device has no clock` is the tier refusing to pretend. Those dates are real, they are signed so nobody can change them afterwards, and nothing on this device can tell whether they have passed. Tier 9 reads them. This tier carries them honestly and says it.
+
+`ota.install every value above came from the signed manifest` is the difference from Tier 3. Every number the installer acts on is one the manufacturer signed, not one the service offered.
+
+And the two slot lines at the end are both `counter=2`, which is what an accepted upgrade looks like from the bootloader. Keep them in mind: the only thing that changes in the refusal at the end of this tier is one of those numbers.
+
+The device is now running a release that a replay of the first one would take it backwards from.
+
+Your digests and sizes will not match the ones printed here. You built and signed these images yourself, and the Wi-Fi network name and service address are compiled into them, so every value derived from the bytes is yours. Compare the shapes and the reasons, never the hex.
 
 ### Decide your version policy
 
