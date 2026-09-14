@@ -295,7 +295,7 @@ func (a *app) releaseSignTier04(variantName string) error {
 
 	// The counter goes into the image here and into the manifest below, from
 	// the same constant. Section 6 requires the same value in both.
-	if err := a.signImage(key, raw, out, strconv.Itoa(variant.securityCounter)); err != nil {
+	if err := a.signImage(key, raw, out, strconv.Itoa(variant.securityCounter), tier04Version); err != nil {
 		return err
 	}
 
@@ -348,11 +348,11 @@ func (a *app) releaseSignTier04(variantName string) error {
 }
 
 // ---------------------------------------------------------------------------
-// The six hostile releases
+// The seven hostile releases
 // ---------------------------------------------------------------------------
 
-// hostileManifests are the six releases the device must refuse, and they are
-// not six of the same thing.
+// hostileManifests are the seven releases the device must refuse, and they are
+// not seven of the same thing.
 //
 // Two of them are forgeries. Anyone can edit a signed manifest, and anyone can
 // sign one with a key of their own, so those two are outsider attacks and the
@@ -376,8 +376,11 @@ var hostileManifests = []struct {
 	// learnerSigned is true when only the holder of the Release signing key
 	// could have produced this manifest.
 	learnerSigned bool
-	why           string
-	refusedAt     string
+	// bootloader is true when the application refuses nothing at all and the
+	// only thing that says no is MCUboot, at the next boot.
+	bootloader bool
+	why        string
+	refusedAt  string
 }{
 	{
 		name: "modified", learnerSigned: false,
@@ -409,6 +412,28 @@ var hostileManifests = []struct {
 		why:       "A SHA-256 that is not the digest of the delivered bytes.",
 		refusedAt: "check 6, the digest, after the transfer and before any upgrade is requested",
 	},
+	{
+		// The only release in the set that the application accepts.
+		//
+		// Its manifest is true about everything the application can check: the
+		// signature verifies, the hardware matches, the channel matches, the
+		// counter is the one this device is already running, and the size and
+		// digest describe the delivered bytes exactly. Every check passes and
+		// the bytes are written.
+		//
+		// What it does not describe is the security counter inside the image
+		// it points at, which is the older one. The application never sees
+		// that counter; it is in the signed image TLV, and MCUboot reads it
+		// from the slot at the next boot.
+		//
+		// This is the only artifact in the course that can show the two
+		// verifiers disagreeing, which is what section 18 means by "passing one
+		// never counts as evidence for the other". Without it the tier claims
+		// two verifiers and can only ever demonstrate one.
+		name: "counter-mismatch", learnerSigned: true, bootloader: true,
+		why:       "A manifest that is true about everything the application checks, pointing at the image of an older release.",
+		refusedAt: "no check in the application at all: every one passes, the bytes are written, and MCUboot refuses the swap at the next boot on the image's own security counter",
+	},
 }
 
 // hostileReleaseID gives every hostile release an identifier of its own.
@@ -437,7 +462,7 @@ func wrongDigest(image []byte) string {
 // deriveHostileManifest makes one hostile manifest out of the Learner's own
 // good one. Everything not named here is carried across untouched, including
 // created_at, so the difference the fixture prints is exactly the lie.
-func deriveHostileManifest(name string, good releaseManifest, image []byte) releaseManifest {
+func deriveHostileManifest(name string, good releaseManifest, image []byte, older *releaseManifest) releaseManifest {
 	hostile := good
 	hostile.ReleaseID = hostileReleaseID(name)
 	switch name {
@@ -456,20 +481,40 @@ func deriveHostileManifest(name string, good releaseManifest, image []byte) rele
 		hostile.ImageSize = len(image) - 64
 	case "digest":
 		hostile.ImageSHA256 = wrongDigest(image)
+	case "counter-mismatch":
+		// Describe the older image truthfully and keep this release's counter.
+		// Nothing the application checks is wrong, so nothing the application
+		// checks refuses it.
+		if older != nil {
+			hostile.ImagePath = older.ImagePath
+			hostile.ImageSize = older.ImageSize
+			hostile.ImageSHA256 = older.ImageSHA256
+		}
 	}
 	return hostile
 }
 
-// releaseHostileTier04 builds the six manifests the device must refuse.
+// releaseHostileTier04 builds the seven manifests the device must refuse.
 //
 // Every one is derived here, now, from the Learner's own signed release. None
 // is committed, so a fork of this repository never carries a ready made attack
-// payload. None of them ships a firmware image either: all six point at the
-// good image, because what is wrong with them is the signed description of it.
+// payload. None of them ships a firmware image either: all seven point at an
+// image the Learner signed, because what is wrong with them is the signed
+// description of it.
 func (a *app) releaseHostileTier04() error {
-	good, err := a.newestRelease()
+	releases, err := a.goodReleases()
 	if err != nil {
 		return err
+	}
+	good := releases[len(releases)-1]
+	// The oldest signed release, which is the one carrying the lower counter in
+	// its image TLV. counter-mismatch points at that image while describing
+	// this one, so it needs a second release to exist. When only one does, that
+	// variant is skipped and says why rather than failing the other six: a
+	// Learner who has signed one release should still get the six that work.
+	var older *releaseManifest
+	if len(releases) > 1 {
+		older = &releases[0].manifest
 	}
 	goodManifest, goodBody := good.manifest, good.body
 	image, err := os.ReadFile(filepath.Join(a.releaseDir(), goodManifest.ImagePath))
@@ -495,22 +540,31 @@ func (a *app) releaseHostileTier04() error {
 		return err
 	}
 
-	fmt.Fprintf(a.out, "Building six releases your device should refuse, from %s.\n", a.relative(a.manifestPath(goodManifest.ReleaseID)))
+	fmt.Fprintf(a.out, "Building seven releases your device should refuse, from %s.\n", a.relative(a.manifestPath(goodManifest.ReleaseID)))
 	fmt.Fprintf(a.out, "%d bytes of signed manifest, and the image it describes.\n", len(goodBody))
 	fmt.Fprintln(a.out, "None of them is shipped with this course, and none of them ships a firmware image.")
-	fmt.Fprintln(a.out, "All six point at your own good image. What is wrong with them is the description.")
+	fmt.Fprintln(a.out, "All seven point at an image you signed yourself. What is wrong with them is the description.")
 	fmt.Fprintln(a.out)
 	fmt.Fprintln(a.out, "Read this before the fingerprints below alarm you.")
-	fmt.Fprintln(a.out, "Two of these six are forgeries: one edited after signing, one signed by another key.")
-	fmt.Fprintf(a.out, "The other four are about to be signed with YOUR Release signing key, %s.\n", releaseFingerprint)
+	fmt.Fprintln(a.out, "Two of these seven are forgeries: one edited after signing, one signed by another key.")
+	fmt.Fprintf(a.out, "The other five are about to be signed with YOUR Release signing key, %s.\n", releaseFingerprint)
 	fmt.Fprintln(a.out, "Your key has not leaked. Nobody without it can make a manifest that verifies, so a wrong")
-	fmt.Fprintln(a.out, "hardware range, a wrong channel, a wrong size and a wrong digest can only be signed by")
-	fmt.Fprintln(a.out, "whoever holds the key. Those four are the manufacturer publishing something wrong, and")
+	fmt.Fprintln(a.out, "hardware range, a wrong channel, a wrong size, a wrong digest and a manifest that points")
+	fmt.Fprintln(a.out, "at the wrong image can only be signed by")
+	fmt.Fprintln(a.out, "whoever holds the key. Those five are the manufacturer publishing something wrong, and")
 	fmt.Fprintln(a.out, "they are the only way to reach the checks that run after the signature has passed.")
 
 	for _, variant := range hostileManifests {
 		id := hostileReleaseID(variant.name)
-		hostile := deriveHostileManifest(variant.name, goodManifest, image)
+		if variant.bootloader && older == nil {
+			fmt.Fprintf(a.out, "\n%s: skipped.\n", variant.name)
+			fmt.Fprintln(a.out, "  It points at the image of an older release, and only one signed release exists.")
+			fmt.Fprintln(a.out, "  Build and sign the second one to get it:")
+			fmt.Fprintln(a.out, "    ./course build firmware --tier 04 --variant security-fix")
+			fmt.Fprintln(a.out, "    ./course release sign --tier 04 --variant security-fix")
+			continue
+		}
+		hostile := deriveHostileManifest(variant.name, goodManifest, image, older)
 		body, err := marshalManifest(hostile)
 		if err != nil {
 			return err
@@ -571,7 +625,7 @@ func (a *app) releaseHostileTier04() error {
 		fmt.Fprintf(a.out, "  the device refuses this at %s\n", variant.refusedAt)
 	}
 
-	fmt.Fprintln(a.out, "\nResult: six hostile releases ready, each with its own identifier.")
+	fmt.Fprintln(a.out, "\nResult: seven hostile releases ready, each with its own identifier.")
 	fmt.Fprintln(a.out, "Publish one through your own service with:")
 	fmt.Fprintln(a.out, "  ./course attack run tier-04/hostile-release --release <name>")
 	return nil
@@ -830,12 +884,14 @@ func (a *app) tier04HostileRelease(target string, env environment) (string, stri
 	id := hostileReleaseID(selector)
 	var described struct {
 		learnerSigned bool
+		bootloader    bool
 		why           string
 		refusedAt     string
 	}
 	for _, variant := range hostileManifests {
 		if variant.name == selector {
 			described.learnerSigned = variant.learnerSigned
+			described.bootloader = variant.bootloader
 			described.why = variant.why
 			described.refusedAt = variant.refusedAt
 		}
@@ -931,8 +987,17 @@ func (a *app) tier04HostileRelease(target string, env environment) (string, stri
 	a.note("Tier 3's check would pass too, and that is the part worth sitting with: the image")
 	a.note("behind this release is your own correctly signed %s. Tier 3 asks who", manifest.ImagePath)
 	a.note("published an image. It has nothing to say about a release that describes it wrongly.")
-	a.note("The only thing that can still refuse this is the application on the board, at")
-	a.note("%s.", described.refusedAt)
+	if described.bootloader {
+		a.note("So will every check the application makes. This one is different from the others:")
+		a.note("%s.", described.refusedAt)
+		a.note("Expect the application to accept it and say so, expect the write to happen, and")
+		a.note("expect the refusal on the reboot after that. One key signed both the manifest and")
+		a.note("the image, and the two verifiers still disagree, because they are checking")
+		a.note("different things about different bytes.")
+	} else {
+		a.note("The only thing that can still refuse this is the application on the board, at")
+		a.note("%s.", described.refusedAt)
+	}
 	a.note("Watch it with ./course device logs, and reset the board to make it poll.")
 
 	return fmt.Sprintf("the genuine service published the %s release and served its manifest and signature unchanged; the device outcome is not known to this fixture", selector),
@@ -946,7 +1011,7 @@ func (a *app) tier04HostileRelease(target string, env environment) (string, stri
 // publishes was produced by this Course environment and signed by the Learner's
 // own key, and every signature still verifies when the device checks it. That
 // is the whole lesson: this is the one attack that survives a perfect
-// signature, which is why it is not one of the six forgeries.
+// signature, which is why it is not one of the seven hostile releases.
 func (a *app) tier04ReplayRelease(target string, env environment) (string, string, map[string]string, error) {
 	key, err := a.releaseVerifyKey()
 	if err != nil {
@@ -1036,7 +1101,7 @@ func (a *app) tier04ReplayRelease(target string, env environment) (string, strin
 		return "", "", nil, errors.New("the manifest the service served does not verify; it should, because nothing edited it")
 	}
 	a.got("%d manifest bytes and %d signature bytes, and the signature still verifies.", len(servedBody), len(servedSignature))
-	a.note("This is the difference between this fixture and the six forgeries. The device will")
+	a.note("This is the difference between this fixture and the seven hostile releases. The device will")
 	a.note("check this signature and the signature will pass.")
 
 	a.step(6, "Stop. Nothing here can refuse this release.")
@@ -1056,7 +1121,7 @@ func (a *app) tier04ReplayRelease(target string, env environment) (string, strin
 
 var tier04Plan = map[string][]string{
 	"tier-04/hostile-release": {
-		"Take one of the six hostile releases you built from your own good one.",
+		"Take one of the seven hostile releases you built from your own good one.",
 		"Say whether its signature verifies, and what that means about who could have made it.",
 		"Publish it through your own update service, over the connection the device verifies.",
 		"Fetch the manifest and signature back to prove the service serves stored bytes unchanged.",
@@ -1075,7 +1140,7 @@ var tier04Plan = map[string][]string{
 var tier04Proves = map[string][]string{
 	"tier-04/hostile-release": {
 		"REQ-06 and the Tier 4 threat list: incompatible hardware assignment and version-policy mistakes are refusals, not forgeries.",
-		"T3-W-11: four of these six could only be signed by whoever holds the Release signing key, and the device cannot tell a mistake from a leak.",
+		"T3-W-11: five of these seven could only be signed by whoever holds the Release signing key, and the device cannot tell a mistake from a leak.",
 		"What a signature does not prove: it says who signed, never that they should have.",
 	},
 	"tier-04/replay-release": {

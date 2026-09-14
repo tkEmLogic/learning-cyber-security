@@ -177,6 +177,7 @@ fixtures:
       channel: tier-04-hostile-channel
       size: tier-04-hostile-size
       digest: tier-04-hostile-digest
+      counter-mismatch: tier-04-hostile-counter-mismatch
     changes:
       - .course-state/ota/current-release.json
       - artifacts/generated/attacks/tier-04/hostile-release
@@ -355,6 +356,44 @@ verification:
       # software chain the specification describes, recorded as T3-W-10, and it
       # needs Secure Boot v2 in Advanced Tier A.
       bootloader_authenticity: not_checked_software_chain
+  tier_04:
+    command: [./scripts/verify-tier-00.sh]
+    receipt: .course-state/receipts/tier-04.json
+    revision_bound: true
+    hardware:
+      # Every row below was observed on the nanoESP32-C6 through the real OTA
+      # path: published by the genuine service over the verified connection,
+      # judged by the application before the write, and judged by MCUboot on
+      # the next boot.
+      signed_release_installed: validated
+      modified_manifest_refused: validated
+      wrong_key_manifest_refused: validated
+      incompatible_hardware_refused: validated
+      wrong_channel_refused: validated
+      unexpected_size_refused: validated
+      digest_mismatch_refused: validated
+      replayed_lower_counter_refused: validated
+      running_release_preserved_after_refusal: validated
+      # The one release the application accepts. Everything it can check is
+      # true; the image it points at carries the older counter in its signed
+      # TLV, which only MCUboot reads. Observed as the application accepting,
+      # the bytes being written, and the bootloader erasing the slot with
+      # "Image 0 in slot 1 erased due to downgrade prevention", the hook
+      # reporting counter=1 in the secondary slot against counter=2 in the
+      # primary.
+      bootloader_refused_downgrade_independently: validated
+      security_counter_reported_by_bootloader_hook: validated
+      # The manifest carries creation and support dates, and this device has no
+      # clock. They are signed so they cannot be edited afterwards and reported
+      # without being acted on. Same root as T2-W-09.
+      manifest_dates_checked: not_checked_no_clock
+      # Section 7's sixth rejection condition. Tier 4 has no confirmation flow
+      # because test boot and confirmation are Tier 5's subject.
+      already_confirmed_image_refused: not_implemented_tier_05
+      # Downgrade prevention is inert until a counter-carrying image is already
+      # primary, because MCUboot allows the swap when the primary slot's image
+      # has no counter. Every image before Tier 4 is like that.
+      first_install_protected: not_protected_by_design
 
 tiers:
   "00":
