@@ -577,7 +577,12 @@ func (a *app) tier03HostileImage(target string, env environment) (string, string
 		"image_sha256": digest, "image_size": len(image),
 		"mutable": true, "signed": true,
 	}
-	a.note("The record even says \"signed\": true. Nothing checks that, and nothing ever has.")
+	// The service overwrites signed to false on every PUT, so this claim
+	// never reaches a device. That is one honest bit in an otherwise
+	// unverified record, and it changes nothing: no device reads the field,
+	// and a release published through the signing path sets it to true
+	// without anything checking that either. See issue #80.
+	a.note("This record claims \"signed\": true. The service refuses to store that claim, and nothing verifies it either way.")
 	if err := a.putRelease(target, env, release); err != nil {
 		return "", "", nil, err
 	}
