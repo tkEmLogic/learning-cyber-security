@@ -558,7 +558,7 @@ One prepared failure worth working through together: a device that verifies the 
 
 ## Continue
 
-Next: **Tier 3: Require authentic firmware images**.
+Next: **[Tier 3: Require authentic firmware images](../tier-03-signed-images/index.md)**.
 
 Tier 2 made the device sure about who it is talking to. Tier 3 starts from the uncomfortable half of that: the service is now trusted, and a trusted service that gets compromised can still hand your fleet any code it likes.
 

@@ -370,7 +370,7 @@ tiers:
     title: Require authentic firmware images
     kind: control
     track: core
-    status: planned
+    status: implemented
     start_checkpoint: course-v1.0-tier-02-complete
     complete_checkpoint: course-v1.0-tier-03-complete
     module: course-material/tiers/tier-03-signed-images/index.md

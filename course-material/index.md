@@ -41,7 +41,7 @@ The core course is eleven tiers and about 43 hours of work. Two advanced tiers f
 | [Tier 0: Build the unsecured reference product](tiers/tier-00-unsecured/index.md) | Nothing. This is the baseline with no security at all | Any local actor can read the traffic, imitate the service, and supply any firmware | 3 hours |
 | [Tier 1: Model the product and its risks](tiers/tier-01-threat-model/index.md) | Analysis only. Assets, actors, trust boundaries, and a risk register | Teams add controls without agreeing what they protect or who they defend against | 3 hours |
 | [Tier 2: Authenticate and encrypt the server connection](tiers/tier-02-authenticated-https/index.md) | HTTPS, a course-local service CA, certificate and hostname validation | Local eavesdropping, network modification, and service impersonation | 3 hours |
-| Tier 3: Require authentic firmware images | An offline release-signing key and real MCUboot signature checking | A trusted but compromised OTA service supplies an altered or unsigned image | 4 hours |
+| [Tier 3: Require authentic firmware images](tiers/tier-03-signed-images/index.md) | An offline release-signing key and real MCUboot signature checking | A trusted but compromised OTA service supplies an altered or unsigned image | 4 hours |
 | Tier 4: Protect release metadata and block downgrade | Signed release metadata and a security counter | Replay of an old signed image, and mutable metadata | 4 hours |
 | Tier 5: Make installation recoverable | Test boot, confirmation, and rollback | Power loss, a corrupted download, or a release that crashes on boot | 4 hours |
 | Tier 6: Replace shared identity with per-device factory identity | On-device key generation and a per-device Factory identity | One extracted shared credential impersonates every device | 4 hours |
@@ -264,3 +264,5 @@ When you finish it, you will have a working, deliberately insecure device, four 
 Then **[Tier 1: Model the product and its risks](tiers/tier-01-threat-model/index.md)**, which adds no control and changes no code. It turns what you observed in Tier 0 into a model of the product, its assets, its actors, and its risks, and it ends at the first Mentor review gate.
 
 Then **[Tier 2: Authenticate and encrypt the server connection](tiers/tier-02-authenticated-https/index.md)**, the first tier that stops an attack. The device learns to check who answered before it believes anything.
+
+Then **[Tier 3: Require authentic firmware images](tiers/tier-03-signed-images/index.md)**, which takes the uncomfortable half of Tier 2 and closes it. You publish hostile firmware through your own fully trusted service and watch the device refuse it anyway. It ends at a required Mentor review gate.
