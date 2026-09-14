@@ -268,43 +268,106 @@ An analysis tier must state in its Scenario and its Learning result that
 it changes no code and adds no control, so a Learner does not expect the device
 to behave differently afterwards.
 
-## What a control tier learned from Tier 2
+## What a control tier learned from Tier 2 and Tier 3
 
-Tier 2 was the first tier to use the Control variant against a real control.
-Five things came out of it that the template did not say, and every control
-tier from Tier 3 onward should assume them.
+Tier 2 was the first tier to use the Control variant against a real control, and
+five things came out of it. Tier 3 was the second, and it is different in ways
+Tier 2 could not show: it carries two controls rather than one, its refusal is
+printed by the bootloader rather than by the application, and its attack is the
+Learner inhabiting a service that Tier 2 spent a whole tier teaching them to
+trust. Four of Tier 2's five survived. One needed amending, and three more
+arrived.
 
-**Section 10 needs the point of refusal, and the fixture has to supply it.** A
-replay that prints `refused` has replaced one verdict with another. The fixture
-must print which check ran, what it compared, and what it rejected, and the
-module quotes those three lines. If the fixture cannot say them, fix the
-fixture before writing the module. That is the same rule as "show the
-mechanism", applied to a control instead of an attack.
+**Decide who witnesses the refusal before writing section 10.** This is the
+first question a control tier must answer, and getting it wrong reshapes the
+whole tier.
 
-**One bypass per half of the control.** A control is rarely one check. Tier 2's
-is two, a chain check and a name check, and each bypass isolates one of them so
-the Learner sees that both are load bearing. A single bypass that fails both at
-once teaches neither. Write section 11 by asking what the control checks, then
-defeating each answer separately.
+Ask who performs the check, because that decides who can report it. Tier 2's
+answer was the host: the fixture's own TLS client rejected the certificate, so
+the fixture had a refusal of its own to narrate. Tier 3's answer is the
+bootloader, so the fixture cannot narrate anything. It publishes hostile
+firmware through a genuine service, every step succeeds, and its last step says
+`Stop. Nothing here can refuse this image.` The Learner reads the device.
 
-**Section 13 usually moves a claim rather than supporting it.** Tier 2 moves
-`SC-03` from `unsupported` to `partly supported` and names the gap and the tier
-that closes it. A control tier that reports a claim as supported should be
-read twice: it usually means the claim was written too small, or a host result
-was allowed to stand for a device result.
+Getting this backwards produces a fixture that claims a refusal it never saw,
+which `docs/fixture-safety-contract.md` already forbids but which nothing told a
+writer to check for.
 
-**A control tier inherits a control and must say what it did not touch.** Tier
-2's ledger marks one weakness reduced rather than closed, because something is
-still readable and that was a choice. Leaving a row honest is worth more than
-a page of closed rows. The Scenario and section 13 both have to state what the
-new control does not do, because a Learner who overreads a control is the
-specification's stated failure criterion for several tiers.
+**Section 10 needs the point of refusal, and whoever performs the check must
+supply it.** This is Tier 2's rule, amended. Tier 2 said the fixture must
+supply it, which was true of a control that runs on the host and false of one
+that runs on the device.
 
-**Predict and reveal did not carry over, and that is fine.** Tier 1's companion
-answers page suits a tier whose work is reasoning. A control tier's work is
-running and reading, and its answers arrive as real output rather than as a
-page to compare against. Do not add an answers page to a control tier unless
-the tier asks the Learner to design something.
+The rule underneath both is that a replay must never print a bare verdict.
+Something must say which check ran, what it compared, and what it rejected. In
+Tier 2 the fixture says it. In Tier 3 the bootloader says it, in more detail
+than Tier 2's fixture managed, and the tier's job is to make the Learner able to
+read it rather than to translate it for them. A course command that turned
+`signature=none` into prose would put the Learner back to trusting a verdict.
+
+**Budget for the work that makes a refusal observable.** It is not the control,
+the Learner does not write it, and in both control tiers so far it was
+discovered late and turned out to be substantial.
+
+Tier 2 needed `./course service start --present untrusted|wrong-name`, without
+which no device refusal could be produced at all. Tier 3 needed an entire
+out-of-tree Zephyr module supplying a MCUboot hook, because stock MCUboot prints
+one identical line for every kind of bad image and names no reason.
+
+Two tiers out of two is a pattern rather than bad luck. A control that cannot be
+observed failing cannot be taught, and the work to make it observable is
+routinely as large as the control itself. A tier that plans only the control
+will find this out at the worst possible moment, which is when both tiers found
+it.
+
+**One bypass per thing that can be defeated separately.** Tier 2 said one bypass
+per half of the control, which held while a tier had one control with two
+checks. Tier 3 has two controls and three bypasses: signing with an equally
+valid key, replacing the bootloader that holds the key, and taking the key
+itself. The third needs no device at all.
+
+Write section 11 by asking what could be defeated independently, then defeating
+each answer separately. Counting halves of a control is the special case, not
+the rule.
+
+**Section 13 usually moves a claim rather than supporting it.** Unchanged from
+Tier 2. Tier 2 moved `SC-03` to `partly supported`, Tier 3 moves `SC-01` the
+same way and names the gap as the unverified bootloader. A control tier that
+reports a claim as supported should be read twice: it usually means the claim
+was written too small, or a host result was allowed to stand for a device
+result.
+
+Tier 3 added one thing here. A claim can need more than one control, and when it
+does, say so in a table rather than a sentence. `SC-01` needs `CTL-01` for the
+device's check and `CTL-06` for the key's custody, and a Learner who sees only
+the first has understood half the claim.
+
+**A control tier inherits a control and must say what it did not touch.**
+Unchanged, and Tier 3 strengthened it. Its ledger adds two new weaknesses, both
+limits rather than achievements, and its section 13 lists four things a Learner
+must not claim. A tier that only adds closed rows has usually not been read
+carefully.
+
+**Expect to find a bug in the previous tier.** A control tier is the first thing
+to exercise the previous tier's control in a new way, and the previous tier
+shipped without that exercise existing.
+
+Tier 3 found that Tier 2's HTTPS client cannot receive a response larger than
+2 KB. Every response Tier 2 ever fetched was small JSON, so nothing noticed, and
+a firmware image arrives in 16 KiB TLS records. Tier 2's published behaviour was
+never wrong, and a Learner who went looking would have hit it with a symptom
+pointing nowhere near the cause.
+
+Budget time for this, and when it happens, decide deliberately whether to fix
+the published tier or to name the limit. Do not fix it silently: a published
+tier changing underneath a Learner is its own problem.
+
+**Predict and reveal did not carry over, and that is fine.** Unchanged from
+Tier 2. A control tier's work is running and reading, and its answers arrive as
+real output rather than as a page to compare against. Tier 3 opens section 7
+with `### Predict`, as the template requires, and publishes no answers page. Do
+not add one to a control tier unless the tier asks the Learner to design
+something.
 
 ## Companion answers page
 
