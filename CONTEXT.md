@@ -147,10 +147,21 @@ _Avoid_: SSL certificate, device certificate
 
 **Release signing key**:
 The private key that signs a firmware image so a device can tell that the
-manufacturer published it. It is held offline, away from the OTA service and
-from version control, and it is separate from every device identity key and
-from the Course certificate authority.
+manufacturer published it, and from Tier 4 also the exact bytes of a Release
+manifest so a device can tell what the release claims about itself. One key,
+two signatures over different bytes, checked by two independent verifiers. It is
+held offline, away from the OTA service and from version control, and it is
+separate from every device identity key and from the Course certificate
+authority.
 _Avoid_: Firmware key, code signing certificate
+
+**Security counter**:
+A number carried in both the signed MCUboot image and the signed Release
+manifest, which only increases when a release closes a security boundary that
+must not be reopened. It is separate from the human-readable version, which
+never overrides it. It is compared, never remembered: the bootloader reads the
+counter of the image in the primary slot and compares it with the candidate's.
+_Avoid_: Version, build number, rollback index
 
 **Image signature**:
 The signature over a firmware image, made with the Release signing key and
@@ -165,4 +176,9 @@ Reference product holds two, and they are unrelated. The Course certificate
 authority is the anchor for a presented Service certificate. The
 image-verification public key is the anchor for an Image signature. Always
 name which one is meant.
+
+From Tier 4 that second key is held in two places: the bootloader checks the
+Image signature with it and the application checks the Release manifest
+signature with it. Same key material, two independent verifiers, and a pass by
+one is never evidence about the other.
 _Avoid_: Root certificate store, trusted key

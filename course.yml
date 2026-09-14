@@ -498,7 +498,7 @@ tiers:
     title: Protect release metadata and block downgrade
     kind: control
     track: core
-    status: planned
+    status: implemented
     start_checkpoint: course-v1.0-tier-03-complete
     complete_checkpoint: course-v1.0-tier-04-complete
     module: course-material/tiers/tier-04-release-policy/index.md

@@ -24,10 +24,11 @@ func TestTierListShowsPlannedUnavailableTiers(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("code=%d stderr=%s", code, stderr.String())
 	}
-	// Tier 3 joined the implemented tiers when its module was published. The
-	// test still needs a planned tier that is genuinely unavailable, so it
-	// checks Tier 4 and an advanced tier instead.
-	for _, want := range []string{"00  IMPLEMENTED", "01  IMPLEMENTED", "02  IMPLEMENTED", "03  IMPLEMENTED", "04  PLANNED", "B  PLANNED"} {
+	// Each published tier moves out of PLANNED, so this test names the highest
+	// implemented one and a still-planned one explicitly rather than assuming
+	// where the boundary is. Tier 4 joined when its module was published; Tier 5
+	// and the advanced tiers are the genuinely unavailable ones now.
+	for _, want := range []string{"00  IMPLEMENTED", "01  IMPLEMENTED", "02  IMPLEMENTED", "03  IMPLEMENTED", "04  IMPLEMENTED", "05  PLANNED", "B  PLANNED"} {
 		if !strings.Contains(stdout.String(), want) {
 			t.Fatalf("expected %q in the tier list:\n%s", want, stdout.String())
 		}

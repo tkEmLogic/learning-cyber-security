@@ -42,7 +42,7 @@ The core course is eleven tiers and about 43 hours of work. Two advanced tiers f
 | [Tier 1: Model the product and its risks](tiers/tier-01-threat-model/index.md) | Analysis only. Assets, actors, trust boundaries, and a risk register | Teams add controls without agreeing what they protect or who they defend against | 3 hours |
 | [Tier 2: Authenticate and encrypt the server connection](tiers/tier-02-authenticated-https/index.md) | HTTPS, a course-local service CA, certificate and hostname validation | Local eavesdropping, network modification, and service impersonation | 3 hours |
 | [Tier 3: Require authentic firmware images](tiers/tier-03-signed-images/index.md) | An offline release-signing key and real MCUboot signature checking | A trusted but compromised OTA service supplies an altered or unsigned image | 4 hours |
-| Tier 4: Protect release metadata and block downgrade | Signed release metadata and a security counter | Replay of an old signed image, and mutable metadata | 4 hours |
+| [Tier 4: Protect release metadata and block downgrade](tiers/tier-04-release-policy/index.md) | Signed release metadata and a security counter | Replay of an old signed image, and mutable metadata | 4 hours |
 | Tier 5: Make installation recoverable | Test boot, confirmation, and rollback | Power loss, a corrupted download, or a release that crashes on boot | 4 hours |
 | Tier 6: Replace shared identity with per-device factory identity | On-device key generation and a per-device Factory identity | One extracted shared credential impersonates every device | 4 hours |
 | Tier 7: Add owner-scoped operational identity and mutual TLS | A rotatable Operational identity and mutual TLS | Factory credentials overused for daily access, or an unclaimed device joining | 4 hours |
@@ -266,3 +266,5 @@ Then **[Tier 1: Model the product and its risks](tiers/tier-01-threat-model/inde
 Then **[Tier 2: Authenticate and encrypt the server connection](tiers/tier-02-authenticated-https/index.md)**, the first tier that stops an attack. The device learns to check who answered before it believes anything.
 
 Then **[Tier 3: Require authentic firmware images](tiers/tier-03-signed-images/index.md)**, which takes the uncomfortable half of Tier 2 and closes it. You publish hostile firmware through your own fully trusted service and watch the device refuse it anyway. It ends at a required Mentor review gate.
+
+Then **[Tier 4: Protect release metadata and block downgrade](tiers/tier-04-release-policy/index.md)**, which asks the question Tier 3 cannot. An image can be perfectly authentic and still be the wrong one, and a correctly signed release from last year is still correctly signed. You publish a signed Release manifest, and watch your device refuse seven releases that Tier 3 would have installed without complaint, five of them signed by your own key.
