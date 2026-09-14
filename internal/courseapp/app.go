@@ -702,6 +702,11 @@ type firmwareVariant struct {
 	// with no counter in the primary slot as permission to swap, so this being
 	// unset is not a default, it is the migration case.
 	securityCounter int
+	// trialBehaviour is empty for every tier before Tier 5, which has no
+	// trial boot to behave during. From Tier 5 it names one of the five
+	// arms of the COURSE_TRIAL_BEHAVIOUR choice, and it is the only thing
+	// that differs between the five images that tier publishes.
+	trialBehaviour string
 }
 
 var firmwareVariants = map[string]firmwareVariant{
@@ -756,6 +761,7 @@ var firmwareApps = map[string]string{
 	"02": "firmware/tier-02-authenticated-service",
 	"03": "firmware/tier-03-signed-images",
 	"04": "firmware/tier-04-release-policy",
+	"05": "firmware/tier-05-recovery",
 }
 
 // tierSignsItsOwnImage names the tiers whose bootloader is built separately
@@ -766,7 +772,7 @@ var firmwareApps = map[string]string{
 // the property is "this tier's bootloader checks who published an image", and
 // every tier from Tier 3 on has it.
 func tierSignsItsOwnImage(tier string) bool {
-	return tier == "03" || tier == "04"
+	return tier == "03" || tier == "04" || tier == "05"
 }
 
 func variantsForTier(tier string) map[string]firmwareVariant {
@@ -777,6 +783,8 @@ func variantsForTier(tier string) map[string]firmwareVariant {
 		return tier03Variants
 	case "04":
 		return tier04Variants
+	case "05":
+		return tier05Variants
 	default:
 		return firmwareVariants
 	}
@@ -841,7 +849,7 @@ func (a *app) buildFirmware(args []string) error {
 	// can verify a Release manifest. It is a separate variable from the trust
 	// anchor because it answers a separate question: the anchor says which
 	// service to talk to, this says whose release metadata to believe.
-	if tier == "04" {
+	if tier == "04" || tier == "05" {
 		keyDir, err := a.writeSigningPublicKeyInc()
 		if err != nil {
 			return err
@@ -973,11 +981,33 @@ CONFIG_COURSE_TRUST_ANCHOR_FINGERPRINT=%q
 	//
 	// The hardware revision is asserted here and nowhere read. The channel is
 	// a policy choice, not a property of the device.
-	if tier == "04" {
+	if tier == "04" || tier == "05" {
 		body += fmt.Sprintf(`CONFIG_COURSE_SECURITY_COUNTER=%d
 CONFIG_COURSE_HARDWARE_REVISION=%d
 CONFIG_COURSE_RELEASE_CHANNEL=%q
 `, variant.securityCounter, tier04HardwareRevision, tier04Channel)
+	}
+
+	// Tier 5 adds the two facts that are about this build rather than about
+	// the release it carries.
+	//
+	// The trial behaviour selects one arm of the Kconfig choice, which is the
+	// only difference between the five images this tier publishes.
+	//
+	// The source revision travels twice: here, so the application can print
+	// what it is running, and in a protected MCUboot TLV at tag 0x00A0 that
+	// imgtool writes at signing time, so the bootloader can say what it is
+	// swapping in. Both copies are covered by the image signature. It
+	// identifies the build and not the release, and a Learner's own build
+	// carries their hash and will usually be dirty.
+	if tier == "05" {
+		symbol, err := trialBehaviourSymbol(variant.trialBehaviour)
+		if err != nil {
+			return "", "", err
+		}
+		body += fmt.Sprintf("%s=y\n", symbol)
+		body += fmt.Sprintf("CONFIG_COURSE_HEALTH_GATE_SECONDS=%d\n", tier05HealthGateSeconds)
+		body += fmt.Sprintf("CONFIG_COURSE_SOURCE_REVISION=%q\n", a.sourceRevision())
 	}
 
 	// The filename carries the tier as well as the variant. Tier 0 and Tier 2
