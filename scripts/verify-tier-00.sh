@@ -33,6 +33,9 @@ scripts/check-markdown.sh
 printf '+ scripts/check-secrets.sh\n'
 scripts/check-secrets.sh
 
+printf '+ scripts/check-flash-map.sh\n'
+scripts/check-flash-map.sh
+
 printf 'Tier 0 host verification passed.\n'
 
 # course.yml owns the hardware claims, so this script reports them instead of
