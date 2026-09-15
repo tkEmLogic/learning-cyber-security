@@ -395,6 +395,51 @@ verification:
       # has no counter. Every image before Tier 4 is like that.
       first_install_protected: not_protected_by_design
 
+  tier_05:
+    command: [./scripts/verify-tier-00.sh]
+    receipt: .course-state/receipts/tier-05.json
+    revision_bound: true
+    hardware:
+      # Every row below was seen on the physical nanoESP32-C6, over the real
+      # OTA path, with releases signed by the Learner's own key.
+      test_upgrade_requested_not_permanent: validated
+      healthy_release_confirms: validated
+      crashing_release_reverts: validated
+      hung_release_reset_by_watchdog_and_reverts: validated
+      failed_health_release_reverts: validated
+      health_window_stall_reverts: validated
+      revert_restores_last_confirmed_image: validated
+      failure_reason_replayed_after_revert: validated
+      # A crash and a hang leave no written reason, because neither reaches the
+      # code that could record one. The device says so rather than inventing a
+      # cause, and the module teaches the asymmetry.
+      crash_and_hang_leave_no_reason: validated
+      interrupted_download_resumes: validated
+      # The strongest result of the tier. A hard reset partway through a
+      # download loses every byte of RAM; the progress record in NVS survived
+      # it, and the device resumed from exactly the recorded offset and
+      # finished.
+      download_resumes_after_hard_reset: validated
+      digest_computed_by_reading_slot_back: validated
+      invalid_range_response_refused: validated
+      invalid_range_response_discards_partial_download: validated
+      changed_release_discards_partial_download: validated
+      already_confirmed_image_refused: validated
+      bounded_retry_stops_repeated_failure: validated
+      network_loss_does_not_fail_health_gate: validated
+      network_loss_causes_no_revert_loop: validated
+      # Section 6's claim, checked in MCUboot's source during charting and then
+      # on the board: check_downgrade_prevention() runs only for TEST and PERM
+      # swaps, so a revert never passes through it.
+      revert_not_blocked_by_downgrade_prevention: validated_at_equal_counter
+      reset_during_swap_recovers: validated
+      # Not reached. See the resolution on issue #97 for what was and was not
+      # covered, and why these are honest gaps rather than passing rows.
+      reset_during_trailer_update: not_reached
+      reset_during_confirmation_write: not_reached
+      reset_after_confirmation: not_reached
+      signed_serial_recovery: not_built_advanced_tier_a
+
 tiers:
   "00":
     title: Build the unsecured reference product
