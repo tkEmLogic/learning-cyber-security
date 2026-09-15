@@ -599,3 +599,44 @@ func MarshalCredentialExtension(credential string) ([]byte, error) {
 func CredentialExtensionOID() asn1.ObjectIdentifier {
 	return courseCredentialOID
 }
+
+// tier06SecurityCounter is the counter Tier 6's releases carry.
+//
+// It stays at Tier 5's value. Section 6 says a security counter is increased
+// only when a release closes a security boundary that must not be reopened,
+// and Tier 6 closes none: T0-W-02 moves to reduced rather than closed, because
+// the device gains an identity that nothing yet requires it to present.
+// Raising it here would also make every Tier 5 release uninstallable, which is
+// a cost with nothing bought.
+const tier06SecurityCounter = 3
+
+// tier06Variants are the two images Tier 6 publishes from one source tree.
+//
+// They differ in where the device's identity comes from, which is the whole
+// subject of the tier, so the difference a Learner reads is one Kconfig
+// conditional rather than a diff between two directories.
+//
+// There is deliberately no third variant that generates a key when it can and
+// uses the shared identity when it cannot.
+var tier06Variants = map[string]firmwareVariant{
+	"shared": {
+		releaseID:       "tier-06-shared-identity",
+		label:           "shared",
+		beaconState:     "steady",
+		version:         "0.6.0-shared-identity",
+		imageName:       "tier-06-shared-identity.bin",
+		securityCounter: tier06SecurityCounter,
+		trialBehaviour:  "healthy",
+		identityModel:   "shared",
+	},
+	"factory": {
+		releaseID:       "tier-06-factory-identity",
+		label:           "factory",
+		beaconState:     "steady",
+		version:         "0.6.0-factory-identity",
+		imageName:       "tier-06-factory-identity.bin",
+		securityCounter: tier06SecurityCounter,
+		trialBehaviour:  "healthy",
+		identityModel:   "factory",
+	},
+}
