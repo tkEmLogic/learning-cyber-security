@@ -1,7 +1,11 @@
-# Docmost hardening-tier prototype
+# Module structure prototype
 
 This is a throwaway prototype for
-[Prototype the Docmost course module](https://github.com/tkEmLogic/learning-cyber-security/issues/15).
+[Prototype the Docmost course module](https://github.com/tkEmLogic/learning-cyber-security/issues/15),
+whose title still names the wiki the course was going to be published to. The
+directory was called `docmost-hardening-tier` for the same reason and has been
+renamed, because what it fixes is the structure of a tier module and that was
+never about the delivery target.
 
 It compares three structures for Tier 3, **Require authentic firmware images**.
 The technical content is intentionally the same. The information order and
