@@ -268,6 +268,8 @@ func (a *app) dispatch(args []string) error {
 		return a.keys(args[1:])
 	case "release":
 		return a.release(args[1:])
+	case "provision":
+		return a.provision(args[1:])
 	case "attack":
 		return a.attack(args[1:])
 	case "verify":
@@ -285,7 +287,7 @@ func (a *app) dispatch(args []string) error {
 }
 
 func (a *app) usage(w io.Writer) {
-	fmt.Fprintln(w, "usage: ./course doctor|setup|tier|build|service|device|keys|release|attack|verify|evidence|clean")
+	fmt.Fprintln(w, "usage: ./course doctor|setup|tier|build|service|device|keys|release|provision|attack|verify|evidence|clean")
 }
 
 func (a *app) context(target string) {
