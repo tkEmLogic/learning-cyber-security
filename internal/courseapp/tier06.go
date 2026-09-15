@@ -117,7 +117,7 @@ func (a *app) deviceCADir() string {
 
 func (a *app) provision(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: ./course provision credential|enroll|register|extract|bypass|record")
+		return errors.New("usage: ./course provision credential|enroll|register|extract|export|erase|bypass|record")
 	}
 	switch args[0] {
 	case "credential":
@@ -128,12 +128,16 @@ func (a *app) provision(args []string) error {
 		return a.provisionRegister(args[1:])
 	case "extract":
 		return a.provisionExtract(args[1:])
+	case "export":
+		return a.provisionExport(args[1:])
+	case "erase":
+		return a.provisionEraseDevice(args[1:])
 	case "bypass":
 		return a.provisionBypass(args[1:])
 	case "record":
 		return a.provisionShowRecord(args[1:])
 	default:
-		return fmt.Errorf("unknown provision command %q; use credential, enroll, register, extract, bypass or record", args[0])
+		return fmt.Errorf("unknown provision command %q; use credential, enroll, register, extract, export, erase, bypass or record", args[0])
 	}
 }
 
@@ -1498,4 +1502,86 @@ func (a *app) deviceDump(args []string) error {
 	// so the board is not left looking bricked.
 	fmt.Fprintln(a.out, "esptool leaves the chip in the ROM download loader. Pulsing RTS to restart it:")
 	return a.deviceReset()
+}
+
+// provisionExport runs E-6-04 over the board's console: it asks the device to
+// export its private key and shows the device refuse. Witnessed by the device,
+// per #115. The shell must be open, which on a provisioned board means the BOOT
+// button was held at reset.
+func (a *app) provisionExport(args []string) error {
+	console, err := a.openConsole()
+	if err != nil {
+		return err
+	}
+	defer console.Close()
+
+	fmt.Fprintln(a.out, "E-6-04: ask the device to export its own private key.")
+	fmt.Fprintln(a.out, "The key was generated on the device with no export usage flag, so PSA refuses.")
+	fmt.Fprintln(a.out, "Read this beside E-6-05, which reads the same key out of a flash dump and succeeds.")
+	fmt.Fprintln(a.out)
+	if err := console.send("provision export"); err != nil {
+		return err
+	}
+	lines, err := console.collect(10*time.Second, func(line string) bool {
+		return strings.Contains(line, "flash dump and succeeds") ||
+			strings.Contains(line, "was exportable")
+	})
+	if err != nil {
+		return fmt.Errorf("the board did not answer; is the shell open? hold BOOT at reset and try again: %w", err)
+	}
+	refused := false
+	for _, line := range lines {
+		if strings.HasPrefix(line, "provision.export") || strings.HasPrefix(line, "identity.export") {
+			fmt.Fprintf(a.out, "  board: %s\n", line)
+		}
+		if strings.Contains(line, "status=-133") || strings.Contains(line, "NOT_PERMITTED") {
+			refused = true
+		}
+		if strings.Contains(line, "was exportable") {
+			return errors.New("the device exported its private key; E-6-04 must refuse, this is a defect")
+		}
+	}
+	if !refused {
+		return errors.New("the device did not report the -133 refusal E-6-04 expects")
+	}
+	fmt.Fprintln(a.out, "\nResult: E-6-04 refused at the device, PSA_ERROR_NOT_PERMITTED (-133)")
+	return nil
+}
+
+// provisionEraseDevice runs the device half of remanufacturing: it tells the
+// board to destroy its key and delete its certificate. The manufacturing record
+// is append only and keeps every entry, so this erases only what is on the
+// device. The shell must be open (BOOT held at reset on a provisioned board).
+func (a *app) provisionEraseDevice(args []string) error {
+	console, err := a.openConsole()
+	if err != nil {
+		return err
+	}
+	defer console.Close()
+
+	fmt.Fprintln(a.out, "Remanufacturing, device half: erase the identity this board holds.")
+	fmt.Fprintln(a.out, "The manufacturing record is append only; nothing here removes a record.")
+	fmt.Fprintln(a.out)
+	if err := console.send("provision erase"); err != nil {
+		return err
+	}
+	lines, err := console.collect(10*time.Second, func(line string) bool {
+		return strings.Contains(line, "provision.erase done") ||
+			strings.Contains(line, "provision.erase failed")
+	})
+	if err != nil {
+		return fmt.Errorf("the board did not answer; is the shell open? hold BOOT at reset and try again: %w", err)
+	}
+	for _, line := range lines {
+		if strings.HasPrefix(line, "provision.erase") || strings.HasPrefix(line, "identity.erase") {
+			fmt.Fprintf(a.out, "  board: %s\n", line)
+		}
+		if strings.Contains(line, "provision.erase failed") {
+			return errors.New("the device did not erase its identity")
+		}
+	}
+	fmt.Fprintln(a.out, "\nResult: the device erased its key and certificate. Re-enroll to remanufacture:")
+	fmt.Fprintln(a.out, "  ./course provision credential new --device <id>")
+	fmt.Fprintln(a.out, "  ./course provision enroll --device <id> --credential <hex>")
+	return nil
 }

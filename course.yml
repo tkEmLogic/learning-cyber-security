@@ -476,6 +476,98 @@ verification:
       reset_after_confirmation: not_reached
       signed_serial_recovery: not_built_advanced_tier_a
 
+  tier_06:
+    command: [./scripts/verify-tier-00.sh]
+    receipt: .course-state/receipts/tier-06.json
+    revision_bound: true
+    hardware:
+      # Every row was observed on the physical nanoESP32-C6, MAC
+      # 40:4c:ca:5e:a9:fc. Rows quoted from the #118 board run say so; the rest
+      # were seen in the #124 board session. Nothing is claimed from a host
+      # result, with one named exception: the five station-refusal bypass rows
+      # E-6-01, E-6-02, E-6-03, E-6-06 and E-6-07 are witnessed by the
+      # provisioning station on the host by design (decision #115). The refusal
+      # is a station decision and no device is involved, so the host is the
+      # witness the tier intends.
+
+      # The device generates a P-256 key into PSA Secure Storage and it survives
+      # a reboot. Seen in #118, and confirmed again in #124 by decrypting the
+      # storage partition: the live key recovered from flash matches the public
+      # key in the certificate the station issued.
+      key_generated_on_device_survives_reboot: validated
+      # The certification request parses and carries the Bootstrap credential
+      # inside the signature. #118 verified it with openssl req -verify; the
+      # #124 remanufacture enrollment returned a 326 byte request the station
+      # accepted.
+      certification_request_carries_credential: validated
+      # The station issues a certificate and consumes the credential in one
+      # appended record, before anything reaches the device.
+      station_issues_and_consumes_in_one_append: validated
+      # The device reports the identifier out of its own certificate; the
+      # service stored it, 9 events under the identifier against the shared one
+      # (#118), and the manufacturing record stored the #124 remanufacture id.
+      device_reports_identifier_service_stores_it: validated
+      # The shell closes on enrollment and reopens only when the BOOT button is
+      # held at reset. Both seen in #124: the provisioned board answered nothing
+      # until BOOT was held, which opened the shell to run E-6-04 and the erase.
+      shell_closes_after_enrollment: validated
+      boot_button_reopens_shell: validated
+      # The factory image boots unprovisioned, opens the shell itself, and makes
+      # no OTA contact: the poll is gated on holding an identity (#118, after
+      # the fix that closed an unprovisioned board still fetching an
+      # assignment). Re-seen in #124 the moment the device was erased.
+      factory_boots_unprovisioned_no_ota_contact: validated
+
+      # Section 11 bypass rows, decision #115: five refusals and two successes.
+      # The " station" rows are host-witnessed station refusals, by design.
+      e6_01_replay_consumed_credential_refused: validated
+      e6_02_identifier_reuse_refused: validated
+      e6_03_bad_proof_of_possession_refused: validated
+      # Witnessed by the device: provision export returns status=-133
+      # (PSA_ERROR_NOT_PERMITTED). The key was generated with no export usage.
+      e6_04_export_refused_on_device: validated
+      # The one bypass that succeeds. ./course device dump reads the storage
+      # partition and the P-256 private key is recovered by decrypting the ITS
+      # record with SHA-256(MAC || 0x0000 || uid): a key derived only from the
+      # public MAC and the uid, which is in clear as the settings entry name
+      # its/2/601. The uid is packed little-endian 0x80000601. This settles the
+      # two facts the storage-guarantees research left owed to a board run: the
+      # uid byte order and the exact settings entry name.
+      e6_05_key_recovered_from_flash_dump: validated
+      e6_06_key_separation_both_refused: validated
+      e6_07_cloned_shared_credential_refused: validated
+
+      # The shared build registers as beacon-development-shared, and the clone
+      # (host, no board) extracts the same fleet key and registers a second time
+      # under that identifier: two entries under one fingerprint
+      # sha256:d07fb116..., plus three never-manufactured phantoms. The clone
+      # runs on the host by design; a copied credential does not need the
+      # hardware it was copied from.
+      shared_identity_registers_and_clone_duplicates_it: validated
+      # Remanufacturing: the device erased its key and certificate, a fresh
+      # Bootstrap credential was issued, the device generated a new key, and the
+      # station issued a new certificate (beacon-remfg-404cca5ea9fc). The old
+      # beacon-404cca5ea9fc enrollment stands, because the record is append only.
+      remanufacturing_issues_fresh_credential_appends_record: validated
+
+      # The RNG defect (#126) read on hardware. The live device key recovered
+      # from the dump has no structure, while two superseded keys still in the
+      # same partition do, one of them exactly the key #126 recorded from the
+      # unfixed build. Every key the board has ever held is still in flash,
+      # because NVS appends and garbage collects later.
+      rng_fixed_key_has_no_structure_old_keys_remain: validated
+
+      # Tier 5's records coexist with Secure Storage in the one shared settings
+      # NVS instance (#118, settles #120). This is the Tier 5 bug Tier 6 found
+      # and fixed in its own tree: Tier 5 mounted a second instance on the same
+      # partition, which only surfaced once Tier 6 also used it.
+      tier5_records_coexist_with_secure_storage: validated
+      # Not reached. The full interrupted-download resume was not re-run on the
+      # Tier 6 firmware; only the record coexistence above was observed. #126
+      # already owes Tiers 2 to 5 a board run after the RNG rebuild, and this
+      # resume run belongs with that.
+      tier5_download_resume_rerun: not_reached
+
 tiers:
   "00":
     title: Build the unsecured reference product
