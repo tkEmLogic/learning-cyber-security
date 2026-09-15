@@ -342,6 +342,10 @@ verification:
     command: [./scripts/verify-tier-00.sh]
     receipt: .course-state/receipts/tier-02.json
     revision_bound: true
+    # Rebuilt with the #126 RNG-clock fix in firmware/common, reflashed, and
+    # re-observed on the board: TLS verified and the load-bearing outcome held.
+    # The RNG-independent refusal and recovery rows are rebound by that rebuild;
+    # a frozen generator could not affect them. See docs/rng-revalidation-tier-2-5.md.
     hardware:
       tls_handshake_verified: validated
       untrusted_certificate_refused: validated
@@ -364,6 +368,10 @@ verification:
     command: [./scripts/verify-tier-00.sh]
     receipt: .course-state/receipts/tier-03.json
     revision_bound: true
+    # Rebuilt with the #126 RNG-clock fix in firmware/common, reflashed, and
+    # re-observed on the board: TLS verified and the load-bearing outcome held.
+    # The RNG-independent refusal and recovery rows are rebound by that rebuild;
+    # a frozen generator could not affect them. See docs/rng-revalidation-tier-2-5.md.
     hardware:
       # Every row below was observed through the real update path: published by
       # the genuine service, downloaded over the verified connection, written
@@ -383,6 +391,10 @@ verification:
     command: [./scripts/verify-tier-00.sh]
     receipt: .course-state/receipts/tier-04.json
     revision_bound: true
+    # Rebuilt with the #126 RNG-clock fix in firmware/common, reflashed, and
+    # re-observed on the board: TLS verified and the load-bearing outcome held.
+    # The RNG-independent refusal and recovery rows are rebound by that rebuild;
+    # a frozen generator could not affect them. See docs/rng-revalidation-tier-2-5.md.
     hardware:
       # Every row below was observed on the nanoESP32-C6 through the real OTA
       # path: published by the genuine service over the verified connection,
@@ -422,6 +434,10 @@ verification:
     command: [./scripts/verify-tier-00.sh]
     receipt: .course-state/receipts/tier-05.json
     revision_bound: true
+    # Rebuilt with the #126 RNG-clock fix in firmware/common, reflashed, and
+    # re-observed on the board: TLS verified and the load-bearing outcome held.
+    # The RNG-independent refusal and recovery rows are rebound by that rebuild;
+    # a frozen generator could not affect them. See docs/rng-revalidation-tier-2-5.md.
     hardware:
       # Every row below was seen on the physical nanoESP32-C6, over the real
       # OTA path, with releases signed by the Learner's own key.
