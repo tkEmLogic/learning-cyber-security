@@ -1495,13 +1495,15 @@ func (a *app) serviceCertificate() error {
 
 func (a *app) device(args []string) error {
 	if len(args) == 0 {
-		return errors.New("device requires flash, logs, status, update, or recover")
+		return errors.New("device requires flash, logs, status, dump, reset, update, or recover")
 	}
 	switch args[0] {
 	case "flash":
 		return a.deviceFlash(args[1:])
 	case "logs":
 		return a.deviceLogs()
+	case "dump":
+		return a.deviceDump(args[1:])
 	case "reset":
 		return a.deviceReset()
 	case "status":
