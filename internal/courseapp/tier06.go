@@ -25,6 +25,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -113,15 +115,19 @@ func (a *app) deviceCADir() string {
 
 func (a *app) provision(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: ./course provision credential|enroll|record|reset")
+		return errors.New("usage: ./course provision credential|enroll|register|record")
 	}
 	switch args[0] {
 	case "credential":
 		return a.provisionCredential(args[1:])
+	case "enroll":
+		return a.provisionEnroll(args[1:])
+	case "register":
+		return a.provisionRegister(args[1:])
 	case "record":
 		return a.provisionShowRecord(args[1:])
 	default:
-		return fmt.Errorf("unknown provision command %q; use credential, enroll, record or reset", args[0])
+		return fmt.Errorf("unknown provision command %q; use credential, enroll, register or record", args[0])
 	}
 }
 
@@ -532,7 +538,15 @@ func (a *app) provisionShowRecord(args []string) error {
 		case recordEnrollment:
 			if record.Result == "issued" {
 				fmt.Fprintf(a.out, "    issued certificate %s, fingerprint %s\n", record.CertSerial, short(record.CertFingerprint))
-				fmt.Fprintf(a.out, "    consumed credential %s, lifecycle %s\n", record.ConsumedCredential, record.Lifecycle)
+				if record.ConsumedCredential == "" {
+					// The shared model has no Bootstrap credential to
+					// consume, and printing an empty one read as a
+					// missing value rather than as the absence this
+					// tier is arguing about.
+					fmt.Fprintf(a.out, "    no Bootstrap credential was required, lifecycle %s\n", record.Lifecycle)
+				} else {
+					fmt.Fprintf(a.out, "    consumed credential %s, lifecycle %s\n", record.ConsumedCredential, record.Lifecycle)
+				}
 			} else {
 				fmt.Fprintf(a.out, "    refused: %s\n", record.Detail)
 			}
@@ -706,4 +720,385 @@ func sharedRegistrationNonce() ([]byte, error) {
 		return nil, err
 	}
 	return nonce, nil
+}
+
+// tier06Version is the human-readable version imgtool stamps into both Tier 6
+// images.
+//
+// One value for both, as Tier 5 used one for all five. The two images differ
+// in where their identity comes from, not in what they are as a release, and
+// a version that implied otherwise would invite a Learner to read the identity
+// model out of the header instead of out of the boot banner.
+//
+// Declared beside its consumer. Tier 4 declared tier04Version, never wired it
+// to imgtool, and shipped an image whose --version was wrong, because an
+// unused Go constant does not fail a build.
+const tier06Version = "0.6.0+0"
+
+func (a *app) tier06BuildDir(variant firmwareVariant) string {
+	return filepath.Join(a.zephyrWorkspace(), "build", "tier-06-factory-identity-"+variant.label)
+}
+
+func (a *app) tier06RawImage(variant firmwareVariant) string {
+	return filepath.Join(a.tier06BuildDir(variant), "tier-06-factory-identity", "zephyr", "zephyr.bin")
+}
+
+func tier06Variant(name string) (firmwareVariant, error) {
+	variant, ok := tier06Variants[name]
+	if ok {
+		return variant, nil
+	}
+	names := make([]string, 0, len(tier06Variants))
+	for key := range tier06Variants {
+		names = append(names, key)
+	}
+	sort.Strings(names)
+	return firmwareVariant{}, fmt.Errorf("unknown Tier 6 release %q; use one of: %s",
+		name, strings.Join(names, ", "))
+}
+
+// releaseSignTier06 signs one Tier 6 release and publishes it.
+//
+// It is Tier 5's sequence unchanged, including the source-revision TLV: Tier 6
+// keeps the whole recovery path and a revert still leaves the device running
+// an image whose manifest it consumed long ago.
+//
+// Both images carry security counter 3, the same value Tier 5's releases
+// carry. Section 6 raises a counter only when a release closes a security
+// boundary that must not be reopened, and Tier 6 closes none: T0-W-02 moves to
+// reduced rather than closed, because the device gains an identity that
+// nothing yet requires it to present.
+func (a *app) releaseSignTier06(variantName string) error {
+	variant, err := tier06Variant(variantName)
+	if err != nil {
+		return err
+	}
+	key := a.signingKeyPath("release")
+	if _, err := os.Stat(key); err != nil {
+		return errors.New("no Release signing key yet; run ./course keys create release first")
+	}
+	raw := a.tier06RawImage(variant)
+	if _, err := os.Stat(raw); err != nil {
+		return fmt.Errorf("no Tier 6 %s image to sign; run ./course build firmware --tier 06 --variant %s first",
+			variant.label, variant.label)
+	}
+	out := filepath.Join(a.releaseDir(), variant.imageName)
+	if err := os.MkdirAll(a.releaseDir(), 0o700); err != nil {
+		return err
+	}
+
+	fingerprint, err := a.keyFingerprint(key)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(a.out, "Signing with the release key, fingerprint %s\n", fingerprint)
+
+	revision := a.sourceRevision()
+	if err := a.signImage(key, raw, out, strconv.Itoa(variant.securityCounter), tier06Version,
+		"--custom-tlv", tier05RevisionTLV, revision); err != nil {
+		return err
+	}
+	fmt.Fprintf(a.out, "+ source revision %s written to protected TLV %s\n",
+		revision, tier05RevisionTLV)
+
+	image, err := os.ReadFile(out)
+	if err != nil {
+		return err
+	}
+	manifest := a.buildManifest(variant, image, time.Now())
+	data, err := json.MarshalIndent(manifest, "", "  ")
+	if err != nil {
+		return err
+	}
+	data = append(data, '\n')
+
+	manifestFile := a.manifestPath(variant.releaseID)
+	if err := os.WriteFile(manifestFile, data, 0o600); err != nil {
+		return err
+	}
+
+	keyPEM, err := os.ReadFile(key)
+	if err != nil {
+		return err
+	}
+	signature, err := signManifest(keyPEM, data)
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(a.manifestSignaturePath(variant.releaseID), signature, 0o600); err != nil {
+		return err
+	}
+
+	fmt.Fprintf(a.out, "+ signed %d manifest bytes with ECDSA P-256 over SHA-256\n", len(data))
+	fmt.Fprintf(a.out, "  manifest:  %s\n", a.relative(manifestFile))
+	fmt.Fprintf(a.out, "  digest:    %s\n", manifest.ImageSHA256)
+	fmt.Fprintf(a.out, "  counter:   %d, in the image TLV and in the manifest\n",
+		manifest.SecurityCounter)
+
+	release, err := a.publishSigned(variant, out, fingerprint)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(a.out, "Result: published %s, %d bytes, identity model %s\n",
+		variant.releaseID, release["image_size"], variant.identityModel)
+	if variant.identityModel == "shared" {
+		fmt.Fprintln(a.out, "This image carries the fleet's one private key. Every board flashed with it")
+		fmt.Fprintln(a.out, "is the same device, and anyone holding the image holds the credential.")
+	}
+	return nil
+}
+
+// releaseAssignTier06 offers an already-signed Tier 6 release to the device.
+//
+// Tier 5's command, for Tier 5's reason: publishing a release re-assigns it,
+// and Tier 6 has two releases a Learner hands to the board in sequence. It
+// signs nothing and builds nothing, and every value in the assignment is
+// copied from the release's own signed manifest.
+func (a *app) releaseAssignTier06(variantName string) error {
+	variant, err := tier06Variant(variantName)
+	if err != nil {
+		return err
+	}
+	data, err := os.ReadFile(a.manifestPath(variant.releaseID))
+	if err != nil {
+		return fmt.Errorf("no signed %s release yet; run ./course release sign --tier 06 --variant %s first",
+			variant.label, variant.label)
+	}
+	var manifest releaseManifest
+	if err := json.Unmarshal(data, &manifest); err != nil {
+		return fmt.Errorf("the stored %s manifest is unreadable: %w", variant.label, err)
+	}
+
+	release := a.assignmentFor(manifest)
+	state := filepath.Join(a.root, a.manifest.Paths.State, "ota")
+	if err := writeJSON(filepath.Join(state, "current-release.json"), release, 0o600); err != nil {
+		return err
+	}
+
+	fmt.Fprintf(a.out, "Result: the service now offers %s, version %s, counter %d\n",
+		manifest.ReleaseID, manifest.Version, manifest.SecurityCounter)
+	fmt.Fprintln(a.out, "Every value above came from that release's own signed manifest. This command")
+	fmt.Fprintln(a.out, "signs nothing and changes no stored release.")
+	return nil
+}
+
+// writeSharedIdentityInc compiles the fleet's identity into the shared image.
+//
+// This is the one place in the whole course where a private key reaches a
+// firmware build, and it is deliberate. A credential a Learner cannot extract
+// from their own image cannot teach why shared credentials fail, so the tier
+// gives them one to extract. The bound is written into the Tier 6 section of
+// docs/fixture-safety-contract.md: this credential only, generated locally,
+// never committed, and never used to sign anything a device would trust.
+//
+// It is written into its own directory rather than the shared anchor
+// directory, and the environment variable naming that directory is set only
+// for the shared variant. The factory build therefore never has the key on its
+// include path at all, which is a stronger statement than "it does not include
+// it".
+//
+// The key goes in as the SEC1 ECPrivateKey structure rather than as a bare
+// scalar. That is what a real image would carry, and it is what makes the
+// extraction command teachable: the structure has a fixed seven byte prefix
+// that can be searched for and explained, where thirty-two anonymous bytes
+// could only be found by already knowing where they were.
+func (a *app) writeSharedIdentityInc() (string, error) {
+	certDER, key, err := coursepki.LoadSharedIdentity(a.pkiDir())
+	if err != nil {
+		return "", errors.New("no shared development identity yet; run ./course keys create shared-identity first")
+	}
+	keyDER, err := x509.MarshalECPrivateKey(key)
+	if err != nil {
+		return "", err
+	}
+
+	dir := filepath.Join(a.root, a.manifest.Paths.State, "firmware", "shared-identity")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return "", err
+	}
+	if err := writeIncFile(dir, "shared_identity_key.inc", keyDER); err != nil {
+		return "", err
+	}
+	if err := writeIncFile(dir, "shared_identity_cert.inc", certDER); err != nil {
+		return "", err
+	}
+	return dir, nil
+}
+
+// writeIncFile emits one C byte list, the way writeTrustAnchor does.
+func writeIncFile(dir, name string, data []byte) error {
+	var builder strings.Builder
+	builder.WriteString("/* Generated by ./course build firmware. Do not edit or commit. */\n")
+	for i, b := range data {
+		if i%12 == 0 {
+			builder.WriteString("\n\t")
+		}
+		fmt.Fprintf(&builder, "0x%02x, ", b)
+	}
+	builder.WriteString("\n")
+	return os.WriteFile(filepath.Join(dir, name), []byte(builder.String()), 0o600)
+}
+
+// provisionRegister is the before state, driven over the console.
+//
+// The station issues a nonce, the shared image signs it with the credential
+// compiled into it, and the station checks that signature against the
+// certificate the image also carries. It verifies. What the station cannot
+// tell, and what the whole tier is about, is which board answered: every image
+// built this way knows the same answer.
+func (a *app) provisionRegister(args []string) error {
+	deviceID, _ := flagValue(args, "--device")
+
+	console, err := a.openConsole()
+	if err != nil {
+		return err
+	}
+	defer console.Close()
+
+	nonce, err := sharedRegistrationNonce()
+	if err != nil {
+		return err
+	}
+
+	fmt.Fprintln(a.out, "Registering a device against the provisioning station.")
+	fmt.Fprintln(a.out, "This is the fleet before hardening, so there is no Bootstrap credential")
+	fmt.Fprintln(a.out, "to present. Possession of the compiled-in key is both the identity and")
+	fmt.Fprintln(a.out, "the authorization to be registered.")
+	fmt.Fprintf(a.out, "\n  station nonce: %x\n", nonce)
+	fmt.Fprintln(a.out, "  asking the board to sign it over the console")
+
+	if err := console.send(fmt.Sprintf("provision register %x", nonce)); err != nil {
+		return err
+	}
+	certDER, err := console.readChunked("provision.cert", 20*time.Second)
+	if err != nil {
+		return fmt.Errorf("the board did not return a certificate: %w", err)
+	}
+	signature, err := console.readChunked("provision.sig", 20*time.Second)
+	if err != nil {
+		return fmt.Errorf("the board did not return a signature: %w", err)
+	}
+	fmt.Fprintf(a.out, "  board returned a %d byte certificate and a %d byte signature\n",
+		len(certDER), len(signature))
+
+	// The identifier defaults to the one inside the certificate the board
+	// presented, so an honest registration records what the device actually
+	// claims. The clone fixture overrides it, which is exactly the abuse.
+	if deviceID == "" {
+		parsed, perr := x509.ParseCertificate(certDER)
+		if perr != nil {
+			return fmt.Errorf("the certificate the board sent will not parse: %w", perr)
+		}
+		deviceID = parsed.Subject.CommonName
+		fmt.Fprintf(a.out, "  identifier taken from the certificate subject: %s\n", deviceID)
+	} else {
+		fmt.Fprintf(a.out, "  identifier supplied on the command line: %s\n", deviceID)
+	}
+
+	outcome, err := a.registerShared(deviceID, certDER, nonce, signature)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintln(a.out)
+	if !outcome.Issued {
+		fmt.Fprintf(a.out, "Refused at check %s: %s\n", outcome.Check, outcome.Reason)
+		return nil
+	}
+	fmt.Fprintln(a.out, "The signature verified against the certificate the board presented, so")
+	fmt.Fprintln(a.out, "the board does hold that private key. Nothing here establishes which")
+	fmt.Fprintln(a.out, "board it is.")
+	fmt.Fprintf(a.out, "  certificate: %s\n", outcome.CertSerial)
+	fmt.Fprintf(a.out, "  fingerprint: %s\n", outcome.CertFingerprint)
+	fmt.Fprintf(a.out, "  recorded in: %s\n", a.relative(a.provisionRecordPath()))
+	fmt.Fprintf(a.out, "\nResult: %s registered against the shared development identity\n", deviceID)
+	return nil
+}
+
+// provisionEnroll is the hardened path, driven over the same console.
+//
+// Two acts by two roles. ./course provision credential new played the
+// manufacturer's IT department and kept only a verifier; this is the station on
+// the line, which hands the credential to the device, checks what comes back,
+// and issues a certificate.
+func (a *app) provisionEnroll(args []string) error {
+	deviceID, err := flagValue(args, "--device")
+	if err != nil {
+		return errors.New("usage: ./course provision enroll --device <id> --credential <hex>")
+	}
+	credential, err := flagValue(args, "--credential")
+	if err != nil {
+		return errors.New("usage: ./course provision enroll --device <id> --credential <hex>")
+	}
+	if err := validateDeviceID(deviceID); err != nil {
+		return err
+	}
+
+	console, err := a.openConsole()
+	if err != nil {
+		return err
+	}
+	defer console.Close()
+
+	fmt.Fprintf(a.out, "Enrolling %s over the board's console.\n", deviceID)
+	fmt.Fprintln(a.out, "The credential goes over the cable, not over the network. A Bootstrap")
+	fmt.Fprintln(a.out, "credential delivered through the device's normal network traffic would")
+	fmt.Fprintln(a.out, "not be the separate channel section 8 asks for.")
+	fmt.Fprintln(a.out, "\n  handing the credential to the device and asking for a request")
+
+	if err := console.send("provision request " + credential); err != nil {
+		return err
+	}
+	csrDER, err := console.readChunked("provision.csr", 30*time.Second)
+	if err != nil {
+		return fmt.Errorf("the board did not return a certification request: %w", err)
+	}
+	fmt.Fprintf(a.out, "  board returned a %d byte certification request\n", len(csrDER))
+	fmt.Fprintln(a.out, "  it is signed by the key the board generated, and the credential is")
+	fmt.Fprintln(a.out, "  inside that signature rather than beside it")
+
+	outcome, err := a.enroll(enrollmentRequest{
+		DeviceID:         deviceID,
+		HardwareRevision: strconv.Itoa(tier04HardwareRevision),
+		CSRDer:           csrDER,
+	}, credential)
+	if err != nil {
+		return err
+	}
+	if !outcome.Issued {
+		fmt.Fprintln(a.out)
+		fmt.Fprintf(a.out, "Refused at check %s\n", outcome.Check)
+		fmt.Fprintf(a.out, "  %s\n", outcome.Reason)
+		fmt.Fprintf(a.out, "  the refusal is recorded in %s\n", a.relative(a.provisionRecordPath()))
+		fmt.Fprintln(a.out, "\nNothing was sent to the board. It still holds its key and no certificate.")
+		return nil
+	}
+
+	fmt.Fprintln(a.out, "\n  the station issued a certificate and consumed the credential in one")
+	fmt.Fprintln(a.out, "  append, before anything was sent to the board, so nothing leaves here")
+	fmt.Fprintln(a.out, "  that the record does not already contain")
+	fmt.Fprintf(a.out, "  certificate: %s\n", outcome.CertSerial)
+	fmt.Fprintf(a.out, "  fingerprint: %s\n", outcome.CertFingerprint)
+	fmt.Fprintln(a.out, "\n  returning it to the board")
+
+	if err := console.sendChunked("provision certificate", outcome.CertDER); err != nil {
+		return err
+	}
+	lines, err := console.collect(20*time.Second, func(line string) bool {
+		return strings.Contains(line, "provision.certificate stored") ||
+			strings.Contains(line, "provision.certificate refused") ||
+			strings.Contains(line, "provision.certificate got")
+	})
+	if err != nil {
+		return fmt.Errorf("the board did not confirm the certificate: %w", err)
+	}
+	for _, line := range lines {
+		if strings.HasPrefix(line, "provision.") || strings.HasPrefix(line, "identity.") {
+			fmt.Fprintf(a.out, "  board: %s\n", line)
+		}
+	}
+	fmt.Fprintf(a.out, "\nResult: %s holds a Factory identity, fingerprint %s\n",
+		deviceID, outcome.CertFingerprint)
+	fmt.Fprintln(a.out, "Read the board, not this line: ./course provision record --device "+deviceID)
+	fmt.Fprintln(a.out, "shows what the station stored, which is the half a device cannot fake.")
+	return nil
 }

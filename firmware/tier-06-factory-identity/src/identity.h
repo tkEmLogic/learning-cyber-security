@@ -92,6 +92,32 @@ int course_identity_erase(void);
 
 #endif /* CONFIG_COURSE_IDENTITY_FACTORY */
 
+#ifdef CONFIG_COURSE_IDENTITY_SHARED
+
+/*
+ * The fleet certificate this image carries, for the station to check the nonce
+ * signature against.
+ *
+ * Every image built in this variant returns the same bytes, which is the whole
+ * argument of the tier.
+ */
+int course_shared_certificate(const unsigned char **der, size_t *len);
+
+/*
+ * Sign a station nonce with the compiled-in fleet key.
+ *
+ * This is a real proof of possession and it is not weaker than the one the
+ * factory build performs. It is the same question, asked of a key every device
+ * in the fleet already knows the answer to.
+ *
+ * The signature comes back as the ASN.1 sequence the station's verifier
+ * expects, not as the raw r||s pair PSA produces.
+ */
+int course_shared_sign_nonce(const unsigned char *nonce, size_t nonce_len,
+			     unsigned char *out, size_t out_size, size_t *out_len);
+
+#endif /* CONFIG_COURSE_IDENTITY_SHARED */
+
 /*
  * Decide whether the provisioning interface runs at all, and start it if so.
  *

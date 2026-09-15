@@ -59,15 +59,15 @@ static void announce_hardware(void)
 
 static void announce(enum beacon_state state)
 {
-	printk("ESP32-C6 Reference product: Tier 5, recoverable installation\n");
+	printk("ESP32-C6 Reference product: Tier 6, factory device identity\n");
 	printk("Image label: %s\n", CONFIG_COURSE_IMAGE_LABEL);
 	printk("Running release: %s\n", CONFIG_COURSE_RELEASE_ID);
 	printk("Security counter of the running image: %d\n", CONFIG_COURSE_SECURITY_COUNTER);
 	printk("Release channel this device follows: %s\n", CONFIG_COURSE_RELEASE_CHANNEL);
 	printk("Board: %s\n", CONFIG_BOARD_TARGET);
 	announce_hardware();
-	printk("Tier 5 boot mode: signed MCUboot images, swap using offset, TEST upgrade\n");
-	printk("Tier 5 downgrade prevention: by security counter, enforced by the bootloader\n");
+	printk("Tier 6 boot mode: signed MCUboot images, swap using offset, TEST upgrade\n");
+	printk("Tier 6 downgrade prevention: by security counter, enforced by the bootloader\n");
 	printk("Source revision of this build: %s\n", CONFIG_COURSE_SOURCE_REVISION);
 	printk("That identifies the build, not the release. It also travels in a protected\n");
 	printk("MCUboot TLV, so the bootloader can say what it is swapping in. Your own build\n");
@@ -80,9 +80,14 @@ static void announce(enum beacon_state state)
 	printk("Release manifest verification key: %s\n", release_policy_key_description());
 	printk("One key signs both the image and the manifest, and two independent verifiers\n");
 	printk("check them. Passing one is never evidence for the other.\n");
-	printk("Tier 5 verifies signed release metadata before it parses it, installs on trial,\n");
-	printk("and puts the old image back itself when the new one cannot prove it works.\n");
-	printk("Synthetic shared device identifier: %s\n", CONFIG_COURSE_DEVICE_ID);
+	printk("Tier 6 keeps every Tier 5 control and changes where the device's name comes\n");
+	printk("from. It verifies signed release metadata before it parses it, installs on\n");
+	printk("trial, and puts the old image back when the new one cannot prove it works.\n");
+	printk("Identity model compiled into this image: %s\n", CONFIG_COURSE_IDENTITY_NAME);
+	printk("Build-time device identifier: %s\n", CONFIG_COURSE_DEVICE_ID);
+	printk("That is what the build asserted. From Tier 6 the identifier the device\n");
+	printk("actually reports is read out of its own certificate, so watch identity.state\n");
+	printk("below rather than this line.\n");
 	printk("OTA service: https://%s:%d at address %s\n",
 	       CONFIG_COURSE_OTA_SERVICE_NAME, CONFIG_COURSE_OTA_TLS_PORT,
 	       CONFIG_COURSE_OTA_HOST);
@@ -394,6 +399,25 @@ static bool poll_once(enum beacon_state state)
 	const char *state_name = beacon_state_name(state);
 	uint32_t attempts = 0;
 
+	/* A device with no identity asks the service nothing at all.
+	 *
+	 * Not merely "sends no status event". Suppressing the event alone still
+	 * left the device opening a verified TLS session and fetching an
+	 * assignment, which is OTA contact by any reading, and the board showed
+	 * exactly that. An unprovisioned device beacons locally and is otherwise
+	 * silent, which is what makes its state visible instead of subtle.
+	 *
+	 * There is deliberately no fallback to the build-time identifier. That
+	 * is the stated failure criterion in section 11, and it would be one
+	 * line here.
+	 */
+	if (course_identity_device_id() == NULL) {
+		printk("ota.suppressed this device holds no identity, so it asks the service\n");
+		printk("ota.suppressed nothing: no status event, no assignment, no manifest.\n");
+		printk("ota.suppressed enroll it over the console and it will start polling.\n");
+		return false;
+	}
+
 	/* A rejected status report must not stop the update check: the two
 	 * exchanges are independent, and Tier 0 gates neither on the other.
 	 */
@@ -543,8 +567,10 @@ int main(void)
 		printk("Hardware note: Wi-Fi, HTTP transfer, and OTA install remain unobserved\n");
 		while (true) {
 			k_sleep(K_SECONDS(CONFIG_COURSE_POLL_INTERVAL_SECONDS));
+			const char *id = course_identity_device_id();
+
 			printk("status.offline device_id=%s machine_state=%s\n",
-			       CONFIG_COURSE_DEVICE_ID, beacon_state_name(state));
+			       id == NULL ? "none" : id, beacon_state_name(state));
 		}
 	}
 
@@ -625,13 +651,33 @@ void course_identity_gate(void)
 	printk("provision.gate to reopen it deliberately.\n");
 }
 
+#elif defined(CONFIG_COURSE_SHARED_SHELL)
+
+void course_shared_shell_open(void);
+
+void course_identity_gate(void)
+{
+	/* The shared build has nothing to provision and never closes.
+	 *
+	 * The factory image shuts its interface the moment enrollment succeeds,
+	 * because enrollment is a thing that finishes. This image was already
+	 * the device when it was flashed, so there is no state change for an
+	 * interface to close after. That asymmetry is not an oversight in the
+	 * before state: it is what "already holds the credential" means.
+	 */
+	printk("provision.gate this image carries the fleet identity and the registration\n");
+	printk("provision.gate interface is open. Nothing here enrolls anything: the\n");
+	printk("provision.gate credential arrived with the image, and so did every other\n");
+	printk("provision.gate board flashed the same way.\n");
+	printk("provision.gate type: provision status\n");
+	course_shared_shell_open();
+}
+
 #else
 
 void course_identity_gate(void)
 {
-	/* The shared build has nothing to provision. Every image built this way
-	 * already is the device, which is the problem.
-	 */
+	/* Neither shell is built. */
 }
 
 #endif /* CONFIG_COURSE_PROVISIONING_SHELL */

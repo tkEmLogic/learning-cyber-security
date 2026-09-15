@@ -402,31 +402,224 @@ int course_identity_erase(void)
 /*
  * The shared identity.
  *
- * Every image built this way carries the same name. There is no key generation
- * and no Bootstrap credential: possession of the compiled-in credential is
- * simultaneously the identity and the authorization to enroll, which is what
- * section 11 means by a reusable default credential remaining active.
+ * One ECDSA P-256 key pair and one certificate, compiled into every image
+ * built this way, beside the Wi-Fi credentials and the trust anchor. There is
+ * no key generation and no Bootstrap credential: possession of the compiled-in
+ * key is simultaneously the identity and the authorization to enroll, which is
+ * what section 11 means by a reusable default credential remaining active.
+ *
+ * Nothing about this credential is cryptographically weaker than the per-device
+ * ones that replace it. It is a real Factory certificate signed by the real
+ * manufacturer device CA. What is wrong with it is that there is one of it.
  */
+
+#include <psa/crypto.h>
+#include <mbedtls/x509_crt.h>
+#include <mbedtls/psa_util.h>
+
+/* The fleet private key, as the SEC1 ECPrivateKey structure.
+ *
+ * ./course build firmware --tier 06 --variant shared writes this from the
+ * identity generated for your Course environment. Without it the build falls
+ * back to anchor/, which is empty, and the image can prove possession of
+ * nothing and says so.
+ *
+ * It is kept as the whole structure rather than as a bare scalar because that
+ * is what a real image would carry, and because the structure is what makes it
+ * findable: ./course provision extract searches for the seven byte prefix
+ * below and explains it. Thirty-two anonymous bytes could only be found by
+ * already knowing where they were, which would teach the wrong lesson.
+ */
+static const unsigned char shared_identity_key[] = {
+#include "shared_identity_key.inc"
+	0x00
+};
+
+#define SHARED_IDENTITY_KEY_LEN (sizeof(shared_identity_key) - 1)
+
+static const unsigned char shared_identity_cert[] = {
+#include "shared_identity_cert.inc"
+	0x00
+};
+
+#define SHARED_IDENTITY_CERT_LEN (sizeof(shared_identity_cert) - 1)
+
+/*
+ * Where the scalar sits inside the SEC1 structure.
+ *
+ * SEQUENCE, INTEGER 1, then an OCTET STRING of exactly 32 bytes. For a P-256
+ * key with a one byte outer length that puts the scalar at offset 7. The
+ * offsets are checked rather than trusted, because a silently wrong 32 bytes
+ * would be a key that signs and never verifies.
+ */
+#define SEC1_SCALAR_OFFSET 7
+#define SEC1_SCALAR_LEN 32
+
+static char device_id[COURSE_DEVICE_ID_MAX];
+static char fingerprint[2 * 32 + 1];
+
+static bool shared_key_present(void)
+{
+	return SHARED_IDENTITY_KEY_LEN > SEC1_SCALAR_OFFSET + SEC1_SCALAR_LEN &&
+	       shared_identity_key[0] == 0x30 &&
+	       shared_identity_key[2] == 0x02 &&
+	       shared_identity_key[3] == 0x01 &&
+	       shared_identity_key[4] == 0x01 &&
+	       shared_identity_key[5] == 0x04 &&
+	       shared_identity_key[6] == SEC1_SCALAR_LEN;
+}
 
 int course_identity_init(void)
 {
+	device_id[0] = '\0';
+	fingerprint[0] = '\0';
+
 	printk("identity.state shared, every image built this way is this device\n");
+
+	if (!shared_key_present() || SHARED_IDENTITY_CERT_LEN == 0) {
+		printk("identity.state no fleet credential is compiled into this image\n");
+		printk("identity.state build it with ./course build firmware --tier 06 --variant shared\n");
+		printk("identity.state after ./course keys create shared-identity\n");
+		return 0;
+	}
+
+	mbedtls_x509_crt cert;
+
+	mbedtls_x509_crt_init(&cert);
+	if (mbedtls_x509_crt_parse_der(&cert, shared_identity_cert,
+				       SHARED_IDENTITY_CERT_LEN) == 0) {
+		const mbedtls_x509_name *name = &cert.subject;
+
+		while (name != NULL) {
+			if (name->oid.len == 3 && name->oid.p[0] == 0x55 &&
+			    name->oid.p[1] == 0x04 && name->oid.p[2] == 0x03) {
+				size_t len = name->val.len;
+
+				if (len >= sizeof(device_id)) {
+					len = sizeof(device_id) - 1;
+				}
+				memcpy(device_id, name->val.p, len);
+				device_id[len] = '\0';
+				break;
+			}
+			name = name->next;
+		}
+	}
+	mbedtls_x509_crt_free(&cert);
+
+	uint8_t digest[32];
+	size_t digest_len = 0;
+
+	if (psa_hash_compute(PSA_ALG_SHA_256, shared_identity_cert, SHARED_IDENTITY_CERT_LEN,
+			     digest, sizeof(digest), &digest_len) == PSA_SUCCESS) {
+		for (size_t i = 0; i < digest_len; i++) {
+			snprintf(&fingerprint[i * 2], 3, "%02x", digest[i]);
+		}
+	}
+
+	printk("identity.state fleet identifier %s\n", device_id);
+	printk("identity.state certificate fingerprint=sha256:%s\n", fingerprint);
+	printk("identity.state the private half of this identity is in this image, and in\n");
+	printk("identity.state every other image built the same way\n");
 	return 0;
 }
 
 bool course_identity_is_provisioned(void)
 {
-	return true;
+	return device_id[0] != '\0';
 }
 
 const char *course_identity_device_id(void)
 {
-	return CONFIG_COURSE_DEVICE_ID;
+	if (!course_identity_is_provisioned()) {
+		return NULL;
+	}
+	return device_id;
 }
 
 const char *course_identity_fingerprint(void)
 {
-	return "shared";
+	return fingerprint;
+}
+
+int course_shared_certificate(const unsigned char **der, size_t *len)
+{
+	if (SHARED_IDENTITY_CERT_LEN == 0) {
+		return -ENOENT;
+	}
+	*der = shared_identity_cert;
+	*len = SHARED_IDENTITY_CERT_LEN;
+	return 0;
+}
+
+int course_shared_sign_nonce(const unsigned char *nonce, size_t nonce_len,
+			     unsigned char *out, size_t out_size, size_t *out_len)
+{
+	if (nonce == NULL || out == NULL || out_len == NULL) {
+		return -EINVAL;
+	}
+	if (!shared_key_present()) {
+		printk("identity.sign no fleet key is compiled into this image\n");
+		return -ENOENT;
+	}
+
+	/* Volatile, because the key already lives in the image. Importing it
+	 * into Secure Storage would put a copy of a credential every device
+	 * shares into the one place this tier is arguing should hold something
+	 * unique.
+	 */
+	psa_key_attributes_t attributes = PSA_KEY_ATTRIBUTES_INIT;
+
+	psa_set_key_type(&attributes, PSA_KEY_TYPE_ECC_KEY_PAIR(PSA_ECC_FAMILY_SECP_R1));
+	psa_set_key_bits(&attributes, 256);
+	psa_set_key_usage_flags(&attributes, PSA_KEY_USAGE_SIGN_HASH);
+	psa_set_key_algorithm(&attributes, PSA_ALG_ECDSA(PSA_ALG_SHA_256));
+
+	mbedtls_svc_key_id_t key_id;
+	psa_status_t status = psa_import_key(&attributes,
+					     &shared_identity_key[SEC1_SCALAR_OFFSET],
+					     SEC1_SCALAR_LEN, &key_id);
+
+	psa_reset_key_attributes(&attributes);
+	if (status != PSA_SUCCESS) {
+		printk("identity.sign cannot import the fleet key status=%d\n", (int)status);
+		return (int)status;
+	}
+
+	uint8_t digest[32];
+	size_t digest_len = 0;
+	int err = 0;
+
+	status = psa_hash_compute(PSA_ALG_SHA_256, nonce, nonce_len, digest,
+				  sizeof(digest), &digest_len);
+	if (status != PSA_SUCCESS) {
+		err = (int)status;
+		goto done;
+	}
+
+	/* PSA returns the raw r||s pair. The station verifies an ASN.1
+	 * sequence, which is what every X.509 tool produces, so the conversion
+	 * happens here rather than the station being taught a second format.
+	 */
+	uint8_t raw[64];
+	size_t raw_len = 0;
+
+	status = psa_sign_hash(key_id, PSA_ALG_ECDSA(PSA_ALG_SHA_256), digest, digest_len,
+			       raw, sizeof(raw), &raw_len);
+	if (status != PSA_SUCCESS) {
+		printk("identity.sign cannot sign the nonce status=%d\n", (int)status);
+		err = (int)status;
+		goto done;
+	}
+
+	err = mbedtls_ecdsa_raw_to_der(256, raw, raw_len, out, out_size, out_len);
+	if (err != 0) {
+		printk("identity.sign cannot encode the signature err=%d\n", err);
+	}
+
+done:
+	psa_destroy_key(key_id);
+	return err;
 }
 
 #endif /* CONFIG_COURSE_IDENTITY_FACTORY */
