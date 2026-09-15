@@ -1,6 +1,6 @@
 # Tier 3: Require authentic firmware images
 
-> Prototype candidate selected for Docmost testing. This is throwaway course material.
+> Prototype candidate selected as the module structure reference. This is throwaway course material.
 
 ## Incident brief
 

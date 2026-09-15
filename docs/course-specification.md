@@ -50,7 +50,7 @@ Terms in this document follow `CONTEXT.md` in the repository root. Use `Learner`
 17. Secrets, attack fixtures, and irreversible hardware work
 18. Continuous integration
 19. Readings and reading plan
-20. Docmost formatting rules
+20. Course Markdown formatting rules
 21. Safety boundaries summary
 22. Acceptance criteria for the finished course package
 23. Implementation handoff checklist
@@ -710,11 +710,17 @@ Source: resolved decision ticket [#14](https://github.com/tkEmLogic/learning-cyb
 
 ### Validated prototype
 
-**Fixed decision.** The selected module structure is validated by a prototype comparing three variants on the same Tier 3 content: an incident-driven mission, a linear procedure, and an evidence-first review sheet. The chosen combination uses the incident opening and attack narrative from the incident-driven variant, the linear hardening procedure from the linear-procedure variant, and the evidence board and weakness-ledger delta from the evidence-first variant. The validated file is [`selected-cab.md`](../prototypes/docmost-hardening-tier/selected-cab.md), originally validated on branch `prototype/docmost-hardening-tier` at commit `7988ef5351059a2d6c688206ab047305e5c5f13b`. Treat this file as the reference example for every core and advanced module. Its content is throwaway prototype text and must not be copied verbatim into the final course, but its structure, tone, table shapes, and command-and-expected-result pattern are the pattern to reuse.
+**Fixed decision.** The selected module structure is validated by a prototype comparing three variants on the same Tier 3 content: an incident-driven mission, a linear procedure, and an evidence-first review sheet. The chosen combination uses the incident opening and attack narrative from the incident-driven variant, the linear hardening procedure from the linear-procedure variant, and the evidence board and weakness-ledger delta from the evidence-first variant. The validated file is [`selected-cab.md`](../prototypes/module-structure/selected-cab.md), originally validated on branch `prototype/docmost-hardening-tier` at commit `7988ef5351059a2d6c688206ab047305e5c5f13b`. The directory was renamed from `prototypes/docmost-hardening-tier` when the course stopped publishing to Docmost; the structure it fixes was never about that delivery target. Treat this file as the reference example for every core and advanced module. Its content is throwaway prototype text and must not be copied verbatim into the final course, but its structure, tone, table shapes, and command-and-expected-result pattern are the pattern to reuse.
 
-### Docmost round-trip validation
+### How the structure was validated, and what has since changed
 
-**Implementation requirement.** The selected file was imported into a local Docmost sandbox, inspected, exported as Markdown, and compared with the source. Heading hierarchy, four pipe tables, fourteen fenced code blocks, a plain-text trust-boundary diagram, three external reference links, lists, blockquotes, bold text, and section order all survived correctly. Docmost normalized table separator spacing and whitespace in empty table cells, and it omitted the final newline. Neither change altered meaning or readability. A fenced Mermaid block survived export but rendered as source code rather than a diagram in the first import attempt into the sandbox, so the validated prototype uses a plain-text diagram. That finding is superseded: the live Docmost instance renders a fenced `mermaid` block as a diagram, so Mermaid is permitted. Source line wrapping becomes a visible hard break on import, so every module keeps each prose paragraph on one source line.
+**Historical record.** The structure was originally validated by importing the selected file into a Docmost sandbox, exporting it back to Markdown, and comparing the two. Heading hierarchy, four pipe tables, fourteen fenced code blocks, a plain-text trust-boundary diagram, three external reference links, lists, blockquotes, bold text, and section order all survived. That exercise is kept here because two of its outcomes still bind, for reasons that no longer have anything to do with Docmost.
+
+The first is that every module keeps each prose paragraph on one source line. Docmost turned a source line wrap into a visible hard break, which is why the rule was written; it is kept because GitHub soft-wraps prose and a one-line paragraph gives a reviewable diff when a sentence changes, instead of reflowing a whole block.
+
+The second is the ban on raw HTML, MDX, GitHub alert syntax, and deeply nested lists. That was portability against one importer; it is kept as portability in general, so the course can move again without another round-trip exercise. The Mermaid finding is fully superseded and was already withdrawn before publication: GitHub renders a fenced `mermaid` block as a diagram, and course material uses them.
+
+The course is delivered by GitHub. No Docmost import or export check is performed, and none is required.
 
 Source: resolved prototype ticket [#15](https://github.com/tkEmLogic/learning-cyber-security/issues/15).
 
@@ -924,13 +930,13 @@ The table below is a compact pointer, not the full list. It names the required r
 
 Source: resolved research ticket [#18](https://github.com/tkEmLogic/learning-cyber-security/issues/18).
 
-## 20. Docmost formatting rules
+## 20. Course Markdown formatting rules
 
-**Fixed decision.** All learner-facing and mentor-facing Markdown in the repository follows these rules, validated by importing the selected module prototype into a Docmost sandbox and exporting it back to Markdown.
+**Fixed decision.** All learner-facing and mentor-facing Markdown in the repository follows these rules. They were originally derived from a Docmost round-trip exercise, described in section 14. The course is now read on GitHub and the rules are unchanged, because what they were really protecting was a portable Markdown subset and a reviewable diff rather than one importer.
 
 **Implementation requirement.** Use short, direct sentences, common words, active voice, and one main idea per sentence. Define a necessary technical term before using it without explanation. Avoid idioms, jokes, culture-specific references, and esoteric language. Do not use em dashes. Use a full stop, comma, colon, or a new sentence instead. Do not use a complex word when a simple word has the same meaning.
 
-**Implementation requirement.** Keep each prose paragraph on one source line, because the tested Docmost importer preserves source line wraps as visible hard breaks. Use normal headings, paragraphs, links, blockquotes, lists, and fenced code blocks. Use simple pipe tables. Avoid raw HTML, MDX, GitHub alert syntax, and deeply nested lists. Use a fenced `mermaid` block for flow and trust boundary diagrams, because the live Docmost instance renders Mermaid. A plain-text diagram, a simple table, or an imported image remains acceptable where it reads better. Put essential meaning in text, even when a diagram also shows it. Use descriptive link text and relative links for repository content.
+**Implementation requirement.** Keep each prose paragraph on one source line, so that changing a sentence produces a one-line diff rather than reflowing a paragraph. Use normal headings, paragraphs, links, blockquotes, lists, and fenced code blocks. Use simple pipe tables. Avoid raw HTML, MDX, GitHub alert syntax, and deeply nested lists, so the material stays portable to any renderer rather than to the one it happens to be published on. Use a fenced `mermaid` block for flow and trust boundary diagrams, which GitHub renders. A plain-text diagram, a simple table, or an imported image remains acceptable where it reads better. Put essential meaning in text, even when a diagram also shows it. Use descriptive link text and relative links for repository content.
 
 **Implementation requirement.** Give procedure steps in the order the Learner performs them. State where to run each command. Show the expected result after important steps. Explain destructive or irreversible actions before the command. Separate required work from optional exploration. Use the same name for a concept in every module, matching the terms in `CONTEXT.md`.
 
@@ -967,7 +973,7 @@ Source: resolved decision tickets [#2](https://github.com/tkEmLogic/learning-cyb
 | Weakness ledger | Every tier has a starting and ending weakness ledger, and later tiers rerun relevant earlier fixtures with recorded results. |
 | Security evidence pack | Every artifact group in section 10 exists with a stable path, required metadata, and passing automated quality checks. |
 | Mentor material | Published review prompts and prepared failures exist for every required gate in section 13. |
-| Module format | Every tier module follows the eighteen-step order and the correct baseline, analysis, control, lifecycle, or integration variant in section 14, and passes a Docmost import and export check with no loss of headings, tables, code blocks, links, or paragraph structure. |
+| Module format | Every tier module follows the eighteen-step order and the correct baseline, analysis, control, lifecycle, or integration variant in section 14, and renders correctly on GitHub with no loss of headings, tables, code blocks, links, or paragraph structure, and with every relative link resolving. |
 | Readings | Every tier has a `references.md` populated from the pointer in section 19, with required readings present. |
 | Command interface | Every command listed in section 16 is implemented, documented, and prints its underlying mechanism. |
 | Secrets and fixtures | No secret pattern, private key, or live credential exists in the committed repository, confirmed by the CI secret scan in section 18. |
@@ -987,7 +993,7 @@ Source: synthesized from resolved decision tickets [#2](https://github.com/tkEmL
 3. Implement the local OTA service described in section 7, including the status-event endpoint, starting with the HTTP-only Tier 0 shape, then adding HTTPS, signed images, signed manifests, and Operational-identity authorization as later tiers require them.
 4. Implement the provisioning tools and identity lifecycle described in section 8, starting with the shared-credential exercise in Tier 6, consuming the Bootstrap credential during Factory enrollment, and ending with the separate owner-authorized claiming and full lifecycle in Tier 8.
 5. Implement the `./course` command wrapper from section 16, backed by the tier manifest and checkpoint tags from section 15.
-6. Write each tier module using the format in section 14 and the validated prototype at `prototypes/docmost-hardening-tier/selected-cab.md` as the structural reference.
+6. Write each tier module using the format in section 14 and the validated prototype at `prototypes/module-structure/selected-cab.md` as the structural reference.
 7. Build the attack fixtures and weakness ledger entries for each tier from section 11 and section 12, and verify each fixture fails closed outside the isolated lab network.
 8. Build the security evidence pack templates and schemas from section 10, and wire the CI quality checks from section 18 to them.
 9. Write the Mentor review prompts and prepared failures for every gate in section 13, and store them under `mentor/` as specified in section 15.
@@ -1022,7 +1028,7 @@ Source: synthesized from resolved decision tickets [#2](https://github.com/tkEmL
 | [#6](https://github.com/tkEmLogic/learning-cyber-security/issues/6) | Device identity and provisioning | `research/provisioning`, `research/device-identity-and-provisioning.md` |
 | [#7](https://github.com/tkEmLogic/learning-cyber-security/issues/7) | STSAFE-A120 integration | `research/stsafe-a120`, `research/stsafe-a120.md` |
 | [#18](https://github.com/tkEmLogic/learning-cyber-security/issues/18) | Course readings | `research/course-readings`, `research/course-readings.md` |
-| [#15](https://github.com/tkEmLogic/learning-cyber-security/issues/15) | Docmost module prototype | `prototype/docmost-hardening-tier`, `prototypes/docmost-hardening-tier/selected-cab.md`, validated at commit `7988ef5351059a2d6c688206ab047305e5c5f13b` |
+| [#15](https://github.com/tkEmLogic/learning-cyber-security/issues/15) | Module structure prototype | Validated on branch `prototype/docmost-hardening-tier` at commit `7988ef5351059a2d6c688206ab047305e5c5f13b`. Now at `prototypes/module-structure/selected-cab.md`; the branch and commit are the original provenance and are not renamed |
 
 All research access dates recorded in the source reports are 2026-09-11. Re-verify every external link and version at the maintenance cadence in section 19 before relying on this specification for a new course release.
 
@@ -1036,7 +1042,7 @@ Source: all resolved research and decision tickets referenced above.
 
 **Known platform uncertainty.** The exact algorithm used by an advanced hardware identity provider is left open by decision ticket [#10](https://github.com/tkEmLogic/learning-cyber-security/issues/10): it may be ECDSA P-256, matching the core course, or the ESP32-C6 Digital Signature peripheral's RSA path. This is a deliberate implementation choice, not an unresolved conflict, and either is acceptable if the certificate lifecycle and role separation in section 8 are preserved.
 
-**Not a conflict, but worth flagging for the implementer.** The Tier reading report and validated Docmost prototype are integrated into the first-release implementation branch. The other research reports referenced in section 24 remain on their named research branches. Preserve the exact commit and branch references in the source register if those reports are later merged or archived.
+**Not a conflict, but worth flagging for the implementer.** The Tier reading report and the validated module structure prototype are integrated into the first-release implementation branch. The other research reports referenced in section 24 remain on their named research branches. Preserve the exact commit and branch references in the source register if those reports are later merged or archived.
 
 **No unresolved conflict was found between issue 13's tier list, issue 14's gate cadence, issue 15's module format, issue 16's `course.yml` tier identifiers, and issue 18's per-tier reading list.** All five use the same Tier 0 through Tier 10 and Advanced A and B structure, and this specification preserves that alignment throughout.
 

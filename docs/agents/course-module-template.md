@@ -15,7 +15,7 @@ page tree and the ban on linking between course pages: a tier is one file, and
 it links to the tiers and companion pages around it.
 
 The reference example is
-[`selected-cab.md`](../../prototypes/docmost-hardening-tier/selected-cab.md).
+[`selected-cab.md`](../../prototypes/module-structure/selected-cab.md).
 Reuse its structure, tone, table shapes, and command-and-expected-result
 pattern. Do not copy its text, which is throwaway prototype material.
 

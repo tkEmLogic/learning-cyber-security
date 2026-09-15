@@ -22,7 +22,10 @@ See `docs/agents/domain.md`.
 ### Course writing
 
 Write course material in plain English for non-native English speakers. Keep
-the Markdown compatible with Docmost. See `docs/agents/course-writing.md`.
+the Markdown to the portable subset in section 20 of
+`docs/course-specification.md`: no raw HTML, no GitHub alert syntax, simple
+pipe tables, and one prose paragraph per source line. See
+`docs/agents/course-writing.md`.
 
 ### Course module template
 
