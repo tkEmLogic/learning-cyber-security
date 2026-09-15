@@ -1,5 +1,61 @@
 # Tier 5 research: does the ESP32-C6 watchdog reset a hung trial image?
 
+> ## Correction: the central conclusion of this report is wrong
+>
+> **Read this before anything below it.**
+>
+> This report concluded that the driver's stage 0 handler feeds the watchdog, so
+> only a hang that also blocked interrupts would ever reach the resetting stage.
+> That is false. **An ordinary hung thread is reset**, with interrupts running
+> normally.
+>
+> The reading of the header was right as far as it went.
+> `wdt_hal_handle_intr()` is documented as "Clears the interrupt status bit and
+> feeds the WDT". What this report missed is the precondition stated two lines
+> below that sentence: *"This function can only be called when the WDT is
+> unlocked. Call `wdt_hal_write_protect_disable()` first."*
+>
+> `wdt_esp32_set_config()` seals the peripheral at the end of setup.
+> `wdt_esp32_feed()` unseals, feeds, and reseals. `wdt_esp32_isr()` calls
+> `wdt_hal_handle_intr()` with no unseal at all, so neither the clear nor the
+> feed takes effect, and stage 1 resets the chip.
+>
+> The board settles it: `rst:0x7 (TG0_WDT_HPSYS)` with `PRO CPU has been reset
+> by WDT`, reached by a thread that simply stopped feeding.
+>
+> ### What this changes below
+>
+> - The section "Summary for the impatient" is wrong where it says a hung thread
+>   is fed forever.
+> - The section "The finding that changes how Tier 5 must be written" is wrong
+>   in its two bullet points and in calling `WDT_FLAG_RESET_SOC` a trap.
+> - `COURSE_TRIAL_HANG` does not need `irq_lock()`. An ordinary loop is enough,
+>   and that is what Tier 5 ships.
+> - The weakness row this report produced, then numbered `T5-W-03`, was
+>   **withdrawn before publication**. What replaced it in the published Tier 5
+>   module is `T5-W-15`, which is narrower and true: the tier depends on a driver
+>   behaviour that an upstream fix to `wdt_esp32_isr()` would change without
+>   warning.
+>
+> A second condition this report could not have found, because it concerns the
+> tier's own code rather than the driver: **the watchdog only catches a hung
+> thread if the feed happens in that thread.** The first implementation fed from
+> a `k_timer`, which runs in interrupt context and would have kept feeding while
+> the thread it vouched for was dead.
+>
+> ### Why this is kept rather than deleted
+>
+> Every answer in this report was traced to a file and a line, which is what the
+> ticket asked for, and the wrong answer still got through. What caught it was
+> the board, not more reading. The source said one thing, the documentation
+> agreed with it, and the hardware did something else because a precondition
+> three lines further down was not met. That is worth more as a record than the
+> answer was.
+>
+> Corrected on [issue #89](https://github.com/tkEmLogic/learning-cyber-security/issues/89).
+> See the `T5-W-15` row in `course-material/tiers/tier-05-recovery/index.md`.
+
+
 Research for issue #89, a child of the Tier 5 map #86. Fact-finding only. Nothing
 here was built, flashed, or run on the board; every statement below is read from
 source or from Espressif documentation, and every claim names where it was read.
