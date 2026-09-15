@@ -10,7 +10,9 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
+	"unsafe"
 )
 
 // Tier 5 makes an install recoverable, and its five releases differ only in
@@ -343,6 +345,70 @@ func (a *app) releaseAssignTier05(variantName string) error {
 		fmt.Fprintf(a.out, "This release is built to fail its trial by %s. The device should install it,\n",
 			variant.trialBehaviour)
 		fmt.Fprintln(a.out, "fail to confirm it, and put the last confirmed image back on its own.")
+	}
+	return nil
+}
+
+// deviceReset restarts the board without reflashing it.
+//
+// Tier 5 is the first tier that needs this. Everything before it could be
+// exercised by publishing a release and waiting; this tier has to interrupt a
+// device part way through an operation and see what it does when it comes
+// back, which is what section 6's power-cut tests are about.
+//
+// It pulses RTS, which drives the chip's EN line, while holding DTR
+// deasserted. That distinction matters more than it looks. esptool's own reset
+// drives both lines and leaves the part in the ROM download loader, boot:0x4,
+// where the application never runs and the console stays silent. On a board
+// that is supposed to be recovering from an interruption, that is
+// indistinguishable from having broken it, and it cost a reflash to diagnose
+// the first time.
+//
+// A reset is not a power cut. It interrupts between operations rather than
+// during a flash page write, so it approximates a brown-out without
+// reproducing a partial page. The Tier 5 module says so rather than claiming
+// the stronger result.
+func (a *app) deviceReset() error {
+	device, err := a.selectSerialDevice()
+	if err != nil {
+		return err
+	}
+
+	port, err := os.OpenFile(device, os.O_RDWR|syscall.O_NOCTTY, 0)
+	if err != nil {
+		return fmt.Errorf("cannot open %s: %w", device, err)
+	}
+	defer port.Close()
+
+	fd := port.Fd()
+	dtr := uint32(syscall.TIOCM_DTR)
+	rts := uint32(syscall.TIOCM_RTS)
+
+	// DTR low first, so the part comes up running its application rather
+	// than in the ROM loader.
+	if err := ioctlSet(fd, syscall.TIOCMBIC, &dtr); err != nil {
+		return err
+	}
+	if err := ioctlSet(fd, syscall.TIOCMBIS, &rts); err != nil {
+		return err
+	}
+	time.Sleep(100 * time.Millisecond)
+	if err := ioctlSet(fd, syscall.TIOCMBIC, &rts); err != nil {
+		return err
+	}
+
+	fmt.Fprintf(a.out, "Result: pulsed RTS on %s\n", a.relative(device))
+	fmt.Fprintln(a.out, "The board restarts into its application. Watch it with ./course device logs.")
+	fmt.Fprintln(a.out, "This is a reset, not a power cut: it interrupts between operations rather")
+	fmt.Fprintln(a.out, "than during a flash page write.")
+	return nil
+}
+
+func ioctlSet(fd uintptr, request uint, bits *uint32) error {
+	_, _, errno := syscall.Syscall(syscall.SYS_IOCTL, fd, uintptr(request),
+		uintptr(unsafe.Pointer(bits)))
+	if errno != 0 {
+		return fmt.Errorf("ioctl on the serial port failed: %w", errno)
 	}
 	return nil
 }

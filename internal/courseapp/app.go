@@ -1446,6 +1446,8 @@ func (a *app) device(args []string) error {
 		return a.deviceFlash(args[1:])
 	case "logs":
 		return a.deviceLogs()
+	case "reset":
+		return a.deviceReset()
 	case "status":
 		return a.deviceStatus()
 	case "update":

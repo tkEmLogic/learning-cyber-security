@@ -555,11 +555,12 @@ tiers:
     title: Make installation recoverable
     kind: control
     track: core
-    status: planned
+    status: implemented
     start_checkpoint: course-v1.0-tier-04-complete
     complete_checkpoint: course-v1.0-tier-05-complete
     module: course-material/tiers/tier-05-recovery/index.md
     prerequisites: ["04"]
+    fixtures: []
   "06":
     title: Replace shared identity with per-device factory identity
     kind: lifecycle
