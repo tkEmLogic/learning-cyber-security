@@ -117,7 +117,7 @@ func (a *app) deviceCADir() string {
 
 func (a *app) provision(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: ./course provision credential|enroll|register|extract|record")
+		return errors.New("usage: ./course provision credential|enroll|register|extract|bypass|record")
 	}
 	switch args[0] {
 	case "credential":
@@ -128,10 +128,12 @@ func (a *app) provision(args []string) error {
 		return a.provisionRegister(args[1:])
 	case "extract":
 		return a.provisionExtract(args[1:])
+	case "bypass":
+		return a.provisionBypass(args[1:])
 	case "record":
 		return a.provisionShowRecord(args[1:])
 	default:
-		return fmt.Errorf("unknown provision command %q; use credential, enroll, register, extract or record", args[0])
+		return fmt.Errorf("unknown provision command %q; use credential, enroll, register, extract, bypass or record", args[0])
 	}
 }
 
@@ -152,26 +154,31 @@ func (a *app) provisionCredential(args []string) error {
 // enrollment purpose, a short validity period, and one successful use. The
 // first four are properties of this record; the fifth is enforced at enrollment
 // by replaying the log.
-func (a *app) issueCredential(deviceID string) error {
+// mintCredential writes one Bootstrap credential to the record and returns the
+// secret. The secret exists only here and in the caller: the store keeps a
+// verifier, never the credential itself. issueCredential wraps this with the
+// operator-facing narration; the bypass runners call it directly because they
+// need the secret to build the request they then have refused.
+func (a *app) mintCredential(deviceID string) (credential string, record provisionRecord, err error) {
 	if err := validateDeviceID(deviceID); err != nil {
-		return err
+		return "", provisionRecord{}, err
 	}
 	if err := os.MkdirAll(a.provisionDir(), 0o700); err != nil {
-		return err
+		return "", provisionRecord{}, err
 	}
 
 	secret := make([]byte, 32)
 	if _, err := rand.Read(secret); err != nil {
-		return err
+		return "", provisionRecord{}, err
 	}
-	credential := hex.EncodeToString(secret)
+	credential = hex.EncodeToString(secret)
 	credentialID, err := randomID()
 	if err != nil {
-		return err
+		return "", provisionRecord{}, err
 	}
 	expires := time.Now().UTC().Add(credentialLifetime)
 
-	record := provisionRecord{
+	record = provisionRecord{
 		Kind:               recordCredentialIssued,
 		DeviceID:           deviceID,
 		CredentialID:       credentialID,
@@ -181,13 +188,21 @@ func (a *app) issueCredential(deviceID string) error {
 		Result:             "issued",
 	}
 	if err := a.writeRecord(record); err != nil {
+		return "", provisionRecord{}, err
+	}
+	return credential, record, nil
+}
+
+func (a *app) issueCredential(deviceID string) error {
+	credential, record, err := a.mintCredential(deviceID)
+	if err != nil {
 		return err
 	}
 
 	fmt.Fprintln(a.out, "Minting one Bootstrap credential. This command is the manufacturer's")
 	fmt.Fprintln(a.out, "IT department, not the provisioning station: it keeps only a verifier.")
 	fmt.Fprintf(a.out, "  device:      %s\n", deviceID)
-	fmt.Fprintf(a.out, "  credential:  %s\n", credentialID)
+	fmt.Fprintf(a.out, "  credential:  %s\n", record.CredentialID)
 	fmt.Fprintf(a.out, "  verifier:    %s\n", record.CredentialVerifier)
 	fmt.Fprintf(a.out, "  expires:     %s\n", record.CredentialExpires)
 	fmt.Fprintf(a.out, "  recorded in: %s\n", a.relative(a.provisionRecordPath()))
