@@ -243,7 +243,7 @@ Then dump the storage partition and recover the same key from it:
 ./course device dump
 ```
 
-The dump reads only the `storage` partition, then resets the board off the ROM loader. The private key is in there, encrypted, in the record named `its/2/601`. Recovering it needs no secret: the AES-GCM key is `SHA-256(MAC || 0x0000 || uid)`, the MAC is on the cable, and the `uid` is `0x80000601`, which is the record's own name in the dump. Run that derivation and the record decrypts to the P-256 private key. On the validated board the recovered key matched the public key in the certificate the device holds. That is the boundary, stated as an observation rather than a warning: the key the API would not export is readable to anyone who can dump the flash and knows a published recipe.
+The dump reads only the `storage` partition, then resets the board off the ROM loader. The private key is in there, encrypted, in the record named `its/2/601`, which is clear text in the dump. Recovering it needs no secret: the AES-GCM key is `SHA-256(MAC || 0x0000 || uid)`, the MAC is on the cable, and the `uid` is the record's own identifier read straight out of that name, `0x00000601` with the caller bits set, packed little-endian as the four bytes `01 06 00 80`. Run that derivation and the record decrypts to the P-256 private key. On the validated board the recovered key matched the public key in the certificate the device holds. That is the boundary, stated as an observation rather than a warning: the key the API would not export is readable to anyone who can dump the flash and knows a published recipe.
 
 Record any unexpected actual result before you troubleshoot it, and do not mark the Security claim supported on the strength of a result you have not seen.
 
