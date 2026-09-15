@@ -16,6 +16,7 @@ package courseapp
 
 import (
 	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/x509"
@@ -56,6 +57,7 @@ const (
 	recordEnrollment       = "enrollment"
 	recordDelivery         = "delivery_confirmed"
 	recordRemanufacture    = "remanufacture"
+	recordFixtureReset     = "fixture_reset"
 )
 
 // provisionRecord is one line of the manufacturing record.
@@ -115,7 +117,7 @@ func (a *app) deviceCADir() string {
 
 func (a *app) provision(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: ./course provision credential|enroll|register|record")
+		return errors.New("usage: ./course provision credential|enroll|register|extract|record")
 	}
 	switch args[0] {
 	case "credential":
@@ -124,10 +126,12 @@ func (a *app) provision(args []string) error {
 		return a.provisionEnroll(args[1:])
 	case "register":
 		return a.provisionRegister(args[1:])
+	case "extract":
+		return a.provisionExtract(args[1:])
 	case "record":
 		return a.provisionShowRecord(args[1:])
 	default:
-		return fmt.Errorf("unknown provision command %q; use credential, enroll, register or record", args[0])
+		return fmt.Errorf("unknown provision command %q; use credential, enroll, register, extract or record", args[0])
 	}
 }
 
@@ -1101,4 +1105,314 @@ func (a *app) provisionEnroll(args []string) error {
 	fmt.Fprintln(a.out, "Read the board, not this line: ./course provision record --device "+deviceID)
 	fmt.Fprintln(a.out, "shows what the station stored, which is the half a device cannot fake.")
 	return nil
+}
+
+// The shared development identity, as it sits inside a built shared image.
+//
+// The key is a SEC1 ECPrivateKey. For P-256 that structure is a fixed 121
+// bytes and begins with SEQUENCE (0x77 content bytes), INTEGER 1, then an
+// OCTET STRING of 32 bytes: 30 77 02 01 01 04 20. That seven byte prefix is
+// what ./course provision extract searches for, and it is why the key is
+// compiled in as the whole structure rather than a bare scalar: a Learner can
+// be shown a prefix to look for and told what it means, where thirty-two
+// anonymous bytes could only be found by already knowing where they were.
+var sec1P256Prefix = []byte{0x30, 0x77, 0x02, 0x01, 0x01, 0x04, 0x20}
+
+const sec1P256Len = 121
+
+// sharedImagePath is the built shared image the credential is extracted from.
+//
+// It is named by the manifest, never supplied on the command line. A command
+// that read any file a Learner named would be a general-purpose key-recovery
+// tool wearing a course label, which docs/fixture-safety-contract.md exists to
+// keep out of the course.
+func (a *app) sharedImagePath() (string, error) {
+	f, ok := a.manifest.Fixtures["tier-06/clone-shared-identity"]
+	if !ok || f.Image == "" {
+		return "", errors.New("no shared image is named in course.yml")
+	}
+	return filepath.Join(a.releaseDir(), f.Image), nil
+}
+
+// extractSharedIdentity finds the fleet key and certificate inside a built
+// shared image.
+//
+// Both are recoverable, and that is the lesson: everything the fleet identity
+// is made of travels in every image built the same way. The key is found by
+// its SEC1 prefix; the certificate is found by scanning for a DER SEQUENCE that
+// parses as a certificate whose public key is the one the private key implies,
+// which ties the two together rather than trusting their adjacency in the
+// image.
+func extractSharedIdentity(image []byte) (certDER []byte, key *ecdsa.PrivateKey, keyOffset int, err error) {
+	keyOffset = -1
+	for i := 0; i+sec1P256Len <= len(image); i++ {
+		if !bytesEqual(image[i:i+len(sec1P256Prefix)], sec1P256Prefix) {
+			continue
+		}
+		candidate, perr := x509.ParseECPrivateKey(image[i : i+sec1P256Len])
+		if perr != nil {
+			continue
+		}
+		key = candidate
+		keyOffset = i
+		break
+	}
+	if key == nil {
+		return nil, nil, -1, errors.New("no SEC1 P-256 private key is present in this image")
+	}
+
+	// Find the certificate that belongs to this key. A DER certificate begins
+	// with a SEQUENCE whose length is two bytes (0x30 0x82 hi lo), which is
+	// true of every certificate this course issues, so the scan is cheap.
+	for i := 0; i+4 <= len(image); i++ {
+		if image[i] != 0x30 || image[i+1] != 0x82 {
+			continue
+		}
+		length := int(image[i+2])<<8 | int(image[i+3])
+		end := i + 4 + length
+		if end > len(image) {
+			continue
+		}
+		cert, perr := x509.ParseCertificate(image[i:end])
+		if perr != nil {
+			continue
+		}
+		pub, ok := cert.PublicKey.(*ecdsa.PublicKey)
+		if !ok || pub.X.Cmp(key.PublicKey.X) != 0 || pub.Y.Cmp(key.PublicKey.Y) != 0 {
+			continue
+		}
+		return image[i:end], key, keyOffset, nil
+	}
+	return nil, key, keyOffset, errors.New("the private key is present but its certificate is not")
+}
+
+func bytesEqual(a, b []byte) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// provisionExtract reads the fleet credential out of the Learner's own built
+// shared image and reports it.
+//
+// It is an ordinary command and not a fixture. It has no target, opens no
+// socket, and changes nothing, so the marker handshake and a reset would guard
+// nothing while implying a check happened. It prints a fingerprint and never
+// the key, and the narration is the point: a command that printed
+// "Result: key extracted" would teach nothing.
+func (a *app) provisionExtract(args []string) error {
+	for _, arg := range args {
+		if strings.HasPrefix(arg, "--image") || strings.HasPrefix(arg, "--file") || strings.HasPrefix(arg, "--path") {
+			return errors.New("extraction takes no path; the image it reads is named in course.yml, on purpose")
+		}
+	}
+
+	path, err := a.sharedImagePath()
+	if err != nil {
+		return err
+	}
+	image, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("no built shared image at %s; run ./course build firmware --tier 06 --variant shared first",
+			a.relative(path))
+	}
+
+	fmt.Fprintf(a.out, "Reading the shared image you built: %s (%d bytes)\n", a.relative(path), len(image))
+	fmt.Fprintln(a.out, "This is a firmware image, not a secret store. It is the same file you would")
+	fmt.Fprintln(a.out, "flash to a board, and anyone who has the image has everything in it.")
+	fmt.Fprintln(a.out)
+	fmt.Fprintf(a.out, "Searching for a SEC1 P-256 private key, which begins %x.\n", sec1P256Prefix)
+
+	certDER, key, offset, err := extractSharedIdentity(image)
+	if err != nil {
+		return err
+	}
+	keyDER, _ := x509.MarshalECPrivateKey(key)
+
+	fmt.Fprintf(a.out, "Found it at offset 0x%x. The next %d bytes are the fleet's private key.\n", offset, len(keyDER))
+	fmt.Fprintln(a.out, "That is the whole credential. In the shared model there is no separate")
+	fmt.Fprintln(a.out, "Bootstrap credential: holding this key is both the identity and the")
+	fmt.Fprintln(a.out, "authorization to enroll, which is what makes it worth copying.")
+	fmt.Fprintln(a.out)
+
+	point := elliptic.Marshal(key.Curve, key.PublicKey.X, key.PublicKey.Y)
+	fmt.Fprintf(a.out, "  public key fingerprint:  %s\n", "sha256:"+hex.EncodeToString(sha256Of(point)))
+	fmt.Fprintf(a.out, "  certificate fingerprint: %s\n", certFingerprint(certDER))
+	cert, _ := x509.ParseCertificate(certDER)
+	if cert != nil {
+		fmt.Fprintf(a.out, "  certificate subject:     %s\n", cert.Subject.CommonName)
+	}
+	fmt.Fprintln(a.out)
+	fmt.Fprintln(a.out, "The private key itself is not printed, and it never needs to be. The")
+	fmt.Fprintln(a.out, "fingerprint is enough to prove it is here, and the clone fixture reads the")
+	fmt.Fprintln(a.out, "same bytes to act as this identity without a board:")
+	fmt.Fprintln(a.out, "  ./course attack run tier-06/clone-shared-identity")
+	fmt.Fprintln(a.out)
+	fmt.Fprintf(a.out, "Result: the fleet private key was extracted from your own image, fingerprint %s\n",
+		certFingerprint(certDER))
+	return nil
+}
+
+func sha256Of(data []byte) []byte {
+	sum := sha256.Sum256(data)
+	return sum[:]
+}
+
+// tier06Plan and tier06Proves are what the clone's dry run shows.
+var tier06Plan = map[string][]string{
+	"tier-06/clone-shared-identity": {
+		"Extract the fleet credential from your own built shared image, on the host.",
+		"Find a device already registered with that credential in the manufacturing record.",
+		"Register a second time under that same identifier, and watch the station accept it.",
+		"Register several devices that were never manufactured, under the same one credential.",
+		"Show the record: many entries, one certificate fingerprint, no board involved.",
+	},
+}
+
+var tier06Proves = map[string][]string{
+	"tier-06/clone-shared-identity": {
+		"One extracted shared credential impersonates every device. It is the threat named against this tier, and it is why a per-device Factory identity (SC-06) replaces the shared one.",
+		"The provisioning station accepts a proof of possession without asking which device offered it, because in the shared model every device offers the same one.",
+	},
+}
+
+// cloneSharedIdentity is the Tier 6 attack fixture.
+//
+// It reads the fleet credential out of the Learner's own built shared image and
+// acts as the fleet against the provisioning station, entirely on the host. No
+// board is involved, and that is the lesson rather than a compromise forced by
+// owning one board: a copied credential does not need the hardware it was
+// copied from.
+//
+// It shows the mechanism, not a verdict. Every request it makes and every
+// answer it gets is narrated, because the station's acceptance is the whole
+// point and a fixture that printed "clone succeeded" would teach nothing.
+func (a *app) cloneSharedIdentity(env environment) (string, string, map[string]string, error) {
+	path, err := a.sharedImagePath()
+	if err != nil {
+		return "", "", nil, err
+	}
+	image, err := os.ReadFile(path)
+	if err != nil {
+		return "", "", nil, fmt.Errorf("no built shared image at %s; run ./course build firmware --tier 06 --variant shared first",
+			a.relative(path))
+	}
+	certDER, key, offset, err := extractSharedIdentity(image)
+	if err != nil {
+		return "", "", nil, err
+	}
+	fingerprint := certFingerprint(certDER)
+
+	a.step(1, "Extract the fleet credential from your own shared image.")
+	a.note("Read %s on the host, no board attached.", a.relative(path))
+	a.got("found the SEC1 private key at offset 0x%x and the matching certificate", offset)
+	a.note("certificate fingerprint %s", fingerprint)
+	a.note("This is the same key ./course provision extract reports. Here it is used, not just named.")
+
+	// The identifier to take over is read from the record, never from the
+	// command line, so the clone can only impersonate a device this Course
+	// environment actually registered with this credential.
+	records, err := a.readRecords()
+	if err != nil {
+		return "", "", nil, err
+	}
+	takeover := ""
+	for i := range records {
+		if records[i].Kind == recordEnrollment && records[i].Result == "issued" &&
+			records[i].CertFingerprint == fingerprint {
+			takeover = records[i].DeviceID
+			break
+		}
+	}
+	if takeover == "" {
+		return "", "", nil, errors.New(
+			"no device has registered with this credential yet; run ./course provision register first, " +
+				"so the clone has an existing identity to take over")
+	}
+
+	a.step(2, "Register a second time under an identifier the record already holds.")
+	a.note("The record already has %s, registered with this credential.", takeover)
+	a.note("A real device could only prove this key once, because it is the only one that holds it.")
+	a.note("The clone holds it too, so it proves it again, for a device that is already enrolled.")
+	if err := a.cloneRegister(takeover, certDER, key); err != nil {
+		return "", "", nil, err
+	}
+	a.got("the station accepted it. There are now two entries for %s, both %s.", takeover, fingerprint)
+	a.note("Nothing distinguished the clone's proof from the real device's. Both hold the same key.")
+
+	a.step(3, "Register devices that were never manufactured.")
+	f := a.manifest.Fixtures["tier-06/clone-shared-identity"]
+	a.note("These identifiers name no board. The credential is all the station checks, and it is one credential.")
+	for _, phantom := range f.PhantomIDs {
+		if err := a.cloneRegister(phantom, certDER, key); err != nil {
+			return "", "", nil, err
+		}
+		a.got("registered %s, a device that does not exist, under %s", phantom, fingerprint)
+	}
+
+	total := 1 + len(f.PhantomIDs)
+	a.step(4, "Read the manufacturing record back.")
+	a.note("Run ./course provision record to see it: %d new entries this fixture wrote,", total)
+	a.note("every one of them carrying the one fingerprint %s.", fingerprint)
+	a.note("The station cannot tell any of them apart, because in the shared model there is")
+	a.note("nothing to tell apart. That is what the per-device Factory identity fixes.")
+
+	observed := fmt.Sprintf("one duplicate under %s and %d never-manufactured devices registered under one fingerprint %s, from the host with no board",
+		takeover, len(f.PhantomIDs), fingerprint)
+	return observed, "", map[string]string{"shared-identity-certificate": fingerprint}, nil
+}
+
+// cloneRegister signs a station nonce with the extracted key and registers.
+//
+// It is what a device does during shared registration, except that both halves
+// run on the host: the station issues the nonce and the "device" answers it
+// with a key that came out of a file rather than off a board. registerShared is
+// the same station code path ./course provision register drives, so the clone
+// is not a weaker imitation of the attack, it is the attack.
+func (a *app) cloneRegister(deviceID string, certDER []byte, key *ecdsa.PrivateKey) error {
+	nonce, err := sharedRegistrationNonce()
+	if err != nil {
+		return err
+	}
+	digest := sha256.Sum256(nonce)
+	signature, err := ecdsa.SignASN1(rand.Reader, key, digest[:])
+	if err != nil {
+		return err
+	}
+	a.sent("station", "nonce "+hex.EncodeToString(nonce[:8])+"... to "+deviceID)
+	outcome, err := a.registerShared(deviceID, certDER, nonce, signature)
+	if err != nil {
+		return err
+	}
+	if !outcome.Issued {
+		return fmt.Errorf("the station refused %s at check %s: %s", deviceID, outcome.Check, outcome.Reason)
+	}
+	return nil
+}
+
+// resetClone is the clone fixture's reset, and it appends rather than deletes.
+//
+// The manufacturing record is append only by design: a credential is consumed
+// and a certificate recorded in one write, so nothing ever leaves the station
+// that the record does not already contain. A reset that deleted the clone's
+// entries would make the store mutable and quietly break that guarantee for the
+// sake of tidying up after a fixture, so reset writes one fixture_reset entry
+// and the phantom devices stay in the record forever.
+//
+// That is the finding, not a limitation of the tooling. A cloned credential's
+// damage to a manufacturing record is not reversible by the party who discovers
+// it. A Learner who wants the record empty again discards the whole Course
+// environment, which is an environment reset and not something a fixture may do.
+func (a *app) resetClone() error {
+	return a.writeRecord(provisionRecord{
+		Kind:   recordFixtureReset,
+		Result: "reset",
+		Detail: "tier-06/clone-shared-identity reset: the record is append only, so the clone's entries remain above this line. Reset restores the station's operational state, not the record.",
+	})
 }

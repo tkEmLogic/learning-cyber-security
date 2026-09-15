@@ -474,9 +474,9 @@ A rule with no named enforcement point is a wish. This table says where each rul
 | The fleet private key reaches the shared variant only, and the factory build never has it on its include path | `buildFirmware` in `internal/courseapp/app.go`, which sets `COURSE_SHARED_IDENTITY_INC_DIR` only when `variant.identityModel` is `shared` | Enforced |
 | The fleet key is written to generated state, never to the repository | `writeSharedIdentityInc` in `internal/courseapp/tier06.go`, and `.gitignore` | Enforced |
 | The manufacturing record never contains private key material | `writeRecord` in `internal/courseapp/tier06.go`, which refuses rather than trusting callers | Enforced |
-| Extraction takes no Learner-supplied path, and prints a fingerprint rather than the key | the extraction command, against `fixtures` in `course.yml` | Owed by [Build the Tier 6 clone fixture and the extraction command](https://github.com/tkEmLogic/learning-cyber-security/issues/123) |
-| The clone takes the identifier it impersonates from the manufacturing record, and its invented identifiers from a bounded manifest list | the clone fixture, against `fixtures` in `course.yml` | Owed by [Build the Tier 6 clone fixture and the extraction command](https://github.com/tkEmLogic/learning-cyber-security/issues/123) |
-| The clone's reset appends and never deletes | the clone fixture's reset, writing a `fixture_reset` record | Owed by [Build the Tier 6 clone fixture and the extraction command](https://github.com/tkEmLogic/learning-cyber-security/issues/123) |
+| Extraction takes no Learner-supplied path, and prints a fingerprint rather than the key | `provisionExtract` in `internal/courseapp/tier06.go`, reading the image named in `course.yml` | Enforced |
+| The clone takes the identifier it impersonates from the manufacturing record, and its invented identifiers from a bounded manifest list | `cloneSharedIdentity` in `internal/courseapp/tier06.go`, reading `phantom_ids` from `course.yml` | Enforced |
+| The clone's reset appends and never deletes | `resetClone` in `internal/courseapp/tier06.go`, wired into `resetFixtureState` | Enforced |
 | A flash dump is bounded to the `storage` partition and followed by the RTS reset | the dump command | Owed by [Validate every Tier 6 outcome on the board](https://github.com/tkEmLogic/learning-cyber-security/issues/124) |
 
 When a rule moves, this table moves with it.

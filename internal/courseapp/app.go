@@ -121,6 +121,17 @@ type fixture struct {
 	// manifest. The guardrail is identical: the selector is allowlisted here,
 	// never supplied as a path.
 	Releases map[string]string `yaml:"releases"`
+
+	// Image is the single built image a Tier 6 fixture reads the compiled-in
+	// credential out of, and PhantomIDs is the bounded list of
+	// never-manufactured identifiers the clone may register. Both are
+	// allowlisted here, never supplied on the command line: the image so that
+	// extraction is not a way to read any file, and the identifiers so that an
+	// unbounded loop appending to the manufacturing record is not mistaken for
+	// a demonstration of scale. See docs/fixture-safety-contract.md, "Tier 6
+	// fixtures".
+	Image      string   `yaml:"image"`
+	PhantomIDs []string `yaml:"phantom_ids"`
 }
 
 // selectors returns the allowlist a fixture's selector must come from, and the
@@ -1750,6 +1761,10 @@ func (a *app) attackRun(args []string) error {
 		plans = tier04Plan
 		proofs = tier04Proves
 	}
+	if strings.HasPrefix(id, "tier-06/") {
+		plans = tier06Plan
+		proofs = tier06Proves
+	}
 	if plan, ok := plans[id]; ok {
 		fmt.Fprintln(a.out, "Plan:")
 		for i, line := range plan {
@@ -1956,6 +1971,8 @@ var fixturePlan = map[string][]string{
 
 func (a *app) executeFixture(id, target string, env environment) (string, string, map[string]string, error) {
 	switch id {
+	case "tier-06/clone-shared-identity":
+		return a.cloneSharedIdentity(env)
 	case "tier-00/plaintext-inspection":
 		a.step(1, "Ask the service which firmware release it is handing out.")
 		a.note("No credential is sent, because the service asks for none.")
@@ -2208,6 +2225,12 @@ func (a *app) resetFixture(id string) error {
 }
 
 func (a *app) resetFixtureState(id, target string, env environment) error {
+	// The clone fixture touches no service. Its reset appends to the
+	// append-only manufacturing record rather than asking the service to
+	// restore a seed, so it returns before the service reset below.
+	if id == "tier-06/clone-shared-identity" {
+		return a.resetClone()
+	}
 	// Tier 2 moved the lab endpoints behind TLS, so the reset goes there and
 	// verifies the certificate like everything else. The marker check that
 	// authorised this run stayed in the clear; the reset is data, and data
