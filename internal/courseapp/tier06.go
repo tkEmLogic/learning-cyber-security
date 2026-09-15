@@ -15,6 +15,7 @@ package courseapp
 // property, and that is real however the credential was delivered.
 
 import (
+	"crypto/ecdsa"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/x509"
@@ -598,4 +599,111 @@ func MarshalCredentialExtension(credential string) ([]byte, error) {
 // CredentialExtensionOID exposes the OID for the same reason.
 func CredentialExtensionOID() asn1.ObjectIdentifier {
 	return courseCredentialOID
+}
+
+// tier06SecurityCounter is the counter Tier 6's releases carry.
+//
+// It stays at Tier 5's value. Section 6 says a security counter is increased
+// only when a release closes a security boundary that must not be reopened,
+// and Tier 6 closes none: T0-W-02 moves to reduced rather than closed, because
+// the device gains an identity that nothing yet requires it to present.
+// Raising it here would also make every Tier 5 release uninstallable, which is
+// a cost with nothing bought.
+const tier06SecurityCounter = 3
+
+// tier06Variants are the two images Tier 6 publishes from one source tree.
+//
+// They differ in where the device's identity comes from, which is the whole
+// subject of the tier, so the difference a Learner reads is one Kconfig
+// conditional rather than a diff between two directories.
+//
+// There is deliberately no third variant that generates a key when it can and
+// uses the shared identity when it cannot.
+var tier06Variants = map[string]firmwareVariant{
+	"shared": {
+		releaseID:       "tier-06-shared-identity",
+		label:           "shared",
+		beaconState:     "steady",
+		version:         "0.6.0-shared-identity",
+		imageName:       "tier-06-shared-identity.bin",
+		securityCounter: tier06SecurityCounter,
+		trialBehaviour:  "healthy",
+		identityModel:   "shared",
+	},
+	"factory": {
+		releaseID:       "tier-06-factory-identity",
+		label:           "factory",
+		beaconState:     "steady",
+		version:         "0.6.0-factory-identity",
+		imageName:       "tier-06-factory-identity.bin",
+		securityCounter: tier06SecurityCounter,
+		trialBehaviour:  "healthy",
+		identityModel:   "factory",
+	},
+}
+
+// registerShared is the station before hardening.
+//
+// It accepts anything that can prove possession of the fleet's one private key
+// and appends a manufacturing record for it. There is no Bootstrap credential
+// to check, because in the shared model there is none: possession of the
+// compiled-in key is simultaneously the identity and the authorization to be
+// registered. That is what section 11 means by a reusable default credential
+// remaining active.
+//
+// The proof is real. The station issues a nonce, the device signs it with the
+// key its certificate carries, and the station verifies that signature against
+// that certificate. Nothing here is weaker than the hardened path: it is the
+// same proof of possession, asking a question whose answer every device in the
+// fleet knows.
+func (a *app) registerShared(deviceID string, certDER []byte, nonce, signature []byte) (enrollmentOutcome, error) {
+	if err := validateDeviceID(deviceID); err != nil {
+		return enrollmentOutcome{}, err
+	}
+	cert, err := x509.ParseCertificate(certDER)
+	if err != nil {
+		return enrollmentOutcome{}, fmt.Errorf("certificate will not parse: %w", err)
+	}
+	public, ok := cert.PublicKey.(*ecdsa.PublicKey)
+	if !ok {
+		return enrollmentOutcome{}, errors.New("the certificate does not carry an ECDSA key")
+	}
+	digest := sha256.Sum256(nonce)
+	if !ecdsa.VerifyASN1(public, digest[:], signature) {
+		outcome := enrollmentOutcome{
+			Check:  "proof-of-possession",
+			Reason: "the nonce signature does not verify against the presented certificate",
+		}
+		return outcome, a.recordRefusal(enrollmentRequest{DeviceID: deviceID}, outcome)
+	}
+
+	fingerprint := certFingerprint(certDER)
+	record := provisionRecord{
+		Kind:            recordEnrollment,
+		DeviceID:        deviceID,
+		Lifecycle:       LifecycleManufactured,
+		CertSerial:      cert.SerialNumber.String(),
+		CertFingerprint: fingerprint,
+		CertPublicKey:   publicKeyFingerprint(cert.RawSubjectPublicKeyInfo),
+		Result:          "issued",
+		Detail:          "registered against the shared development identity, no Bootstrap credential was required",
+	}
+	if err := a.writeRecord(record); err != nil {
+		return enrollmentOutcome{}, err
+	}
+	return enrollmentOutcome{
+		Issued:          true,
+		Check:           "registered",
+		CertFingerprint: fingerprint,
+		CertSerial:      cert.SerialNumber.String(),
+	}, nil
+}
+
+// sharedRegistrationNonce is what the station asks the device to sign.
+func sharedRegistrationNonce() ([]byte, error) {
+	nonce := make([]byte, 32)
+	if _, err := rand.Read(nonce); err != nil {
+		return nil, err
+	}
+	return nonce, nil
 }

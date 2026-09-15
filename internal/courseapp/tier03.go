@@ -73,7 +73,7 @@ func (a *app) keys(args []string) error {
 	switch args[0] {
 	case "create":
 		if len(args) < 2 {
-			return errors.New("usage: ./course keys create release|attacker|device-ca")
+			return errors.New("usage: ./course keys create release|attacker|device-ca|shared-identity")
 		}
 		return a.keysCreate(args[1])
 	case "list":
@@ -98,9 +98,12 @@ func (a *app) keysCreate(role string) error {
 	if role == "device-ca" {
 		return a.keysCreateDeviceCA()
 	}
+	if role == "shared-identity" {
+		return a.keysCreateSharedIdentity()
+	}
 	description, ok := signingRoles[role]
 	if !ok {
-		return fmt.Errorf("unknown key role %q; use release, attacker or device-ca", role)
+		return fmt.Errorf("unknown key role %q; use release, attacker, device-ca or shared-identity", role)
 	}
 	path := a.signingKeyPath(role)
 
@@ -837,5 +840,52 @@ func (a *app) keysCreateDeviceCA() error {
 	}
 	fmt.Fprintf(a.out, "%s\n", described)
 	fmt.Fprintf(a.out, "Result: manufacturer device CA written to %s\n", a.relative(dir))
+	return nil
+}
+
+// keysCreateSharedIdentity makes the fleet's one identity.
+//
+// This is the credential Tier 6 exists to argue against, and it is made with
+// the same command that makes the others because nothing about it is
+// technically inferior. It is a real Factory certificate signed by the real
+// manufacturer device CA, carrying a real P-256 key. What is wrong with it is
+// that there is one of it.
+//
+// The private half is deliberately compiled into the shared firmware variant,
+// which is the single exception to the rule that no firmware build command
+// names a private key. The exception is bounded to this one throwaway
+// credential and written down in docs/fixture-safety-contract.md, because a
+// credential a Learner cannot extract from their own image cannot teach why
+// shared credentials fail.
+func (a *app) keysCreateSharedIdentity() error {
+	dir := a.deviceCADir()
+	if !coursepki.DeviceCAExists(dir) {
+		return errors.New("make the manufacturer device CA first: ./course keys create device-ca")
+	}
+	if coursepki.SharedIdentityExists(dir) {
+		fmt.Fprintln(a.errOut, "A shared development identity already exists.")
+		fmt.Fprintf(a.errOut, "  path: %s\n", a.relative(filepath.Join(dir, coursepki.SharedIdentityCert)))
+		fmt.Fprintf(a.errOut, "To make a new one, remove it yourself first:\n  rm %s %s\n",
+			a.relative(filepath.Join(dir, coursepki.SharedIdentityCert)),
+			a.relative(filepath.Join(dir, coursepki.SharedIdentityKey)))
+		return errors.New("refusing to replace the existing shared development identity")
+	}
+
+	fmt.Fprintln(a.out, "The shared development identity. One key pair and one certificate for")
+	fmt.Fprintln(a.out, "the whole fleet, signed by your manufacturer device CA.")
+	fmt.Fprintln(a.out, "")
+	fmt.Fprintln(a.out, "Nothing about this certificate is weaker than the per-device ones that")
+	fmt.Fprintln(a.out, "replace it. Same curve, same authority, same lifetime. What is wrong")
+	fmt.Fprintln(a.out, "with it is that there is one of it, and every image built in the shared")
+	fmt.Fprintln(a.out, "variant carries its private half.")
+	if err := coursepki.GenerateSharedIdentity(dir); err != nil {
+		return err
+	}
+	described, err := coursepki.Describe(filepath.Join(dir, coursepki.SharedIdentityCert))
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(a.out, "%s\n", described)
+	fmt.Fprintf(a.out, "Result: shared development identity written to %s\n", a.relative(dir))
 	return nil
 }
