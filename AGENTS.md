@@ -28,3 +28,15 @@ the Markdown compatible with Docmost. See `docs/agents/course-writing.md`.
 
 Every Hardening tier module follows one section order and one page shape. See
 `docs/agents/course-module-template.md`.
+
+### Publishing a tier
+
+A tier is not published until `README.md` says it is. The tier table under
+"What is published" gains a row, and the hardware sentence under "Hardware"
+gains the tier if the board validated it. `course-material/index.md` and the
+previous tier's Continue section are not enough on their own, because the
+README is what a reader sees first and it is the only place that states which
+tiers are hardware validated.
+
+Check this in the same commit that publishes the module. Tier 5 was published
+without it and the gap was found two tiers later.
