@@ -41,6 +41,17 @@
  * the platform's, and every tier from Tier 2 on opens a TLS connection whose
  * ephemeral key agreement draws on it. A fix that only reached the tier that
  * happened to notice would leave the other four running on a frozen generator.
+ *
+ * Upstream has already fixed this, in zephyrproject-rtos/zephyr commit 1df3062
+ * of 2026-06-05, which added rng_ll_enable() to entropy_esp32_init(). That
+ * landed after the v4.4 branch was cut, so v4.4.2 does not carry it, and v4.4.2
+ * is what this course pins. The commit is titled "align with updated
+ * hal_espressif hal apis" and says nothing about entropy, so the repair looks
+ * incidental rather than deliberate.
+ *
+ * When the course moves to a Zephyr that has it, this file becomes redundant
+ * and should be deleted rather than left to rot. Until then it is harmless
+ * either way: setting a bit that is already set costs one register write.
  */
 
 #include <zephyr/init.h>
