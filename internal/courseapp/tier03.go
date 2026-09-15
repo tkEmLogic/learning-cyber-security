@@ -73,7 +73,7 @@ func (a *app) keys(args []string) error {
 	switch args[0] {
 	case "create":
 		if len(args) < 2 {
-			return errors.New("usage: ./course keys create release|attacker")
+			return errors.New("usage: ./course keys create release|attacker|device-ca")
 		}
 		return a.keysCreate(args[1])
 	case "list":
@@ -90,9 +90,17 @@ func (a *app) keys(args []string) error {
 // generation itself, because a Learner who never sees imgtool has been handed a
 // key by a course command rather than having made one.
 func (a *app) keysCreate(role string) error {
+	// The manufacturer device CA is a certificate authority, not an MCUboot
+	// signing key, so it does not go through imgtool. It is here rather than in
+	// ./course setup because Tier 6 is where it first means anything, and
+	// because a Learner should watch the third trust relationship appear rather
+	// than find it already present.
+	if role == "device-ca" {
+		return a.keysCreateDeviceCA()
+	}
 	description, ok := signingRoles[role]
 	if !ok {
-		return fmt.Errorf("unknown key role %q; use release or attacker", role)
+		return fmt.Errorf("unknown key role %q; use release, attacker or device-ca", role)
 	}
 	path := a.signingKeyPath(role)
 
@@ -797,4 +805,37 @@ func releaseVariantOption(args []string) string {
 		}
 	}
 	return "baseline"
+}
+
+// keysCreateDeviceCA makes the manufacturer device certificate authority.
+//
+// Section 8 requires three distinct trust relationships. This is the one that
+// signs Factory identities and is trusted by the enrollment service, and it is
+// deliberately not the Course certificate authority that signs the OTA
+// service's TLS certificate. A course that used one authority for both would
+// teach that a certificate authority is a thing you have one of.
+func (a *app) keysCreateDeviceCA() error {
+	dir := a.deviceCADir()
+	if coursepki.DeviceCAExists(dir) {
+		fmt.Fprintln(a.errOut, "A manufacturer device CA already exists.")
+		fmt.Fprintf(a.errOut, "  path: %s\n", a.relative(filepath.Join(dir, coursepki.DeviceCACert)))
+		fmt.Fprintln(a.errOut, "Every Factory certificate already issued chains to it. Replacing it")
+		fmt.Fprintln(a.errOut, "would strand every provisioned board with an identity nothing verifies.")
+		fmt.Fprintf(a.errOut, "To make a new one, remove it yourself first:\n  rm %s\n",
+			a.relative(filepath.Join(dir, coursepki.DeviceCACert)))
+		return errors.New("refusing to replace the existing manufacturer device CA")
+	}
+	fmt.Fprintln(a.out, "The manufacturer device CA. It signs Factory identities and nothing else.")
+	fmt.Fprintln(a.out, "It is not the Course CA: that one signs the update service's own")
+	fmt.Fprintln(a.out, "certificate, and the two answer different questions.")
+	if err := coursepki.GenerateDeviceCA(dir); err != nil {
+		return err
+	}
+	described, err := coursepki.Describe(filepath.Join(dir, coursepki.DeviceCACert))
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(a.out, "%s\n", described)
+	fmt.Fprintf(a.out, "Result: manufacturer device CA written to %s\n", a.relative(dir))
+	return nil
 }
