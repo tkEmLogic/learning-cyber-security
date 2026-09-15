@@ -373,10 +373,31 @@ Finally, the case the specification names by name. Stop the service entirely whi
 health.gate every check passed, holding for 60 seconds
 health.gate passed
 trial.confirm this image is now the one the device falls back to
+event.queued update.confirmed release_id=tier-05-healthy detail=health gate passed
 ota.tls refused the connection to 192.168.68.81:8443 errno=104
 ```
 
 The image confirms. The device then reports a failed connection every poll and carries on running. Network loss alone did not fail the gate and did not cause a revert loop, which is what section 6 requires.
+
+## Say what happened, once there is somewhere to say it
+
+That `event.queued` line is worth following, because it is a consequence of the ordering you read earlier.
+
+The health gate runs before `net_link_connect()`. That is what makes the constraint you just tested structural: a gate that has not connected cannot be failed by a connection. It also means the device reaches its verdict with no way to tell anyone, and the verdicts are exactly the events section 7 asks it to report.
+
+So the device writes the event down and sends it when there is a link:
+
+```text
+event.queued update.reverted release_id=tier-05-healthy detail=tier-05-fail-health update-client-ready
+```
+
+Three things about that line repay attention.
+
+**The reporting image is not the image that failed.** A failed trial reboots, so the image that reports the revert is the one that came back. It reads the reason out of flash, which is why the reason had to be written before the reboot rather than sent over a network that was not up.
+
+**The running release and the failed release are different fields.** The service stores an event's identifier as `running_release_id`, and for a revert the release that failed is precisely the one not running. An earlier version of this tier put the failed release in that field, which produced records saying the device was running an image it had just thrown away. A fleet view built on those would show a broken release spreading.
+
+**A crash and a hang still report something.** They leave no reason, but they leave a trial record naming a release the device is not running, which is enough to report `reason-unrecorded`. The failures hardest to diagnose are the ones a fleet most needs to hear about, and a device that stayed silent about them would have inverted this tier's whole lesson.
 
 ## Reveal
 

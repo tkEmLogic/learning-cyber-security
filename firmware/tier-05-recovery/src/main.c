@@ -198,6 +198,74 @@ static void run_trial_behaviour(void)
 #endif
 }
 
+/* One update event, held until there is a network to send it on.
+ *
+ * The health gate runs before net_link_connect(), which is what makes section
+ * 6's constraint structural rather than careful: a gate that has not connected
+ * cannot be failed by a connection. The cost is that everything the trial has
+ * to say happens offline.
+ *
+ * Reporting it immediately was worse than useless. It could never succeed, and
+ * it printed a TLS failure directly beneath a health failure, which reads like
+ * the network having caused the revert. Section 6 forbids that from being
+ * true, and the device was printing evidence for it anyway.
+ *
+ * So the event waits here and goes out once the link is up. A failure is
+ * reported by the image that comes back after the revert, which is the only
+ * image still running to report anything.
+ */
+static struct {
+	bool present;
+	const char *event;
+	char release_id[RECOVERY_ID_MAX];
+	char detail[RECOVERY_REASON_MAX];
+} pending_event;
+
+static void queue_event(const char *event, const char *release_id, const char *detail)
+{
+	pending_event.present = true;
+	pending_event.event = event;
+	strncpy(pending_event.release_id, release_id, sizeof(pending_event.release_id) - 1);
+	pending_event.release_id[sizeof(pending_event.release_id) - 1] = '\0';
+	strncpy(pending_event.detail, detail, sizeof(pending_event.detail) - 1);
+	pending_event.detail[sizeof(pending_event.detail) - 1] = '\0';
+
+	printk("event.queued %s release_id=%s detail=%s\n", event, release_id, detail);
+	printk("event.queued held until the link is up. Nothing here waits on the network,\n");
+	printk("event.queued because the decision it describes was made without one.\n");
+}
+
+/* Queue a revert, naming the release that failed without pretending it is the
+ * one running.
+ *
+ * The service stores an event's release identifier as running_release_id, and
+ * for a revert the release that failed is precisely the one that is not
+ * running. Putting the failed release in that field produced a record saying
+ * the device was running an image it had just thrown away, which is worse than
+ * saying nothing: a fleet view built on it would show the broken release
+ * spreading.
+ *
+ * So the running release stays the running release and the failed one goes in
+ * the detail, which is free text and already carries reasons.
+ */
+static void queue_revert(const char *failed_release, const char *reason)
+{
+	char detail[RECOVERY_REASON_MAX];
+
+	snprintf(detail, sizeof(detail), "%s %s", failed_release, reason);
+	queue_event("update.reverted", CONFIG_COURSE_RELEASE_ID, detail);
+}
+
+static void flush_pending_event(const char *state_name)
+{
+	if (!pending_event.present) {
+		return;
+	}
+	pending_event.present = false;
+	(void)ota_client_report(pending_event.event, state_name,
+				pending_event.release_id, pending_event.detail);
+}
+
 /* What the device woke up as.
  *
  * MCUboot decides the swap and reports its type; only the application knows
@@ -222,10 +290,31 @@ static bool report_boot_state(void)
 		printk("boot.state the previous boot gave up on release %s at check %s\n",
 		       failure.release_id, failure.reason);
 		printk("boot.state and MCUboot has put this image back. That is a revert.\n");
+		queue_revert(failure.release_id, failure.reason);
 	} else if (confirmed) {
+		struct trial_record trial;
+
 		printk("boot.state no reason was recorded by a previous boot\n");
 		printk("boot.state A crash or a hang leaves nothing here: the device can say why\n");
 		printk("boot.state it gave up only if it was still alive enough to write it down.\n");
+
+		/* A revert after a crash or a hang leaves no reason, and the
+		 * device is not blind all the same: a trial record naming a
+		 * release it is not running is evidence that a trial happened
+		 * and did not stick.
+		 *
+		 * This is the most important event this tier produces, because
+		 * it names exactly the release that is hardest to diagnose. A
+		 * device that stayed silent here would leave the fleet blindest
+		 * about the failures that matter most.
+		 */
+		if (recovery_trial_peek(&trial) == 0 &&
+		    strncmp(trial.release_id, CONFIG_COURSE_RELEASE_ID,
+			    sizeof(trial.release_id)) != 0) {
+			printk("boot.state release %s was tried %u times and is not what is running\n",
+			       trial.release_id, trial.attempts);
+			queue_revert(trial.release_id, "reason-unrecorded");
+		}
 	}
 
 	recovery_state_report();
@@ -265,17 +354,18 @@ static void confirm_or_revert(void)
 		}
 		(void)recovery_trial_clear();
 		printk("trial.confirm this image is now the one the device falls back to\n");
-		(void)ota_client_report("update.confirmed", "steady",
-					CONFIG_COURSE_RELEASE_ID, reason);
+		queue_event("update.confirmed", CONFIG_COURSE_RELEASE_ID, "health gate passed");
 		return;
 	}
 
 	/* Written before the reboot, because after it this image is no longer
 	 * running and cannot say anything.
 	 */
+	/* Written before the reboot, because after it this image is no longer
+	 * running. The image that comes back reports it: this one has no
+	 * network and is about to stop existing.
+	 */
 	(void)recovery_failure_write(CONFIG_COURSE_RELEASE_ID, reason);
-	(void)ota_client_report("update.health_failed", "steady",
-				CONFIG_COURSE_RELEASE_ID, reason);
 
 	printk("trial.revert %s at check %s\n",
 	       result == HEALTH_TIMEOUT ? "the health window expired" : "a health check failed",
@@ -453,6 +543,8 @@ int main(void)
 	if (net_link_address(address, sizeof(address)) == 0) {
 		printk("wifi.address %s assigned by DHCP\n", address);
 	}
+
+	flush_pending_event(beacon_state_name(state));
 
 	while (true) {
 		/* main is the thread the watchdog vouches for, so main is the
