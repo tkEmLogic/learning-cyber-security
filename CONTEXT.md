@@ -127,6 +127,21 @@ run of the course on one machine. It is thrown away and recreated, and nothing
 in it is a production asset.
 _Avoid_: Test environment, deployment
 
+**Attack fixture**:
+One named, scripted attack a Learner runs against their own Course environment
+through `./course attack run`. It states its target, the weaknesses it
+demonstrates, the files it changes and its reset command before it does
+anything, and it acts only after matching the Course environment marker and
+being given its own identifier a second time. It performs an attack the course
+has already explained, so it is a teaching instrument rather than a tool for
+finding new ones, and `docs/fixture-safety-contract.md` binds every one of them.
+
+Not every piece of attack machinery is a fixture. A command that reads
+something the Learner already has, changes nothing and reaches no service is an
+ordinary `./course` command, because wrapping it in this apparatus would report
+a safety check that was guarding nothing.
+_Avoid_: Exploit, payload, penetration test, security scanner
+
 **Course environment marker**:
 A disposable, setup-generated identifier shared by the local course service,
 fixtures, and Course workspace. An attack fixture must match it before causing
