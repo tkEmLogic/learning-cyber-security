@@ -12,6 +12,7 @@ zephyr_library_named(course_common)
 
 zephyr_library_sources(
 	src/beacon.c
+	src/hw_rng.c
 	src/net_link.c
 )
 
