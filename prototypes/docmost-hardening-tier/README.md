@@ -13,38 +13,30 @@ The selected candidate combines the variants in this order:
 2. Variant A for the hardening procedure.
 3. Variant B for evidence and weakness tracking.
 
-Import `selected-cab.md` for the Docmost round-trip test.
+The course is read on GitHub and is no longer published to Docmost, so the
+Docmost round-trip artifacts that sat beside these files have been removed:
+a rendered `index.html` preview and a `mermaid-probe.md` that tested whether a
+fenced Mermaid block survived a paste. Both were about a delivery target the
+course no longer has, and the probe's own finding was already superseded when
+the live instance turned out to render Mermaid correctly.
 
-The first round-trip showed that fenced Mermaid source remained intact but
-rendered as a code block in the tested Docmost sandbox. The selected candidate
-therefore uses a plain-text flow diagram.
+What is left is the structural comparison, which is not about Docmost at all.
+`selected-cab.md` is named in section 14 of `docs/course-specification.md` as
+the reference example for every core and advanced module, and
+`docs/agents/course-module-template.md` points writers at it.
 
-That finding is superseded. The live Docmost instance renders a fenced
-`mermaid` block as a diagram. Course material may use Mermaid. This prototype
-is left as written, because it is a record of what the round-trip found.
+## Read the comparison
 
-## Open the comparison
-
-Open `index.html` in a browser.
-
-Use the bottom switcher, the left and right arrow keys, or these URLs:
-
-- `index.html?variant=A` for the linear procedure
-- `index.html?variant=B` for the evidence-first review sheet
-- `index.html?variant=C` for the incident-driven mission
-
-## Test the Markdown in Docmost
-
-Import these files separately:
+Read the three variants as Markdown:
 
 - `variant-a-linear-procedure.md`
 - `variant-b-evidence-first.md`
 - `variant-c-incident-mission.md`
-- `selected-cab.md`
-- `mermaid-probe.md`, which tests whether Mermaid renders when pasted
 
-Export each page back to Markdown. Check headings, tables, code blocks, links,
-and the Mermaid diagram. Record any changes caused by import or export.
+and `selected-cab.md` for the combination that was chosen. A rendered
+side-by-side viewer used to live here as `index.html`; it was a Docmost-era
+convenience and reading the files directly loses nothing now that the course is
+read on GitHub.
 
 ## Prototype question
 
