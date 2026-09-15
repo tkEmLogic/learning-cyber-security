@@ -163,6 +163,37 @@ never overrides it. It is compared, never remembered: the bootloader reads the
 counter of the image in the primary slot and compares it with the candidate's.
 _Avoid_: Version, build number, rollback index
 
+**Trial image**:
+An image MCUboot has swapped into the primary slot but not been told to keep.
+It is running, and it is one reboot away from being replaced by the image it
+displaced. Every install from Tier 5 onwards begins as one.
+_Avoid_: Test image, candidate image, pending image
+
+**Confirmed image**:
+The image the device falls back to. It became confirmed because something
+asserted that it works, and it stays confirmed until a later image does the
+same. A device always has exactly one.
+_Avoid_: Current image, active image, good image
+
+**Health gate**:
+The local checks a trial image must pass, and keep passing, before it is
+confirmed. Every check is local by construction: the gate runs before the
+device has a network, so backend reachability cannot be one of its inputs.
+_Avoid_: Health check, self test, smoke test
+
+**Revert**:
+MCUboot restoring the confirmed image because a trial image never asserted it
+worked. It is what happens by default; confirming is the exception that
+prevents it.
+_Avoid_: Rollback, downgrade, restore
+
+**Resume state**:
+The record of how far a download got and which release it belonged to, kept in
+flash so an interruption does not cost the bytes already written. It says where
+to resume and never what to trust: a resumed download re-verifies the Release
+manifest before the record is allowed to matter.
+_Avoid_: Download cache, checkpoint, partial image
+
 **Image signature**:
 The signature over a firmware image, made with the Release signing key and
 checked by the bootloader before the image is allowed to run. It proves who

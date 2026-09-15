@@ -26,9 +26,9 @@ func TestTierListShowsPlannedUnavailableTiers(t *testing.T) {
 	}
 	// Each published tier moves out of PLANNED, so this test names the highest
 	// implemented one and a still-planned one explicitly rather than assuming
-	// where the boundary is. Tier 4 joined when its module was published; Tier 5
+	// where the boundary is. Tier 5 joined when its module was published; Tier 6
 	// and the advanced tiers are the genuinely unavailable ones now.
-	for _, want := range []string{"00  IMPLEMENTED", "01  IMPLEMENTED", "02  IMPLEMENTED", "03  IMPLEMENTED", "04  IMPLEMENTED", "05  PLANNED", "B  PLANNED"} {
+	for _, want := range []string{"00  IMPLEMENTED", "01  IMPLEMENTED", "02  IMPLEMENTED", "03  IMPLEMENTED", "04  IMPLEMENTED", "05  IMPLEMENTED", "06  PLANNED", "B  PLANNED"} {
 		if !strings.Contains(stdout.String(), want) {
 			t.Fatalf("expected %q in the tier list:\n%s", want, stdout.String())
 		}
