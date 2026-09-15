@@ -334,6 +334,26 @@ config COURSE_PROVISIONING_BUTTON_REOPENS
 	  Advanced Tier A is where the debug and download paths around it are
 	  closed.
 
+config COURSE_PROVISIONING_BUTTON_HOLD_SECONDS
+	int "Seconds the BOOT button must be held to reopen provisioning"
+	default 10
+	range 2 60
+	depends on COURSE_PROVISIONING_BUTTON_REOPENS
+	help
+	  The button is read while the application runs, not at reset.
+
+	  Reading it at reset cannot work on this part: sw0 is GPIO9, the
+	  ESP32-C6 strapping pin, so holding it through the reset edge straps
+	  the chip into the ROM download loader and the application never runs
+	  at all. The only window was therefore after the reset and before the
+	  gate, which is a fraction of a second, and hitting it reliably was not
+	  something a Learner should have to practise.
+
+	  So the button is armed with an interrupt instead, and a deliberate
+	  long press reopens the interface in place, with no reset and no
+	  re-enumeration of the USB device. A sustained hold is also harder to
+	  trigger by accident than a press during boot.
+
 endmenu
 
 source "Kconfig.zephyr"

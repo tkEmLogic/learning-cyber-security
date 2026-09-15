@@ -603,36 +603,119 @@ void course_provisioning_close(void);
 static const struct gpio_dt_spec provisioning_button = GPIO_DT_SPEC_GET(DT_ALIAS(sw0), gpios);
 #endif
 
-/* Is someone physically holding the board in provisioning mode?
+/* The re-entry path for remanufacturing.
  *
- * This is the re-entry path for remanufacturing. Without it the interface
- * closes permanently on enrollment and there is no way to send the erase
- * command: reflashing does not help, because Secure Storage lives in the
- * storage partition and survives a slot 0 flash exactly the way MCUboot's
- * trailer does.
+ * Without it the interface closes permanently on enrollment and there is no way
+ * to send the erase command: reflashing does not help, because Secure Storage
+ * lives in the storage partition and survives a slot 0 flash exactly the way
+ * MCUboot's trailer does.
  *
- * The cost is a weakness worth naming rather than hiding. Anyone with physical
- * access and this button can put the device back into provisioning mode.
+ * The button is read while the application runs, not at reset, and the reason
+ * is the part. sw0 is GPIO9, the ESP32-C6 strapping pin: holding it through the
+ * reset edge straps the chip into the ROM download loader, so the application
+ * never runs and there is nothing to read the button. Sampling it once in the
+ * gate therefore left only the window between the reset and the gate, a
+ * fraction of a second, and hitting that window reliably is not a thing to ask
+ * of anyone. Issue #128.
+ *
+ * So the button is armed with an edge interrupt and a deliberate long press
+ * reopens the interface in place: no reset, and no re-enumeration of the USB
+ * device, which on this board is a whole class of trouble by itself.
+ *
+ * The cost is a weakness worth naming rather than hiding, and it is unchanged
+ * by the new gesture. Anyone with physical access and this button can put the
+ * device back into provisioning mode.
  */
-static bool provisioning_button_held(void)
-{
 #if DT_NODE_EXISTS(DT_ALIAS(sw0)) && defined(CONFIG_COURSE_PROVISIONING_BUTTON_REOPENS)
-	if (!gpio_is_ready_dt(&provisioning_button)) {
-		return false;
-	}
-	if (gpio_pin_configure_dt(&provisioning_button, GPIO_INPUT) != 0) {
-		return false;
-	}
-	return gpio_pin_get_dt(&provisioning_button) > 0;
-#else
-	return false;
-#endif
+
+static struct gpio_callback provisioning_button_cb;
+
+/* shell_start() has no business running in an interrupt, so the timer hands
+ * the work to the system workqueue, the same way the close path does.
+ */
+static void reopen_work_handler(struct k_work *work)
+{
+	ARG_UNUSED(work);
+
+	printk("provision.gate the button was held for %d seconds, reopening the\n",
+	       CONFIG_COURSE_PROVISIONING_BUTTON_HOLD_SECONDS);
+	printk("provision.gate interface on an already provisioned device. This is\n");
+	printk("provision.gate remanufacturing.\n");
+	course_provisioning_open();
 }
+
+static K_WORK_DEFINE(reopen_work, reopen_work_handler);
+
+static void provisioning_hold_expired(struct k_timer *timer)
+{
+	ARG_UNUSED(timer);
+	k_work_submit(&reopen_work);
+}
+
+static K_TIMER_DEFINE(provisioning_hold_timer, provisioning_hold_expired, NULL);
+
+/* Both edges, so a release cancels the hold. A press that is let go early must
+ * leave nothing armed behind it, or the interface would open later for someone
+ * who decided not to open it.
+ */
+static void provisioning_button_changed(const struct device *port,
+					struct gpio_callback *cb,
+					gpio_port_pins_t pins)
+{
+	ARG_UNUSED(port);
+	ARG_UNUSED(cb);
+	ARG_UNUSED(pins);
+
+	if (gpio_pin_get_dt(&provisioning_button) > 0) {
+		k_timer_start(&provisioning_hold_timer,
+			      K_SECONDS(CONFIG_COURSE_PROVISIONING_BUTTON_HOLD_SECONDS),
+			      K_NO_WAIT);
+	} else {
+		k_timer_stop(&provisioning_hold_timer);
+	}
+}
+
+static int provisioning_button_arm(void)
+{
+	int err;
+
+	if (!gpio_is_ready_dt(&provisioning_button)) {
+		return -ENODEV;
+	}
+	err = gpio_pin_configure_dt(&provisioning_button, GPIO_INPUT);
+	if (err != 0) {
+		return err;
+	}
+	err = gpio_pin_interrupt_configure_dt(&provisioning_button, GPIO_INT_EDGE_BOTH);
+	if (err != 0) {
+		return err;
+	}
+	gpio_init_callback(&provisioning_button_cb, provisioning_button_changed,
+			   BIT(provisioning_button.pin));
+	return gpio_add_callback(provisioning_button.port, &provisioning_button_cb);
+}
+
+#else
+
+static int provisioning_button_arm(void)
+{
+	return -ENOTSUP;
+}
+
+#endif
 
 void course_identity_gate(void)
 {
 	bool provisioned = course_identity_is_provisioned();
-	bool held = provisioning_button_held();
+	int armed = provisioning_button_arm();
+
+	/* Armed whatever the state, so that a device enrolled during this same
+	 * boot can still be reopened without a reset.
+	 */
+	if (armed != 0 && armed != -ENOTSUP) {
+		printk("provision.gate the button could not be armed err=%d, so the only way\n", armed);
+		printk("provision.gate back into provisioning is to erase and reflash\n");
+	}
 
 	if (!provisioned) {
 		printk("provision.gate this device holds no identity, opening the interface\n");
@@ -640,15 +723,10 @@ void course_identity_gate(void)
 		course_provisioning_open();
 		return;
 	}
-	if (held) {
-		printk("provision.gate the button is held, reopening the interface on an\n");
-		printk("provision.gate already provisioned device. This is remanufacturing.\n");
-		course_provisioning_open();
-		return;
-	}
 	printk("provision.gate provisioned, and the provisioning interface is not running\n");
-	printk("provision.gate nothing on this console will enroll it. Hold BOOT at reset\n");
-	printk("provision.gate to reopen it deliberately.\n");
+	printk("provision.gate nothing on this console will enroll it. Hold BOOT for %d\n",
+	       CONFIG_COURSE_PROVISIONING_BUTTON_HOLD_SECONDS);
+	printk("provision.gate seconds to reopen it deliberately. No reset is needed.\n");
 }
 
 #elif defined(CONFIG_COURSE_SHARED_SHELL)
