@@ -45,6 +45,23 @@ else()
 	zephyr_include_directories(anchor)
 endif()
 
+# The fleet identity, compiled into the shared image only.
+#
+# ./course build firmware --tier 06 --variant shared writes these and sets the
+# variable. It is the one build in the course that is handed a private key, and
+# the variable is set for that one variant, so the factory build does not have
+# the key on its include path at all. See the Tier 6 section of
+# docs/fixture-safety-contract.md for the bound on that exception.
+#
+# Without it the build falls back to anchor/, which is empty, and the shared
+# image can prove possession of nothing and says so. That is the same honest
+# failure the empty trust anchor produces.
+if(DEFINED ENV{COURSE_SHARED_IDENTITY_INC_DIR})
+	zephyr_include_directories($ENV{COURSE_SHARED_IDENTITY_INC_DIR})
+else()
+	zephyr_include_directories(anchor)
+endif()
+
 target_sources(app PRIVATE
 	src/health_gate.c
 	src/identity.c
@@ -56,4 +73,8 @@ target_sources(app PRIVATE
 
 target_sources_ifdef(CONFIG_COURSE_PROVISIONING_SHELL app PRIVATE
 	src/provisioning_shell.c
+)
+
+target_sources_ifdef(CONFIG_COURSE_SHARED_SHELL app PRIVATE
+	src/shared_shell.c
 )

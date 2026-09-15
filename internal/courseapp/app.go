@@ -867,6 +867,24 @@ func (a *app) buildFirmware(args []string) error {
 		buildEnv = append(buildEnv, "COURSE_RELEASE_KEY_INC_DIR="+keyDir)
 		printed = buildEnv
 	}
+	// Tier 6's shared variant, and nothing else, compiles in the fleet's
+	// private key. This is the one deliberate exception to the rule that a
+	// firmware build command never names a private key, and it is bounded to
+	// this one throwaway credential: see the Tier 6 section of
+	// docs/fixture-safety-contract.md.
+	//
+	// The variable is set for the shared variant only, so the factory build
+	// does not have the key on its include path at all.
+	if tier == "06" && variant.identityModel == "shared" {
+		sharedDir, err := a.writeSharedIdentityInc()
+		if err != nil {
+			return err
+		}
+		buildEnv = append(buildEnv, "COURSE_SHARED_IDENTITY_INC_DIR="+sharedDir)
+		printed = buildEnv
+		fmt.Fprintln(a.out, "Note: this build compiles the fleet's private key into the image. That is")
+		fmt.Fprintln(a.out, "Note: what Tier 6 is about, and it is the only build in the course that does it.")
+	}
 	fmt.Fprintf(a.out, "+ %s ./scripts/build-zephyr-baseline.sh\n", strings.Join(printed, " "))
 	if err := runAttachedEnv(a.root, a.out, a.errOut, buildEnv,
 		"./scripts/build-zephyr-baseline.sh"); err != nil {
@@ -886,7 +904,12 @@ func (a *app) buildFirmware(args []string) error {
 			fmt.Fprintln(a.out, "That step signs the image and the Release manifest with the same key,")
 			fmt.Fprintf(a.out, "puts security counter %d in both, and publishes the release.\n", variant.securityCounter)
 		} else {
-			fmt.Fprintln(a.out, "  ./course release sign")
+			// signCommandSuffix, not a bare "./course release sign".
+			// The bare form signs Tier 3, so for Tier 5 and Tier 6 the
+			// hint named a command that would sign the wrong image. It
+			// returns "" for Tier 3, so Tier 3's published output is
+			// unchanged, and Tier 4 keeps its own branch above.
+			fmt.Fprintf(a.out, "  ./course release sign%s\n", signCommandSuffix(tier, variant))
 		}
 		return nil
 	}

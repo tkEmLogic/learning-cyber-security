@@ -299,6 +299,24 @@ config COURSE_PROVISIONING_SHELL
 	  A Learner can check both halves: type a command after enrolling and
 	  watch nothing happen.
 
+config COURSE_SHARED_SHELL
+	bool "Offer the registration interface on the shared image"
+	default y
+	depends on COURSE_IDENTITY_SHARED
+	help
+	  The before state's console interface, and the counterpart of
+	  COURSE_PROVISIONING_SHELL on the factory image.
+
+	  It is reduced by the same SHELL_MINIMAL and started by the same
+	  application decision, so the two images are compared on what they can
+	  prove rather than on how much shell they expose.
+
+	  What differs is that this one never closes. The factory image shuts its
+	  interface the moment enrollment succeeds, because enrollment is a thing
+	  that finishes. A shared image has nothing to finish: it was already the
+	  device when it was flashed, so there is no state change for an interface
+	  to close after.
+
 config COURSE_PROVISIONING_BUTTON_REOPENS
 	bool "Let the BOOT button reopen provisioning on an enrolled device"
 	default y
