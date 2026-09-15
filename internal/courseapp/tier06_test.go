@@ -5,6 +5,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"os"
@@ -391,5 +392,109 @@ func TestAStationThatCannotRecordDoesNotIssue(t *testing.T) {
 	}
 	if outcome.Issued || outcome.CertDER != nil {
 		t.Fatal("a certificate was returned although nothing could be recorded")
+	}
+}
+
+// The before state. The same proof of possession, asking a question every
+// device in the fleet knows the answer to.
+func TestSharedRegistrationAcceptsAnythingHoldingTheFleetKey(t *testing.T) {
+	a, _ := provisioningApp(t)
+	if err := coursepki.GenerateSharedIdentity(a.deviceCADir()); err != nil {
+		t.Fatal(err)
+	}
+	certDER, key, err := coursepki.LoadSharedIdentity(a.deviceCADir())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	sign := func() ([]byte, []byte) {
+		nonce, err := sharedRegistrationNonce()
+		if err != nil {
+			t.Fatal(err)
+		}
+		digest := sha256.Sum256(nonce)
+		signature, err := ecdsa.SignASN1(rand.Reader, key, digest[:])
+		if err != nil {
+			t.Fatal(err)
+		}
+		return nonce, signature
+	}
+
+	// The Learner's own board.
+	nonce, signature := sign()
+	first, err := a.registerShared("beacon-development-shared", certDER, nonce, signature)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !first.Issued {
+		t.Fatalf("the genuine device was refused: %s", first.Reason)
+	}
+
+	// The clone, on the host, holding the same extracted key. Nothing
+	// distinguishes it, which is the entire point of the tier.
+	nonce, signature = sign()
+	second, err := a.registerShared("beacon-development-shared", certDER, nonce, signature)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !second.Issued {
+		t.Fatalf("the clone was refused before hardening: %s", second.Reason)
+	}
+
+	// Two records, one fingerprint. This is the screen that teaches the tier.
+	if first.CertFingerprint != second.CertFingerprint {
+		t.Fatal("the clone somehow presented a different certificate")
+	}
+	records, err := a.readRecords()
+	if err != nil {
+		t.Fatal(err)
+	}
+	issued := 0
+	for _, record := range records {
+		if record.Kind == recordEnrollment && record.Result == "issued" {
+			issued++
+			if record.CertFingerprint != first.CertFingerprint {
+				t.Fatal("a record carries a different fingerprint")
+			}
+		}
+	}
+	if issued != 2 {
+		t.Fatalf("expected two registrations sharing one fingerprint, got %d", issued)
+	}
+}
+
+// Even before hardening the proof is real: holding the certificate is not
+// enough, you have to hold the key.
+func TestSharedRegistrationStillNeedsTheKey(t *testing.T) {
+	a, _ := provisioningApp(t)
+	if err := coursepki.GenerateSharedIdentity(a.deviceCADir()); err != nil {
+		t.Fatal(err)
+	}
+	certDER, _, err := coursepki.LoadSharedIdentity(a.deviceCADir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nonce, err := sharedRegistrationNonce()
+	if err != nil {
+		t.Fatal(err)
+	}
+	digest := sha256.Sum256(nonce)
+	signature, err := ecdsa.SignASN1(rand.Reader, other, digest[:])
+	if err != nil {
+		t.Fatal(err)
+	}
+	outcome, err := a.registerShared("beacon-development-shared", certDER, nonce, signature)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if outcome.Issued {
+		t.Fatal("registration succeeded with a signature from the wrong key")
+	}
+	if outcome.Check != "proof-of-possession" {
+		t.Fatalf("refused at %q, want proof-of-possession", outcome.Check)
 	}
 }

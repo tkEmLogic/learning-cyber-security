@@ -15,6 +15,7 @@ package coursepki
 
 import (
 	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -156,4 +157,97 @@ func subjectFor(deviceID string) pkix.Name {
 		CommonName:   deviceID,
 		Organization: []string{"Learning Cyber Security course, synthetic"},
 	}
+}
+
+// Shared development identity file names.
+//
+// One key pair and one certificate for the whole fleet. Every image built in
+// the shared variant carries this private key, which is the one place in the
+// entire course where a private key is deliberately compiled into firmware.
+//
+// It is here rather than beside the signing keys because it is not a signing
+// key: it is an identity, and the tier's argument is precisely that an identity
+// every device shares is not an identity at all.
+const (
+	SharedIdentityCert = "shared-identity.crt.pem"
+	SharedIdentityKey  = "shared-identity.key.pem"
+)
+
+// SharedIdentityName is the fleet's single common name.
+//
+// It is the identifier every tier from Tier 0 to Tier 5 has already used, so
+// the shared image reports exactly what the Learner has been seeing all along,
+// and the change at Tier 6 is visible rather than cosmetic.
+const SharedIdentityName = "beacon-development-shared"
+
+// SharedIdentityExists reports whether the fleet identity has been made.
+func SharedIdentityExists(dir string) bool {
+	_, err := os.Stat(filepath.Join(dir, SharedIdentityCert))
+	return err == nil
+}
+
+// GenerateSharedIdentity issues one Factory certificate for the whole fleet.
+//
+// It is a real Factory certificate signed by the manufacturer device CA, not a
+// weakened or self-signed one. Nothing about it is cryptographically inferior
+// to the per-device certificates that replace it, which is the lesson: what is
+// wrong with it is that there is one of it.
+func GenerateSharedIdentity(dir string) error {
+	if SharedIdentityExists(dir) {
+		return errors.New("a shared development identity already exists")
+	}
+	ca, caKey, err := LoadDeviceCA(dir)
+	if err != nil {
+		return err
+	}
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return err
+	}
+	serial, err := newSerial()
+	if err != nil {
+		return err
+	}
+	now := time.Now().UTC()
+	template := &x509.Certificate{
+		SerialNumber: serial,
+		Subject:      subjectFor(SharedIdentityName),
+		NotBefore:    now.Add(-time.Hour),
+		NotAfter:     now.Add(FactoryLifetime),
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+	}
+	der, err := x509.CreateCertificate(rand.Reader, template, ca, &key.PublicKey, caKey)
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(dir, SharedIdentityCert), certPEM(der), 0o600); err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(dir, SharedIdentityKey), keyPEM(key), 0o600)
+}
+
+// LoadSharedIdentity reads the fleet identity back.
+func LoadSharedIdentity(dir string) ([]byte, *ecdsa.PrivateKey, error) {
+	certBytes, err := os.ReadFile(filepath.Join(dir, SharedIdentityCert))
+	if err != nil {
+		return nil, nil, fmt.Errorf("no shared development identity: %w", err)
+	}
+	block, _ := pem.Decode(certBytes)
+	if block == nil {
+		return nil, nil, errors.New("shared identity certificate is not PEM")
+	}
+	keyBytes, err := os.ReadFile(filepath.Join(dir, SharedIdentityKey))
+	if err != nil {
+		return nil, nil, err
+	}
+	keyBlock, _ := pem.Decode(keyBytes)
+	if keyBlock == nil {
+		return nil, nil, errors.New("shared identity key is not PEM")
+	}
+	key, err := x509.ParseECPrivateKey(keyBlock.Bytes)
+	if err != nil {
+		return nil, nil, err
+	}
+	return block.Bytes, key, nil
 }
