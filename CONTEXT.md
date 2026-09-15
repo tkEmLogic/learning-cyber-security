@@ -74,6 +74,32 @@ A short period opened by physical action during which a device may be assigned
 to a new owner and receive a new operational identity.
 _Avoid_: Pairing mode, maintenance mode
 
+**Provisioning station**:
+The host-side authority that enrolls a device over its physical connection. It
+consumes a Bootstrap credential, checks proof of possession, issues the Factory
+certificate, and appends the provisioning record, all before anything is sent
+back to the device. It stores no private-key material.
+_Avoid_: OTA service, server
+
+**Provisioning record**:
+The append-only manufacturing record the provisioning station keeps. It records
+credential issuance and enrollment, including the certificate fingerprint and
+which credential was consumed, and never holds a private key. An entry is never
+edited or removed, including one a clone put there.
+_Avoid_: Database, key store
+
+**Proof of possession**:
+Evidence, carried inside the signed certification request, that the requester
+holds the private key whose public half the request presents. The station
+refuses a request whose proof does not verify.
+_Avoid_: Authentication, password check
+
+**Clone**:
+A copy of a shared credential used to act as the fleet it was taken from. In
+Tier 6 the Learner extracts the shared key from a firmware image and registers
+devices that were never manufactured, all under one certificate fingerprint.
+_Avoid_: Fork, duplicate device
+
 **Secure element**:
 A separate security component that generates or stores private keys and
 performs cryptographic operations without exporting those private keys. In this
