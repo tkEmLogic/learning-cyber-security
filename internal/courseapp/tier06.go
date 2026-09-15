@@ -1416,3 +1416,71 @@ func (a *app) resetClone() error {
 		Detail: "tier-06/clone-shared-identity reset: the record is append only, so the clone's entries remain above this line. Reset restores the station's operational state, not the record.",
 	})
 }
+
+// The storage partition, pinned in the flash map since Tier 0 and asserted in
+// firmware/tier-06-factory-identity/src/main.c. It holds PSA Secure Storage
+// and the Tier 5 records, and it is the only region ./course device dump reads.
+const (
+	storagePartitionOffset = "0x3b0000"
+	storagePartitionSize   = "0x030000"
+)
+
+// deviceDump reads the storage partition off the board over USB and nothing
+// else.
+//
+// It is the tool E-6-05 uses to recover the device private key at the flash
+// boundary, the one bypass in the tier that is meant to succeed. It is
+// deliberately not a general flash reader: it takes no offset, no length and no
+// output path, and reads exactly the 192 KiB storage partition at 0x3b0000, the
+// region ASSERT_PARTITION pins in main.c. A dump that accepted a range could
+// read slot 0, which carries the real Wi-Fi PSK the board was flashed with, and
+// docs/fixture-safety-contract.md exists to keep that off a course command.
+//
+// esptool leaves the chip in the ROM download loader, where the console is
+// silent and the board looks bricked, so the dump is followed by the RTS reset
+// that brings it back into its application.
+func (a *app) deviceDump(args []string) error {
+	if len(args) > 0 {
+		return fmt.Errorf(
+			"device dump takes no arguments; it reads exactly the storage partition (%s, %s) and never a range you name, because slot 0 holds the real Wi-Fi PSK",
+			storagePartitionOffset, storagePartitionSize)
+	}
+
+	device, err := a.selectSerialDevice()
+	if err != nil {
+		return err
+	}
+	workspace := a.zephyrWorkspace()
+	esptool := filepath.Join(workspace, ".venv", "bin", "esptool")
+	board := a.manifest.Devices["reference_beacon"].Board
+
+	dumpDir := filepath.Join(a.root, a.manifest.Paths.GeneratedArtifacts, "dumps")
+	if err := os.MkdirAll(dumpDir, 0o700); err != nil {
+		return err
+	}
+	out := filepath.Join(dumpDir, "storage.bin")
+
+	fmt.Fprintf(a.out, "Reading the storage partition only: %s bytes at %s.\n", storagePartitionSize, storagePartitionOffset)
+	fmt.Fprintln(a.out, "This is the region that holds Secure Storage and the Tier 5 records. It is")
+	fmt.Fprintln(a.out, "not the whole flash: slot 0 carries the Wi-Fi PSK this board was flashed")
+	fmt.Fprintln(a.out, "with, and a course tool has no reason to read that back off the device.")
+	fmt.Fprintf(a.out, "+ %s --chip %s -p %s read-flash %s %s <out>\n", esptool, espChip(board), device, storagePartitionOffset, storagePartitionSize)
+
+	if err := runAttachedFrom(a.root, workspace, a.out, a.errOut,
+		[]string{"PATH=" + filepath.Join(workspace, ".venv", "bin") + string(os.PathListSeparator) + os.Getenv("PATH")},
+		esptool, "--chip", espChip(board), "-p", device, "read-flash",
+		storagePartitionOffset, storagePartitionSize, out); err != nil {
+		return err
+	}
+
+	info, err := os.Stat(out)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(a.out, "Result: wrote %s (%d bytes).\n", a.relative(out), info.Size())
+
+	// esptool left the part in the ROM loader. Bring it back before returning,
+	// so the board is not left looking bricked.
+	fmt.Fprintln(a.out, "esptool leaves the chip in the ROM download loader. Pulsing RTS to restart it:")
+	return a.deviceReset()
+}

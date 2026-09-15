@@ -682,3 +682,14 @@ func TestCloneRefusesWithNothingToTakeOver(t *testing.T) {
 		t.Fatalf("expected a refusal with nothing to take over, got %v", err)
 	}
 }
+
+// device dump reads exactly the storage partition. It must refuse any argument,
+// because a dump that accepted a range or a path would be a general flash
+// reader that could pull slot 0, where the real Wi-Fi PSK lives.
+func TestDeviceDumpRefusesArguments(t *testing.T) {
+	a, _ := provisioningApp(t)
+	err := a.deviceDump([]string{"0x0", "0x400000", "whole-flash.bin"})
+	if err == nil || !strings.Contains(err.Error(), "takes no arguments") {
+		t.Fatalf("expected a refusal of the supplied range, got %v", err)
+	}
+}

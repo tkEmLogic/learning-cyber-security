@@ -477,6 +477,6 @@ A rule with no named enforcement point is a wish. This table says where each rul
 | Extraction takes no Learner-supplied path, and prints a fingerprint rather than the key | `provisionExtract` in `internal/courseapp/tier06.go`, reading the image named in `course.yml` | Enforced |
 | The clone takes the identifier it impersonates from the manufacturing record, and its invented identifiers from a bounded manifest list | `cloneSharedIdentity` in `internal/courseapp/tier06.go`, reading `phantom_ids` from `course.yml` | Enforced |
 | The clone's reset appends and never deletes | `resetClone` in `internal/courseapp/tier06.go`, wired into `resetFixtureState` | Enforced |
-| A flash dump is bounded to the `storage` partition and followed by the RTS reset | the dump command | Owed by [Validate every Tier 6 outcome on the board](https://github.com/tkEmLogic/learning-cyber-security/issues/124) |
+| A flash dump is bounded to the `storage` partition and followed by the RTS reset | `deviceDump` in `internal/courseapp/tier06.go`, which takes no range and reads only `0x3b0000`,`0x030000` before pulsing RTS | Enforced |
 
 When a rule moves, this table moves with it.
