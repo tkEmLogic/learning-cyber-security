@@ -38,4 +38,28 @@ while IFS= read -r file; do
 	fi
 done <<< "$files"
 
+# Anchor includes are placeholders in the repository and are generated at build
+# time into ignored state. A tracked one carrying a byte list means a generated
+# file was committed over a placeholder, and from Tier 6 one of those files
+# holds a private key.
+#
+# This is the enforcement point for the compiled-in credential exception in
+# docs/fixture-safety-contract.md. The exception permits the key to reach one
+# firmware build; it does not permit the key to reach the repository, and a
+# rule with no enforcement point is a wish.
+#
+# It catches a committed trust anchor and a committed release public key by the
+# same rule, because none of the three belongs in a commit.
+while IFS= read -r file; do
+	[[ -z "$file" ]] && continue
+	case "$file" in
+	*/anchor/*.inc) ;;
+	*) continue ;;
+	esac
+	if grep -qE '0x[0-9a-fA-F]{2},' "$file"; then
+		printf 'Anchor include %s carries a byte list. Generated anchors belong in ignored state, never in a commit.\n' "$file" >&2
+		exit 1
+	fi
+done <<< "$files"
+
 printf 'Secret checks passed.\n'
