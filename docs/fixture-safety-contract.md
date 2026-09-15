@@ -1,6 +1,6 @@
 # Fixture safety contract
 
-Status: Resolved design. Tier 0 rules are from the first runnable course release. Tier 2, Tier 3 and Tier 4 rules extend them without weakening any of them.
+Status: Resolved design. Tier 0 rules are from the first runnable course release. Tier 2, Tier 3, Tier 4 and Tier 6 rules extend them. Tier 6 is the first to carry a named exception rather than only additions, and it is bounded in the section that takes it.
 
 This contract lets a Learner demonstrate insecure behavior, and later watch a control refuse it, without turning a course fixture into a general network attack tool.
 
@@ -116,6 +116,8 @@ Every private key the course generates lives only under `.course-secrets/`. That
 
 A private key is never committed, never copied into `artifacts/generated/`, never written into an evidence record, and never named by a firmware build command.
 
+**Tier 6 takes one bounded exception to the last two clauses and nothing else takes any.** One throwaway credential, the shared development identity, is compiled into one firmware variant so that a Learner can extract it from an image they built themselves, which means a firmware build command names it and the built image is key material while it exists. The bound is written out in "Tier 6 fixtures" below, and it is enforced rather than only stated: `scripts/check-secrets.sh` refuses a tracked anchor include that carries a byte list, which is the shape a committed key would take. Every other clause holds unchanged for every tier, including Tier 6.
+
 The last clause is new at Tier 3 and it is deliberate. MCUboot's default is to read the public half out of the private key file at build time, which would put the Release signing key into the firmware build. The course extracts the public half once with `imgtool getpub`, and the bootloader build reads only that.
 
 The two Tier 3 signing keys are made by the same command and are cryptographically identical. Only their names separate them. That is the lesson, so the course does not hide it behind two different generation paths, and every command that signs prints the fingerprint of the key it used.
@@ -222,6 +224,175 @@ Both are options on the real service, exactly as `--present untrusted` is, and b
 
 Neither mode can claim the device did anything. Host validation may prove the service answered badly. Only the physical ESP32-C6 can show a download resuming, an image being refused, or a trial being reverted.
 
+## Tier 6 fixtures
+
+These rules bind the fixture Tier 6 will add, before it is written, following the
+Tier 2 precedent above.
+
+Tier 6 adds two pieces of Learner-facing machinery and **only one of them is a
+fixture**. That distinction is the first rule here, because getting it wrong in
+either direction is a real cost: machinery on something that needs none implies
+a check happened, and no machinery on something that changes shared state
+removes the guardrail that matters.
+
+**Extraction is an ordinary `./course` command, not a fixture.** It reads the
+Learner's own built shared identity image, finds the credential compiled into
+it, and reports it. It has no target, opens no socket, and changes no service
+state, so target validation, the marker handshake and a reset would guard
+nothing while implying a marker check had happened. This is the same reading
+that made Tier 5 record having no attack fixture: the contract exists to stop
+fixtures claiming refusals they did not see, not to require one per tier.
+
+**The extraction command takes no path.** It derives the image it reads from the
+manifest, the same way every other mutable input is derived, and it accepts no
+file name on the command line. A command that searched any binary a Learner
+named would be a general-purpose key-recovery tool wearing a course label, and
+this contract exists precisely to keep the course from shipping one. It reads
+one manifest-named image or it refuses.
+
+**The extraction command prints a fingerprint and never the key.** It narrates
+what it searched for, where it found it, and what that means, because a command
+that prints `Result: key extracted` teaches nothing. The evidence record carries
+the fingerprint only, exactly as every other record carries hashes rather than
+contents.
+
+**The clone is a fixture**, and its target is the provisioning station and the
+manufacturing record rather than the OTA service. It keeps every Tier 0
+guarantee, including the marker handshake, even though it opens no socket to do
+its work. The handshake is about which environment a fixture may act in, not
+about which socket it opens, and a fixture that appends to a manufacturing
+record is acting on shared state whether or not a packet leaves the host.
+
+| Fixture | Permitted action | Refused behavior |
+| --- | --- | --- |
+| `tier-06/clone-shared-identity` | Extract the fleet credential from the Learner's own manifest-named shared image, and use it to answer the station's nonce, twice: once under an identifier the manufacturing record already holds, and once for each manifest-owned identifier that was never manufactured. Record every request and every answer. | A Learner-supplied image path, identifier, or count. An identifier that this Course environment's station never issued and that the manifest does not name. Acting without the matching marker. Writing to any store other than the manufacturing record. |
+
+The identifier it takes over is read **from the manufacturing record itself**,
+never from the command line, so the clone can only impersonate a device this
+Course environment actually manufactured. The identifiers it invents come from a
+manifest-owned list of a fixed length. An unbounded loop appending to a file is
+not a demonstration of scale, it is a way to fill a disk.
+
+### One credential is deliberately compiled into firmware
+
+This is the one place in the entire course where a private key reaches a
+firmware build, and it breaks the key material rule that has held since Tier 3.
+The exception is bounded, and the bound is written here rather than left to be
+inferred, because the next reader will otherwise take it as the rule relaxing.
+
+The exception covers **one credential and no other**: the shared development
+identity in `.course-secrets/pki/shared-identity.key.pem`, generated locally by
+`./course keys create shared-identity`, never committed, used by nothing except
+the Tier 6 shared image and the clone fixture, and trusted by nothing except the
+provisioning station's own record of it. It signs no firmware, authorizes no
+release, and is not in any trust store.
+
+It exists because a credential a Learner cannot extract from their own image
+cannot teach why shared credentials fail. A tier that asserted the problem
+instead of handing them the key would be teaching the conclusion rather than the
+mechanism.
+
+Everything else about the key material rules holds unchanged. The Release
+signing key is still named by `./course release sign` and `./course release
+hostile` and by nothing else. The device CA's private half is named only by the
+provisioning station. No firmware build command names either of them.
+
+Two consequences follow and both are stated rather than hidden:
+
+- **The build environment variable is set for the shared variant only.** The
+  factory build does not have the key on its include path at all, which is a
+  stronger statement than "it does not include it" and is checkable: the SEC1
+  structure appears in the shared image and its scalar appears nowhere in the
+  factory one.
+- **The built shared image is key material.** `artifacts/generated/releases/`
+  and the Zephyr build tree hold a private key while that image exists, so the
+  rule that private keys live only under `.course-secrets/` gains its one named
+  exception here. Both directories are already ignored, and the image is
+  regenerated rather than kept.
+
+### What the clone's reset restores, and what it cannot
+
+**The manufacturing record is append only, so the clone's reset does not remove
+what the clone wrote, and must not be made able to.**
+
+Append-only is not an implementation detail of the record, it is the property
+that makes the station's central claim true: a credential is consumed and a
+certificate is recorded in one write, so nothing ever leaves the station that
+the record does not already contain. A reset that deleted lines would make the
+store mutable, and the claim would quietly stop being true for the sake of
+tidying up after a fixture.
+
+So reset **appends**. It writes one `fixture_reset` entry naming the run and the
+entries that run produced, and `./course provision record` shows it in place, in
+order, beside them. The phantom devices stay in the record forever.
+
+That is the finding, not a limitation of the tooling. A cloned credential's
+damage to a manufacturing record is not reversible by the party who discovers
+it, and the fixture that ends by admitting it cannot undo itself teaches more
+than one that pretends it can.
+
+This narrows one promise the general reset contract makes above, and the
+narrowing is deliberate:
+
+- The general rule says reset "restores the known state". For this fixture the
+  known state of the record cannot be restored, and reset restores the station's
+  operational state instead, which is the absence of a transaction in flight.
+  There is nothing else it touched.
+- The rule refusing the next run until reset has succeeded still holds, and the
+  `fixture_reset` entry is what satisfies it.
+- A Learner who wants the record empty again discards the whole Course
+  environment with the existing cleanup path. That is an environment reset, not
+  a fixture reset, and the contract does not let a fixture reach for it.
+
+### Reading the board's flash
+
+Tier 6 is the first tier that tells a Learner to read their own device's flash,
+so it gets a rule rather than an assumption.
+
+**The dump is bounded to the `storage` partition.** That partition holds the PSA
+Secure Storage record and Tier 5's resume records and nothing else. Reading it
+demonstrates everything the tier needs: the device's private key is in there,
+encrypted with a key derived from a value the device broadcasts. Reading the
+whole flash would additionally copy the Wi-Fi credentials compiled into the
+application image, which are the Learner's real network and not synthetic, and
+the tier gains nothing by it.
+
+**A dump is key material and is treated as such.** It contains the device's
+Factory private key in a form the module then decrypts on purpose. It is written
+under `artifacts/generated/`, which is ignored, it is never committed, and the
+evidence record names its hash rather than its contents.
+
+This is a named exception to the capture rule above, which says a capture never
+contains a live credential because the lab holds none. A storage-partition dump
+does contain one. The difference is that a capture observes a network the course
+does not own, while a dump reads a disposable board the Learner provisioned two
+commands ago, and the credential in it is one this Course environment generated
+for the purpose.
+
+**`esptool` leaves the chip in ROM download mode after a dump**, where the
+application never runs and the console is silent, which looks exactly like a
+board the Learner has broken. Any command that dumps flash follows it with the
+reset that pulses RTS, and says it is doing so.
+
+### Manifest entries these read
+
+Every mutable input stays allowlisted, so both pieces of machinery read the
+manifest and nothing else.
+
+| Entry | Read by | For |
+| --- | --- | --- |
+| `fixtures.tier-06/clone-shared-identity.target`, `.interface` | the clone | the marker handshake and interface check, unchanged from Tier 0 |
+| `fixtures.tier-06/clone-shared-identity.image` | the clone and the extraction command | which built image the credential is taken from, so no path is ever supplied |
+| `fixtures.tier-06/clone-shared-identity.phantom_ids` | the clone | the fixed list of never-manufactured identifiers, so the count is bounded and the names are not invented at run time |
+| `fixtures.tier-06/clone-shared-identity.changes`, `.reset`, `.hardware_required` | the runner | the standard dry-run disclosure and reset path |
+| `paths.state`, `paths.generated_artifacts` | both | where the record and the evidence live |
+
+The clone is `hardware_required: false`. It runs entirely on the host, and that
+is the lesson rather than a compromise forced by owning one board: a copied
+credential does not need the hardware it was copied from. What it may not claim
+is anything about a board, and the refusal it produces after hardening is the
+station's own.
+
 ## Capture rules
 
 A fixture may capture traffic only under these bounds.
@@ -272,7 +443,7 @@ The fixture exits nonzero and names the failed check.
 
 It never falls back to a weaker target check, a wider address scope, a default device, or an unrestricted command.
 
-Sources: [Define the Tier 0 fixture safety contract](https://github.com/tkEmLogic/learning-cyber-security/issues/24) for the Tier 0 rules, [Extend the fixture safety contract to HTTPS and a named service](https://github.com/tkEmLogic/learning-cyber-security/issues/41) for the transport, service name, and capture rules, [Extend the fixture safety contract to hostile firmware images and signing keys](https://github.com/tkEmLogic/learning-cyber-security/issues/53) for the key material and Tier 3 rules, and [What does the fixture safety contract need for Tier 4?](https://github.com/tkEmLogic/learning-cyber-security/issues/70) for the manifest signing and replay rules.
+Sources: [Define the Tier 0 fixture safety contract](https://github.com/tkEmLogic/learning-cyber-security/issues/24) for the Tier 0 rules, [Extend the fixture safety contract to HTTPS and a named service](https://github.com/tkEmLogic/learning-cyber-security/issues/41) for the transport, service name, and capture rules, [Extend the fixture safety contract to hostile firmware images and signing keys](https://github.com/tkEmLogic/learning-cyber-security/issues/53) for the key material and Tier 3 rules, [What does the fixture safety contract need for Tier 4?](https://github.com/tkEmLogic/learning-cyber-security/issues/70) for the manifest signing and replay rules, and [Write the Tier 6 section of the fixture safety contract](https://github.com/tkEmLogic/learning-cyber-security/issues/122) for the compiled-in credential exception, the append-only reset, and the flash dump rules.
 
 ## Where each rule is enforced
 
@@ -299,5 +470,13 @@ A rule with no named enforcement point is a wish. This table says where each rul
 | Hostile release chosen by manifest selector only | the attack runner, against `releases` in `course.yml` | Enforced |
 | The replay names only a release this environment produced, and edits nothing | `goodReleases` and `tier04ReplayRelease` in `internal/courseapp/tier04.go` | Enforced |
 | The replay states the primary-slot precondition it cannot witness | `tier04ReplayRelease` in `internal/courseapp/tier04.go` | Enforced |
+| No tracked anchor include carries a byte list, which is how a compiled-in key would be committed | `scripts/check-secrets.sh`, wired into `scripts/verify-tier-00.sh` | Enforced |
+| The fleet private key reaches the shared variant only, and the factory build never has it on its include path | `buildFirmware` in `internal/courseapp/app.go`, which sets `COURSE_SHARED_IDENTITY_INC_DIR` only when `variant.identityModel` is `shared` | Enforced |
+| The fleet key is written to generated state, never to the repository | `writeSharedIdentityInc` in `internal/courseapp/tier06.go`, and `.gitignore` | Enforced |
+| The manufacturing record never contains private key material | `writeRecord` in `internal/courseapp/tier06.go`, which refuses rather than trusting callers | Enforced |
+| Extraction takes no Learner-supplied path, and prints a fingerprint rather than the key | the extraction command, against `fixtures` in `course.yml` | Owed by [Build the Tier 6 clone fixture and the extraction command](https://github.com/tkEmLogic/learning-cyber-security/issues/123) |
+| The clone takes the identifier it impersonates from the manufacturing record, and its invented identifiers from a bounded manifest list | the clone fixture, against `fixtures` in `course.yml` | Owed by [Build the Tier 6 clone fixture and the extraction command](https://github.com/tkEmLogic/learning-cyber-security/issues/123) |
+| The clone's reset appends and never deletes | the clone fixture's reset, writing a `fixture_reset` record | Owed by [Build the Tier 6 clone fixture and the extraction command](https://github.com/tkEmLogic/learning-cyber-security/issues/123) |
+| A flash dump is bounded to the `storage` partition and followed by the RTS reset | the dump command | Owed by [Validate every Tier 6 outcome on the board](https://github.com/tkEmLogic/learning-cyber-security/issues/124) |
 
 When a rule moves, this table moves with it.
