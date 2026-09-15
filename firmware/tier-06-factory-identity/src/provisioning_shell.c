@@ -41,6 +41,13 @@ static bool provisioning_open;
 
 void course_provisioning_open(void)
 {
+	/* Idempotent, because the button can be held long enough to reopen an
+	 * interface that is already listening, and restarting the shell under
+	 * itself is not something to find out about later.
+	 */
+	if (provisioning_open) {
+		return;
+	}
 	provisioning_open = true;
 	shell_start(shell_backend_uart_get_ptr());
 }
@@ -68,8 +75,14 @@ static void close_work_handler(struct k_work *work)
 
 	shell_stop(shell_backend_uart_get_ptr());
 	printk("provision.closed the provisioning interface is no longer listening\n");
-	printk("provision.closed type a command and watch nothing happen. Hold BOOT at reset\n");
-	printk("provision.closed to reopen it deliberately.\n");
+#ifdef CONFIG_COURSE_PROVISIONING_BUTTON_HOLD_SECONDS
+	printk("provision.closed type a command and watch nothing happen. Hold BOOT for %d\n",
+	       CONFIG_COURSE_PROVISIONING_BUTTON_HOLD_SECONDS);
+	printk("provision.closed seconds to reopen it deliberately. No reset is needed.\n");
+#else
+	printk("provision.closed type a command and watch nothing happen. This device\n");
+	printk("provision.closed cannot be reopened without erasing and reflashing it.\n");
+#endif
 }
 
 static K_WORK_DEFINE(close_work, close_work_handler);
