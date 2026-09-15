@@ -500,7 +500,7 @@ Come prepared to show one success and one failure, to explain which trust bounda
 
 ## Continue
 
-Tier 6 replaces the shared development identity with a per-device factory identity. Your device can now recover from a bad release; it still claims the same name as every other device you own.
+**[Tier 6: Replace shared identity with per-device factory identity](../tier-06-factory-identity/index.md)** replaces the shared development identity with a per-device factory identity. Your device can now recover from a bad release; it still claims the same name as every other device you own, and that name travels inside every image anyone can copy. Tier 6 has you clone the shared credential to prove the point, then generate a key on the device itself.
 
 Start it from a device running a confirmed image.
 

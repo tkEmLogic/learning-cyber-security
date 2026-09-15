@@ -507,9 +507,12 @@ verification:
       # service stored it, 9 events under the identifier against the shared one
       # (#118), and the manufacturing record stored the #124 remanufacture id.
       device_reports_identifier_service_stores_it: validated
-      # The shell closes on enrollment and reopens only when the BOOT button is
-      # held at reset. Both seen in #124: the provisioned board answered nothing
-      # until BOOT was held, which opened the shell to run E-6-04 and the erase.
+      # The shell closes on enrollment and reopens on a deliberate BOOT-button
+      # long press, in place, with no reset. #128 replaced reset-time sampling,
+      # which could not work cleanly because sw0 is the GPIO9 strapping pin.
+      # Validated on the rebuilt firmware: a ten second hold on the provisioned
+      # board reopened the interface, and provision export then answered on a
+      # board that says nothing until it is reopened.
       shell_closes_after_enrollment: validated
       boot_button_reopens_shell: validated
       # The factory image boots unprovisioned, opens the shell itself, and makes
@@ -693,7 +696,7 @@ tiers:
     title: Replace shared identity with per-device factory identity
     kind: lifecycle
     track: core
-    status: planned
+    status: implemented
     start_checkpoint: course-v1.0-tier-05-complete
     complete_checkpoint: course-v1.0-tier-06-complete
     module: course-material/tiers/tier-06-factory-identity/index.md
