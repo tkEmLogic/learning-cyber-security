@@ -498,3 +498,187 @@ func TestSharedRegistrationStillNeedsTheKey(t *testing.T) {
 		t.Fatalf("refused at %q, want proof-of-possession", outcome.Check)
 	}
 }
+
+// buildSharedImageStub writes a fake "image": a blob with the fleet's SEC1
+// private key and its certificate embedded in it, surrounded by noise, so
+// extraction has something to search that looks like a firmware image rather
+// than a key file. It returns the shared cert DER for the test to compare
+// against.
+func buildSharedImageStub(t *testing.T, a *app) []byte {
+	t.Helper()
+	if err := coursepki.GenerateSharedIdentity(a.deviceCADir()); err != nil {
+		t.Fatal(err)
+	}
+	certDER, key, err := coursepki.LoadSharedIdentity(a.deviceCADir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	keyDER, err := x509.MarshalECPrivateKey(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Noise, then the key, more noise, then the certificate, more noise. The
+	// order is deliberately key-before-cert and not adjacent, so the test
+	// proves the certificate is found by matching the key rather than by
+	// sitting next to it.
+	noise := make([]byte, 4096)
+	if _, err := rand.Read(noise); err != nil {
+		t.Fatal(err)
+	}
+	var image []byte
+	image = append(image, noise...)
+	image = append(image, keyDER...)
+	image = append(image, noise...)
+	image = append(image, certDER...)
+	image = append(image, noise...)
+
+	dir := filepath.Join(a.root, a.manifest.Paths.GeneratedArtifacts, "releases")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "tier-06-shared-identity.bin"), image, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return certDER
+}
+
+func TestExtractionFindsTheFleetKeyAndCertificateInAnImage(t *testing.T) {
+	a, _ := provisioningApp(t)
+	a.manifest.Paths.GeneratedArtifacts = "artifacts/generated"
+	a.manifest.Fixtures = map[string]fixture{
+		"tier-06/clone-shared-identity": {Image: "tier-06-shared-identity.bin"},
+	}
+	certDER := buildSharedImageStub(t, a)
+
+	image, err := os.ReadFile(func() string { p, _ := a.sharedImagePath(); return p }())
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundCert, key, offset, err := extractSharedIdentity(image)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if offset < 0 || key == nil {
+		t.Fatal("the key was not located")
+	}
+	if !bytes.Equal(foundCert, certDER) {
+		t.Fatal("the certificate found by matching the key is not the fleet certificate")
+	}
+	// The public half of the extracted key must be the certificate's key, which
+	// is the whole basis for using it to impersonate the fleet.
+	cert, err := x509.ParseCertificate(foundCert)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !key.PublicKey.Equal(cert.PublicKey) {
+		t.Fatal("the extracted key does not match the certificate")
+	}
+}
+
+// The extraction command must refuse a Learner-supplied path. A command that
+// read any named file would be a general-purpose key-recovery tool.
+func TestExtractionRefusesASuppliedPath(t *testing.T) {
+	a, _ := provisioningApp(t)
+	err := a.provisionExtract([]string{"--image", "/etc/shadow"})
+	if err == nil || !strings.Contains(err.Error(), "takes no path") {
+		t.Fatalf("expected a refusal of the supplied path, got %v", err)
+	}
+}
+
+// The clone registers a duplicate and phantoms under one credential, and its
+// reset appends rather than deletes.
+func TestCloneRegistersDuplicatesAndPhantomsThenResetAppends(t *testing.T) {
+	a, _ := provisioningApp(t)
+	a.manifest.Paths.GeneratedArtifacts = "artifacts/generated"
+	a.manifest.Fixtures = map[string]fixture{
+		"tier-06/clone-shared-identity": {
+			Image:      "tier-06-shared-identity.bin",
+			PhantomIDs: []string{"beacon-phantom-0001", "beacon-phantom-0002"},
+		},
+	}
+	certDER := buildSharedImageStub(t, a)
+	fingerprint := certFingerprint(certDER)
+
+	// A real device registers first, so the clone has an identity to take over.
+	_, key, err := coursepki.LoadSharedIdentity(a.deviceCADir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := a.cloneRegister("beacon-development-shared", certDER, key); err != nil {
+		t.Fatal(err)
+	}
+
+	observed, limitation, hashes, err := a.cloneSharedIdentity(environment{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if limitation != "" {
+		t.Fatalf("the clone runs on the host and claims nothing about a board, got limitation %q", limitation)
+	}
+	if hashes["shared-identity-certificate"] != fingerprint {
+		t.Fatal("the evidence does not carry the shared certificate fingerprint")
+	}
+	if !strings.Contains(observed, "no board") {
+		t.Fatalf("observed effect should say no board was involved: %q", observed)
+	}
+
+	records, err := a.readRecords()
+	if err != nil {
+		t.Fatal(err)
+	}
+	shared, phantom, resets := 0, 0, 0
+	for _, r := range records {
+		switch {
+		case r.Kind == recordEnrollment && r.DeviceID == "beacon-development-shared" && r.Result == "issued":
+			shared++
+			if r.CertFingerprint != fingerprint {
+				t.Fatal("a shared entry carries a different fingerprint")
+			}
+		case r.Kind == recordEnrollment && strings.HasPrefix(r.DeviceID, "beacon-phantom-") && r.Result == "issued":
+			phantom++
+		case r.Kind == recordFixtureReset:
+			resets++
+		}
+	}
+	// Two entries under one identifier: the real registration and the clone's.
+	if shared != 2 {
+		t.Fatalf("expected 2 shared-identifier entries, got %d", shared)
+	}
+	if phantom != 2 {
+		t.Fatalf("expected 2 phantom entries, got %d", phantom)
+	}
+
+	// Reset appends and never deletes.
+	before := len(records)
+	if err := a.resetClone(); err != nil {
+		t.Fatal(err)
+	}
+	after, err := a.readRecords()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(after) != before+1 {
+		t.Fatalf("reset should append exactly one record, went from %d to %d", before, len(after))
+	}
+	if after[len(after)-1].Kind != recordFixtureReset {
+		t.Fatal("the appended record is not a fixture_reset")
+	}
+	if resets != 0 {
+		t.Fatal("no fixture_reset should have existed before reset was called")
+	}
+}
+
+// The clone refuses when no device has registered with the credential yet,
+// rather than inventing an identifier to take over.
+func TestCloneRefusesWithNothingToTakeOver(t *testing.T) {
+	a, _ := provisioningApp(t)
+	a.manifest.Paths.GeneratedArtifacts = "artifacts/generated"
+	a.manifest.Fixtures = map[string]fixture{
+		"tier-06/clone-shared-identity": {Image: "tier-06-shared-identity.bin"},
+	}
+	buildSharedImageStub(t, a)
+	_, _, _, err := a.cloneSharedIdentity(environment{})
+	if err == nil || !strings.Contains(err.Error(), "no device has registered") {
+		t.Fatalf("expected a refusal with nothing to take over, got %v", err)
+	}
+}

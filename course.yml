@@ -231,6 +231,29 @@ fixtures:
     reset: ./course attack reset tier-02/name-mismatch
     hardware_required: false
 
+  # Tier 6 clones the shared development identity. The one fixture reads the
+  # credential out of the Learner's own built shared image and acts as the
+  # fleet against the provisioning station, with no board involved: a copied
+  # credential does not need the hardware it was copied from. Its target is the
+  # manufacturing record, not a firmware image, and its reset appends rather
+  # than deletes because the record is append only by design. See
+  # docs/fixture-safety-contract.md, "Tier 6 fixtures".
+  tier-06/clone-shared-identity:
+    tier: "06"
+    target: http://127.0.0.1:8080
+    interface: loopback
+    expected_effect: The fleet credential, extracted from the Learner's own shared image, registers a second entry under an identifier the record already holds and several devices that were never manufactured, all under one certificate fingerprint.
+    image: tier-06-shared-identity.bin
+    phantom_ids:
+      - beacon-phantom-0001
+      - beacon-phantom-0002
+      - beacon-phantom-0003
+    changes:
+      - .course-state/provisioning/records.jsonl
+      - artifacts/generated/attacks/tier-06/clone-shared-identity
+    reset: ./course attack reset tier-06/clone-shared-identity
+    hardware_required: false
+
 evidence:
   schema_version: 1
   tier_00:
