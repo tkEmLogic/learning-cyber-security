@@ -113,6 +113,14 @@ int recovery_download_clear(void);
  */
 int recovery_trial_read(const char *release_id, uint32_t *attempts);
 
+/* Reads the trial record as stored, whichever release it belongs to.
+ *
+ * Needed because a device that has just reverted after a crash or a hang has
+ * no failure reason to read, and the only remaining evidence that a trial
+ * happened at all is a trial record naming a release it is not running.
+ */
+int recovery_trial_peek(struct trial_record *record);
+
 /* Records that a trial of this release is about to begin, and reports the
  * attempt number it is. Starting a different release forgets the previous
  * one's count.

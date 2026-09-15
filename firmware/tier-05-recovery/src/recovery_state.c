@@ -162,6 +162,11 @@ int recovery_trial_read(const char *release_id, uint32_t *attempts)
 	return 0;
 }
 
+int recovery_trial_peek(struct trial_record *record)
+{
+	return read_record(RECOVERY_NVS_TRIAL, record, sizeof(*record));
+}
+
 int recovery_trial_begin(const char *release_id, uint32_t *attempt)
 {
 	struct trial_record record;

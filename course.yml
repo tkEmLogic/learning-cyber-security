@@ -428,6 +428,13 @@ verification:
       bounded_retry_stops_repeated_failure: validated
       network_loss_does_not_fail_health_gate: validated
       network_loss_causes_no_revert_loop: validated
+      # The trial reaches its verdict with no network, by design, so the event
+      # is queued and sent once the link is up. Both were observed reaching the
+      # service, and a revert names the running release with the failed one in
+      # the detail rather than the other way round.
+      confirmation_reported_after_link_returns: validated
+      revert_reported_after_link_returns: validated
+      revert_without_reason_still_reported: validated
       # Section 6's claim, checked in MCUboot's source during charting and then
       # on the board: check_downgrade_prevention() runs only for TEST and PERM
       # swaps, so a revert never passes through it.
