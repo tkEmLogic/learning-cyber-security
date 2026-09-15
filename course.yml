@@ -431,7 +431,13 @@ verification:
       # Section 6's claim, checked in MCUboot's source during charting and then
       # on the board: check_downgrade_prevention() runs only for TEST and PERM
       # swaps, so a revert never passes through it.
-      revert_not_blocked_by_downgrade_prevention: validated_at_equal_counter
+      #
+      # Observed with the crash release at counter 4 reverting to a confirmed
+      # image at counter 3, three times. Equal counters would not have tested
+      # anything: prevention refuses only when the primary counter is strictly
+      # greater, so at 3 against 3 it would not fire even if a revert did pass
+      # through it.
+      revert_not_blocked_by_downgrade_prevention: validated
       reset_during_swap_recovers: validated
       # Not reached. See the resolution on issue #97 for what was and was not
       # covered, and why these are honest gaps rather than passing rows.

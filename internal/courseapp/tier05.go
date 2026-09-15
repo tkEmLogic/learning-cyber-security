@@ -87,13 +87,28 @@ var tier05Variants = map[string]firmwareVariant{
 		securityCounter: tier05SecurityCounter,
 		trialBehaviour:  "healthy",
 	},
+	// The crash release is the one that raises the counter, and it is the
+	// only one that does.
+	//
+	// Every other release here carries the same counter so that the trial
+	// path is what is being tested rather than Tier 4's downgrade control.
+	// This one is deliberately different, because a revert from it goes
+	// backwards: the primary slot holds counter 4 and the image being
+	// restored holds 3.
+	//
+	// That is the only arrangement that actually tests section 6's claim
+	// that a failed trial can revert without a newer counter making the old
+	// image ineligible. MCUboot's check_downgrade_prevention() refuses when
+	// the primary counter is strictly greater than the candidate's, so with
+	// equal counters it would not fire even if a revert did pass through it.
+	// Proving the exemption needs a revert that would otherwise be refused.
 	"crash": {
 		releaseID:       "tier-05-crash",
 		label:           "crash",
 		beaconState:     "steady",
 		version:         "0.5.1-crash",
 		imageName:       "tier-05-crash.bin",
-		securityCounter: tier05SecurityCounter,
+		securityCounter: tier05SecurityCounter + 1,
 		trialBehaviour:  "crash",
 	},
 	"hang": {
