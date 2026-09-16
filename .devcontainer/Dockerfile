@@ -25,7 +25,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         device-tree-compiler \
         dfu-util \
         file \
-        gcc-multilib \
         git \
         gperf \
         libmagic1 \
@@ -43,6 +42,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         wget \
         xz-utils \
     && rm -rf /var/lib/apt/lists/*
+
+# gcc-multilib is the one package in Zephyr's list that does not exist outside
+# x86. It provides 32-bit x86 support libraries, there is no arm64 candidate,
+# and asking for it there fails the whole apt-get with "has no installation
+# candidate". Zephyr's own getting-started guide says to skip the multilib
+# packages on other architectures.
+#
+# Nothing in this course needs it for the ESP32-C6, which is RISC-V and builds
+# with the Zephyr SDK toolchain rather than the host compiler. It is kept on
+# amd64 so that image stays exactly what it was, rather than dropped from both.
+RUN if [ "$(dpkg --print-architecture)" = "amd64" ]; then \
+        apt-get update \
+        && apt-get install -y --no-install-recommends gcc-multilib \
+        && rm -rf /var/lib/apt/lists/*; \
+    fi
 
 # Go, for the ./course dispatcher's helpers and the OTA service.
 ARG GO_VERSION=1.23.4
