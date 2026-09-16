@@ -113,12 +113,16 @@ This means your own machine needs almost nothing.
 
 ### What you install on your machine
 
-| You need | Linux | macOS and Windows |
-| --- | --- | --- |
-| A container engine | Podman | Docker Desktop |
-| An editor | VS Code with the Dev Containers extension | The same |
+| You need | Linux | macOS | Windows |
+| --- | --- | --- | --- |
+| A container engine | Podman | Podman Desktop | Podman Desktop |
+| An editor | VS Code with the Dev Containers extension | The same | The same |
 
 Nothing else. No Go, no Python, no Zephyr, no CMake.
+
+The course uses Podman and not Docker. Docker Desktop is not free for company use above a small size threshold, and this course is taken at work. Podman Desktop carries no such condition. On Windows and macOS, Podman Desktop installs Podman and sets up the small Linux virtual machine that runs the containers.
+
+You do not build the container image. The course publishes it, and your machine downloads it the first time you open the repository. Building it took several minutes and produced the same result on every machine.
 
 [devcontainers/cli](https://github.com/devcontainers/cli) can open the same container without VS Code. The course does not claim it works, because the course has not tested it.
 
@@ -126,15 +130,15 @@ Nothing else. No Go, no Python, no Zephyr, no CMake.
 
 You can build the firmware, run the local update service, and run every Tier 0 attack on Linux, macOS, and Windows.
 
-Flashing a physical ESP32-C6 and reading its serial output need a Linux machine. macOS cannot pass a USB device into the container engine, and Windows would need extra tooling that this course has not tested.
+Flashing a physical ESP32-C6 and reading its serial output need a Linux machine. macOS cannot pass a USB device into the Podman virtual machine, and Windows would need extra tooling that this course has not tested.
 
 If you are on macOS or Windows, you can still complete the work. The course records the hardware results as pending, which is a normal and honest state.
 
 ### Steps
 
-1. Install your container engine and VS Code with the Dev Containers extension.
+1. Install Podman and VS Code with the Dev Containers extension. On Windows and macOS, start the Podman machine from Podman Desktop and wait until it reports running.
 
-2. On Linux with Podman, tell the extension to use Podman. Add this to your VS Code user `settings.json`:
+2. Tell the extension to use Podman. Add this to your VS Code user `settings.json`:
 
 ```text
 {
@@ -151,9 +155,16 @@ export ESP32_SERIAL_DEVICE=/dev/serial/by-id/usb-Espressif_USB_JTAG_serial_debug
 code .
 ```
 
-5. If you have no board, open `.devcontainer/devcontainer.json` and remove the `--device` line before you continue. On macOS and Windows, remove the other platform-specific lines listed in `.devcontainer/README.md`.
+5. Open the repository in the container. VS Code offers this when it sees the configuration, then asks which of the two configurations you want.
 
-6. Open the repository in the container. VS Code offers this when it sees the configuration. The first start downloads the Zephyr workspace and the SDK, which takes a while. Later starts reuse it.
+| Choose | When |
+| --- | --- |
+| Board attached | You are on Linux and a board is plugged in |
+| No board | You are on macOS or Windows, or on Linux with no board |
+
+Choose "No board" if you are unsure. You can switch later without downloading anything again. You do not have to edit any file to start.
+
+6. Wait for the first start to finish. It downloads the container image, then the Zephyr workspace and the SDK, which takes a while. Later starts reuse both.
 
 7. Run every command from here on inside the container, from the repository root.
 

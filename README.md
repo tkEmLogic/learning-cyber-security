@@ -10,7 +10,7 @@ The product is an industrial status beacon on an ESP32-C6. It reports a machine 
 
 Fork rather than clone, because the course is written for you to change: you will edit firmware, write evidence records, and keep a Weakness ledger in your own copy. Your fork is your workbook.
 
-Everything runs in a dev container. Your own machine needs a container engine and an editor, and nothing else. The course page explains the rest.
+Everything runs in a dev container. Your own machine needs Podman and an editor, and nothing else. The image is published, so you download it rather than build it. The course page explains the rest.
 
 ## What is published
 
