@@ -1,0 +1,29 @@
+spike.result HANDSHAKE COMPLETED TLSv1.2 TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256
+spike.result peer verification flags 0x00000000
+spike.data the service answered: HTTP/1.1 200 OK
+spike.key 0x00000601 still present after the handshake and the free
+spike.key usage flags 0x00001400, exportable=no
+spike.end
+spike.sleep next attempt in 30 seconds
+spike.begin one mutually authenticated handshake, issue #157
+spike.identity presenting beacon-remfg-404cca5ea9fc
+spike.socket protocol 260 dispatched to the course implementation, fd=0
+spike.tls wrapped PSA key 0x00000601, no private material exported
+spike.result HANDSHAKE COMPLETED TLSv1.2 TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256
+spike.result peer verification flags 0x00000000
+spike.data the service answered: HTTP/1.1 200 OK
+spike.key 0x00000601 still present after the handshake and the free
+spike.key usage flags 0x00001400, exportable=no
+spike.end
+spike.sleep next attempt in 30 seconds
+spike.begin one mutually authenticated handshake, issue #157
+spike.identity presenting beacon-remfg-404cca5ea9fc
+spike.socket protocol 260 dispatched to the course implementation, fd=0
+spike.tls wrapped PSA key 0x00000601, no private material exported
+spike.result HANDSHAKE COMPLETED TLSv1.2 TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256
+spike.result peer verification flags 0x00000000
+spike.data the service answered: HTTP/1.1 200 OK
+spike.key 0x00000601 still present after the handshake and the free
+spike.key usage flags 0x00001400, exportable=no
+spike.end
+spike.sleep next attempt in 30 seconds

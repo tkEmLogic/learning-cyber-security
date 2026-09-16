@@ -1,0 +1,20 @@
+2026/09/16 21:50:21 SPIKE SERVER on 0.0.0.0:8444, requiring a client certificate from the device CA
+2026/09/16 22:58:23 client certificate subject "CN=beacon-remfg-404cca5ea9fc,O=Learning Cyber Security course\\, synthetic" issuer "CN=Learning Cyber Security Manufacturer Device CA,O=Learning Cyber Security course\\, synthetic"
+2026/09/16 22:58:23 client certificate public key *ecdsa.PublicKey, chains verified 1
+2026/09/16 22:58:23 request GET /spike from beacon-remfg-404cca5ea9fc, version 0x0303 suite 0xc02b
+2026/09/16 22:58:58 client certificate subject "CN=beacon-remfg-404cca5ea9fc,O=Learning Cyber Security course\\, synthetic" issuer "CN=Learning Cyber Security Manufacturer Device CA,O=Learning Cyber Security course\\, synthetic"
+2026/09/16 22:58:58 client certificate public key *ecdsa.PublicKey, chains verified 1
+2026/09/16 22:58:58 request GET /spike from beacon-remfg-404cca5ea9fc, version 0x0303 suite 0xc02b
+2026/09/16 22:59:34 client certificate subject "CN=beacon-remfg-404cca5ea9fc,O=Learning Cyber Security course\\, synthetic" issuer "CN=Learning Cyber Security Manufacturer Device CA,O=Learning Cyber Security course\\, synthetic"
+2026/09/16 22:59:34 client certificate public key *ecdsa.PublicKey, chains verified 1
+2026/09/16 22:59:34 request GET /spike from beacon-remfg-404cca5ea9fc, version 0x0303 suite 0xc02b
+2026/09/16 23:00:09 client certificate subject "CN=beacon-remfg-404cca5ea9fc,O=Learning Cyber Security course\\, synthetic" issuer "CN=Learning Cyber Security Manufacturer Device CA,O=Learning Cyber Security course\\, synthetic"
+2026/09/16 23:00:09 client certificate public key *ecdsa.PublicKey, chains verified 1
+2026/09/16 23:00:09 request GET /spike from beacon-remfg-404cca5ea9fc, version 0x0303 suite 0xc02b
+2026/09/16 23:00:44 client certificate subject "CN=beacon-remfg-404cca5ea9fc,O=Learning Cyber Security course\\, synthetic" issuer "CN=Learning Cyber Security Manufacturer Device CA,O=Learning Cyber Security course\\, synthetic"
+2026/09/16 23:00:44 client certificate public key *ecdsa.PublicKey, chains verified 1
+2026/09/16 23:00:45 request GET /spike from beacon-remfg-404cca5ea9fc, version 0x0303 suite 0xc02b
+2026/09/16 23:01:20 client certificate subject "CN=beacon-remfg-404cca5ea9fc,O=Learning Cyber Security course\\, synthetic" issuer "CN=Learning Cyber Security Manufacturer Device CA,O=Learning Cyber Security course\\, synthetic"
+2026/09/16 23:01:20 client certificate public key *ecdsa.PublicKey, chains verified 1
+2026/09/16 23:01:20 request GET /spike from beacon-remfg-404cca5ea9fc, version 0x0303 suite 0xc02b
+2026/09/16 23:01:56 client certificate subject "CN=beacon-remfg-404cca5ea9fc,O=Learning Cyber Security course\\, synthetic" issuer "CN=Learning Cyber Security Manufacturer Device CA,O=Learning Cyber Security course\\, synthetic"
