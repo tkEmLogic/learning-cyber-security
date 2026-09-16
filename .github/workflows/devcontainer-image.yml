@@ -100,11 +100,18 @@ jobs:
       # The merge job needs to know what each runner pushed, and the two runners
       # cannot talk to each other. Each writes its digest to an empty file named
       # after the digest, and the merge job collects them.
+      #
+      # The `sha256:` prefix is stripped, and the merge job puts it back. An
+      # artifact path may not contain a colon, because artifacts have to unpack
+      # on Windows, so uploading the digest verbatim fails the job after the
+      # image has already been pushed: "The path for one of the files in
+      # artifact is not valid ... Contains the following character:  Colon :".
       - name: Record the digest
         if: github.event_name != 'pull_request'
         run: |
           mkdir -p /tmp/digests
-          touch "/tmp/digests/${{ steps.build.outputs.digest }}"
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
 
       - name: Hand the digest to the merge job
         if: github.event_name != 'pull_request'
@@ -155,10 +162,12 @@ jobs:
         run: |
           short="$(git -C "$GITHUB_WORKSPACE" rev-parse --short HEAD)"
           name="${{ steps.image.outputs.name }}"
+          # The `sha256:` the build job stripped, put back. The files here are
+          # named after the bare digest and are empty; the name is the payload.
           docker buildx imagetools create \
             --tag "${name}:latest" \
             --tag "${name}:sha-${short}" \
-            $(printf "${name}@%s " *)
+            $(printf "${name}@sha256:%s " *)
           echo "Published ${name}:latest and ${name}:sha-${short}"
 
       - name: Say what is in it
