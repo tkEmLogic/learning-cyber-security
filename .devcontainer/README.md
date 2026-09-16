@@ -45,6 +45,11 @@ separately, and `post-create.sh` provisions them onto a named volume the first
 time the container starts. That first start still takes a while. Later starts
 reuse the volume.
 
+It is published for `linux/amd64` and `linux/arm64` as one manifest list, so
+the same tag resolves to a native image on an Intel laptop and on Apple
+Silicon. Each architecture is built on a runner of that architecture, not under
+emulation.
+
 Two tags are published:
 
 | Tag | Use it for |
@@ -129,10 +134,9 @@ works.
    for Linux.
 5. Open the repository and choose the "no board" configuration.
 
-The published image is `linux/amd64` only. On Apple Silicon, Podman runs it
-under emulation. It works and it is slower. macOS cannot pass a USB device into
-the Podman virtual machine, so flashing a board is not possible there either
-way.
+Apple Silicon pulls a native `linux/arm64` image, so nothing runs under
+emulation. macOS cannot pass a USB device into the Podman virtual machine, so
+flashing a board is not possible there on either architecture.
 
 ## Other ways to open it
 

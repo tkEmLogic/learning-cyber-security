@@ -5,7 +5,8 @@
   // publishes it on every change to the Dockerfile
   // (.github/workflows/devcontainer-image.yml).
   //
-  // The image is public, so no registry login is needed, and it is linux/amd64.
+  // The image is public, so no registry login is needed. It is published for
+  // linux/amd64 and linux/arm64, so Apple Silicon pulls a native image.
   // To pin an exact image rather than track the current one, replace `latest`
   // with a `sha-` tag from the package page. To build it locally instead, see
   // .devcontainer/README.md.
