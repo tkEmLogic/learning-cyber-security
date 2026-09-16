@@ -1,6 +1,12 @@
-# Toolchain container for building and flashing the Tier 0 Zephyr/MCUboot
-# reference product. Pinned to Ubuntu 24.04 because that is this repo's CI
-# and reference host (see docs/agents/issue-tracker.md issue #21).
+# Toolchain container for building and flashing the Zephyr/MCUboot reference
+# product. Pinned to Ubuntu 24.04 because that is this repo's CI and reference
+# host (see docs/agents/issue-tracker.md issue #21).
+#
+# Nobody needs to build this. CI publishes it to
+# ghcr.io/tkemlogic/learning-cyber-security-devcontainer on every change to this
+# file, and both devcontainer.json files name the published image. Changing
+# anything here means the published image is rebuilt when the change reaches
+# main; until then, build locally as .devcontainer/README.md describes.
 FROM docker.io/library/ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive \

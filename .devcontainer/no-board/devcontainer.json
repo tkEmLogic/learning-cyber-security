@@ -1,0 +1,61 @@
+{
+  "name": "Zephyr/ESP32-C6 toolchain (no board)",
+  // The same image and the same work, without a board attached.
+  //
+  // Use this configuration on macOS, on Windows, and on Linux when no board is
+  // plugged in. It builds firmware, runs the local update service, and runs
+  // every attack fixture. It cannot flash a board or read serial output,
+  // because it passes no device through.
+  //
+  // It exists so that nobody has to edit the board configuration by hand
+  // before their first build. Podman resolves a --device path when the container
+  // starts and refuses to start if the path is absent, so the board
+  // configuration cannot simply be left in place and ignored.
+  "image": "ghcr.io/tkemlogic/learning-cyber-security-devcontainer:latest",
+  // The repository checkout is the default bind-mounted workspace folder. The
+  // Zephyr workspace (west modules, SDK, build output) is large and slow to
+  // provision, so it lives on its own named volume and survives a rebuild.
+  //
+  // This is the same volume name the board configuration uses, so switching
+  // between the two configurations does not re-download the toolchain.
+  "mounts": [
+    "source=zephyr-workspace,target=/opt/zephyr-workspace,type=volume"
+  ],
+  "containerEnv": {
+    "ZEPHYR_WORKSPACE": "/opt/zephyr-workspace",
+    "WORKSPACE_ROOT": "${containerWorkspaceFolder}"
+  },
+  // What is kept from the board configuration, and why.
+  //
+  // --publish carries the OTA service to the host network. It is needed even
+  // with no board, because the course still talks to the service.
+  //
+  // NET_RAW is dropped from Podman's defaults since 4.4.0 and cannot be
+  // recovered with setcap inside the container. Without it the Tier 2 packet
+  // capture produces no file. The capture is bounded by
+  // docs/fixture-safety-contract.md: one interface, manifest ports only, a
+  // filter the course builds, and no promiscuous mode.
+  //
+  // label=disable keeps SELinux hosts such as Fedora from denying the bind
+  // mount. It is accepted on macOS and Windows too, where Podman runs a Linux
+  // virtual machine.
+  //
+  // What is deliberately absent: --device, the two /dev volumes, and
+  // --group-add=keep-groups. All four exist only to reach a physical board.
+  "runArgs": [
+    "--publish=0.0.0.0:8080:8080",
+    "--publish=0.0.0.0:8443:8443",
+    "--cap-add=NET_RAW",
+    "--security-opt=label=disable"
+  ],
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-vscode.cpptools",
+        "golang.go",
+        "marus25.cortex-debug"
+      ]
+    }
+  }
+}

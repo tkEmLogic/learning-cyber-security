@@ -1,0 +1,91 @@
+name: Dev container image
+
+# Publishes the dev container image so a Learner pulls it instead of building
+# it. Building it from the Dockerfile takes several minutes on a laptop and
+# every Learner was paying that cost for a byte-identical result.
+#
+# The image carries the Ubuntu host packages, Go, and nothing else. The Zephyr
+# workspace, the SDK, and the build output stay on the named volume that
+# .devcontainer/post-create.sh provisions, because they are multi-gigabyte and
+# they are pinned separately. Publishing the image therefore does not pin
+# Zephyr, and a Learner who pulls it still runs the same provisioning step.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .devcontainer/Dockerfile
+      - .github/workflows/devcontainer-image.yml
+  pull_request:
+    paths:
+      - .devcontainer/Dockerfile
+      - .github/workflows/devcontainer-image.yml
+  # So the image can be published before this branch reaches main, and so a
+  # stale image can be refreshed without an empty commit.
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v5
+
+      # GHCR rejects an uppercase path, and this repository's owner has
+      # uppercase letters in it. Deriving the name rather than hard-coding it
+      # also means a fork publishes to its own namespace instead of failing
+      # against this one.
+      - name: Work out the image name
+        id: image
+        run: echo "name=ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')-devcontainer" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      # A pull request builds and does not publish. The image is only ever
+      # pushed from main, so what a Learner pulls always matches a merged
+      # Dockerfile.
+      - name: Log in to GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Two tags, doing two jobs. `latest` is what devcontainer.json names, so
+      # a Learner who rebuilds gets the current image. The `sha-` tag is
+      # immutable, so a Learner reproducing a result months later can pin to
+      # the exact image that produced it. See .devcontainer/README.md.
+      - name: Work out the tags
+        id: tags
+        run: |
+          short="$(git rev-parse --short HEAD)"
+          name="${{ steps.image.outputs.name }}"
+          echo "list=${name}:latest,${name}:sha-${short}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and publish
+        uses: docker/build-push-action@v6
+        with:
+          context: .devcontainer
+          file: .devcontainer/Dockerfile
+          platforms: linux/amd64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.tags.outputs.list }}
+          # The registry itself is the cache. A Dockerfile change invalidates
+          # only the layers after it, so a package addition does not re-download
+          # the Go toolchain.
+          cache-from: type=registry,ref=${{ steps.image.outputs.name }}:latest
+          cache-to: type=inline
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.description=Pinned Zephyr and ESP32-C6 toolchain for the Learning Cyber Security course
+            org.opencontainers.image.revision=${{ github.sha }}
+
+      - name: Say what was published
+        if: github.event_name != 'pull_request'
+        run: |
+          echo "Published ${{ steps.tags.outputs.list }}"
+          echo "linux/amd64 only. See .devcontainer/README.md for Apple Silicon."
