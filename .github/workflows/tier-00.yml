@@ -99,6 +99,14 @@ jobs:
       # drifted once already and broke this job (see 5bf92f3).
       - name: Provision pinned workspace
         if: steps.scope.outputs.skip != 'true'
+        # post-create.sh passes this to `west sdk install`, which asks the
+        # GitHub API which SDK releases exist. Anonymously that call shares a
+        # rate limit with every other anonymous caller on the runner's IP
+        # address, and this job died with "403 API rate limit exceeded" on a
+        # pull request after eight clean runs. The workflow token is enough:
+        # the call only reads a public release list.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           export ZEPHYR_WORKSPACE="$GITHUB_WORKSPACE/../zephyr-v4.4.2"
           export WORKSPACE_ROOT="$GITHUB_WORKSPACE"

@@ -1,8 +1,20 @@
 {
-  "name": "Tier 0 Zephyr/ESP32-C6 toolchain",
-  "build": {
-    "dockerfile": "Dockerfile"
-  },
+  "name": "Zephyr/ESP32-C6 toolchain (board attached)",
+  // Pulled, not built. Building this image from Dockerfile takes several
+  // minutes and every Learner was paying that cost for the same result, so CI
+  // publishes it on every change to the Dockerfile
+  // (.github/workflows/devcontainer-image.yml).
+  //
+  // The image is public, so no registry login is needed. It is published for
+  // linux/amd64 and linux/arm64, so Apple Silicon pulls a native image.
+  // To pin an exact image rather than track the current one, replace `latest`
+  // with a `sha-` tag from the package page. To build it locally instead, see
+  // .devcontainer/README.md.
+  //
+  // This configuration passes a board through. If you have no board attached,
+  // or you are on macOS or Windows, pick "no board" in the container picker
+  // instead: .devcontainer/no-board/devcontainer.json.
+  "image": "ghcr.io/tkemlogic/learning-cyber-security-devcontainer:latest",
   // The repo checkout is the default bind-mounted workspace folder. The
   // Zephyr workspace (west modules, SDK, build output) is large, slow to
   // provision, and explicitly kept outside the repo (see
@@ -15,10 +27,11 @@
     "ZEPHYR_WORKSPACE": "/opt/zephyr-workspace",
     "WORKSPACE_ROOT": "${containerWorkspaceFolder}"
   },
-  // Grants access to the ESP32-C6's USB-JTAG/serial device. `keep-groups` is
-  // a Podman-only flag (see .devcontainer/README.md for the Docker
-  // equivalent) that keeps the invoking host user's supplementary groups
-  // (e.g. dialout/plugdev), so no in-container group juggling is needed.
+  // Grants access to the ESP32-C6's USB-JTAG/serial device. `keep-groups`
+  // keeps the invoking host user's supplementary groups (e.g.
+  // dialout/plugdev), so no in-container group juggling is needed. It is a
+  // Podman flag with no Docker equivalent, which is one of the reasons this
+  // course settled on Podman: see .devcontainer/README.md.
   // Plug the board in *before* opening/rebuilding the container: Podman
   // resolves --device at container start and fails if the path is absent.
   //

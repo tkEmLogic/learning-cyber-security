@@ -67,10 +67,28 @@ fi
 
 if [ ! -d "${ZEPHYR_WORKSPACE}/zephyr-sdk-${SDK_VERSION}" ]; then
     echo "==> west sdk install ${SDK_VERSION}"
+    # west sdk install asks the GitHub API which SDK releases exist, and it
+    # authenticates only through --personal-access-token. It ignores GITHUB_TOKEN
+    # in the environment, so without this the call is anonymous, shares a rate
+    # limit with every other anonymous caller on the runner's IP address, and
+    # fails the whole job with "403 API rate limit exceeded" when that limit is
+    # reached. It did, on a pull request, having passed on the eight runs before
+    # it, which is the failure mode of an unauthenticated call rather than a
+    # broken one.
+    #
+    # The token is optional and stays unset in the dev container, where the
+    # anonymous limit is per developer rather than per shared runner and is
+    # ample. CI passes its own GITHUB_TOKEN.
+    sdk_token_args=()
+    if [ -n "${GITHUB_TOKEN:-}" ]; then
+        echo "==> using GITHUB_TOKEN for the SDK release lookup"
+        sdk_token_args=(--personal-access-token "${GITHUB_TOKEN}")
+    fi
     (cd "${ZEPHYR_WORKSPACE}/zephyr" && "${WEST}" sdk install \
         --version "${SDK_VERSION}" \
         --install-dir "${ZEPHYR_WORKSPACE}/zephyr-sdk-${SDK_VERSION}" \
-        --gnu-toolchains riscv64-zephyr-elf)
+        --gnu-toolchains riscv64-zephyr-elf \
+        "${sdk_token_args[@]}")
 fi
 
 echo "==> Go module download"

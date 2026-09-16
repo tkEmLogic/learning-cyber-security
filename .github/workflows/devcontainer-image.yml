@@ -1,0 +1,165 @@
+name: Dev container image
+
+# Publishes the dev container image so a Learner pulls it instead of building
+# it. Building it from the Dockerfile takes several minutes on a laptop and
+# every Learner was paying that cost for a byte-identical result.
+#
+# The image carries the Ubuntu host packages, Go, and nothing else. The Zephyr
+# workspace, the SDK, and the build output stay on the named volume that
+# .devcontainer/post-create.sh provisions, because they are multi-gigabyte and
+# they are pinned separately. Publishing the image therefore does not pin
+# Zephyr, and a Learner who pulls it still runs the same provisioning step.
+#
+# Two architectures, each built on a runner of its own architecture rather than
+# under QEMU emulation. amd64 covers Windows, Intel Macs, and Linux; arm64
+# covers Apple Silicon, which would otherwise run an emulated image. GitHub
+# provides both runner types free to public repositories, so the arm64 half
+# costs wall-clock time in parallel rather than an hour of emulation.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .devcontainer/Dockerfile
+      - .github/workflows/devcontainer-image.yml
+  pull_request:
+    paths:
+      - .devcontainer/Dockerfile
+      - .github/workflows/devcontainer-image.yml
+  # So the image can be published without an empty commit, and so a stale image
+  # can be refreshed. Only offered once this file is on the default branch.
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-24.04
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v5
+
+      # GHCR rejects an uppercase path and this repository's owner has uppercase
+      # letters in it. Deriving the name rather than hard-coding it also means a
+      # fork publishes to its own namespace instead of failing against this one.
+      - name: Work out the image name
+        id: image
+        run: |
+          echo "name=ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')-devcontainer" >> "$GITHUB_OUTPUT"
+          # linux/amd64 becomes linux-amd64, for artifact and cache names that
+          # cannot contain a slash.
+          echo "slug=$(echo '${{ matrix.platform }}' | tr '/' '-')" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      # A pull request builds both architectures and publishes neither. The
+      # image is only ever pushed from main, so what a Learner pulls always
+      # matches a merged Dockerfile.
+      - name: Log in to GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Pushed by digest, with no tag. Tagging happens once in the merge job
+      # below, against the manifest list that covers both architectures. A
+      # per-architecture tag here would leave two extra tags in the package
+      # listing for a Learner to wonder about.
+      - name: Build
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .devcontainer
+          file: .devcontainer/Dockerfile
+          platforms: ${{ matrix.platform }}
+          # On a pull request this is `cacheonly`: both architectures are built
+          # and nothing leaves the runner. `push` is not set separately, because
+          # this line already carries it.
+          outputs: ${{ github.event_name != 'pull_request' && format('type=image,name={0},push-by-digest=true,name-canonical=true,push=true', steps.image.outputs.name) || 'type=cacheonly' }}
+          # The Actions cache, scoped per architecture so the two runners do not
+          # overwrite each other. A package addition then rebuilds only the
+          # layers after it, rather than re-downloading the Go toolchain.
+          cache-from: type=gha,scope=${{ steps.image.outputs.slug }}
+          cache-to: type=gha,mode=max,scope=${{ steps.image.outputs.slug }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.description=Pinned Zephyr and ESP32-C6 toolchain for the Learning Cyber Security course
+            org.opencontainers.image.revision=${{ github.sha }}
+
+      # The merge job needs to know what each runner pushed, and the two runners
+      # cannot talk to each other. Each writes its digest to an empty file named
+      # after the digest, and the merge job collects them.
+      - name: Record the digest
+        if: github.event_name != 'pull_request'
+        run: |
+          mkdir -p /tmp/digests
+          touch "/tmp/digests/${{ steps.build.outputs.digest }}"
+
+      - name: Hand the digest to the merge job
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: digest-${{ steps.image.outputs.slug }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  # One manifest list covering both architectures, so `podman pull` on Apple
+  # Silicon and on an Intel laptop resolve the same tag to different images.
+  publish:
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Work out the image name
+        id: image
+        run: echo "name=ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')-devcontainer" >> "$GITHUB_OUTPUT"
+
+      - name: Collect the digests
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digest-*
+          merge-multiple: true
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Two tags, doing two jobs. `latest` is what devcontainer.json names, so a
+      # Learner who rebuilds gets the current image. The `sha-` tag is
+      # immutable, so a Learner reproducing a result months later can pin the
+      # exact image that produced it. See .devcontainer/README.md.
+      - name: Create and push the manifest list
+        working-directory: /tmp/digests
+        run: |
+          short="$(git -C "$GITHUB_WORKSPACE" rev-parse --short HEAD)"
+          name="${{ steps.image.outputs.name }}"
+          docker buildx imagetools create \
+            --tag "${name}:latest" \
+            --tag "${name}:sha-${short}" \
+            $(printf "${name}@%s " *)
+          echo "Published ${name}:latest and ${name}:sha-${short}"
+
+      - name: Say what is in it
+        run: docker buildx imagetools inspect "${{ steps.image.outputs.name }}:latest"
