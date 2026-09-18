@@ -282,6 +282,10 @@ func (a *app) dispatch(args []string) error {
 		return a.release(args[1:])
 	case "provision":
 		return a.provision(args[1:])
+	case "owner":
+		return a.owner(args[1:])
+	case "claim":
+		return a.claim(args[1:])
 	case "attack":
 		return a.attack(args[1:])
 	case "verify":
@@ -299,7 +303,7 @@ func (a *app) dispatch(args []string) error {
 }
 
 func (a *app) usage(w io.Writer) {
-	fmt.Fprintln(w, "usage: ./course doctor|setup|tier|build|service|device|keys|release|provision|attack|verify|evidence|clean")
+	fmt.Fprintln(w, "usage: ./course doctor|setup|tier|build|service|device|keys|release|provision|owner|claim|attack|verify|evidence|clean")
 }
 
 func (a *app) context(target string) {
@@ -1317,14 +1321,15 @@ func (a *app) serviceStart(https, mutualTLS bool, present string, rangeBehaviour
 		}
 		arguments = append(arguments, "--https")
 		if mutualTLS {
-			// The device listener verifies against both device authorities, so
-			// both have to exist. Only one of them can be checked here yet:
-			// issue #146 adds ./course keys create operational-ca and the
-			// coursepki predicate that belongs beside this one. Until it
-			// lands, a missing Operational CA is reported by the service on
-			// startup rather than by this guard.
+			// The device listener verifies against both device authorities and
+			// signs Operational certificates with the second one, so both have
+			// to exist before the service starts rather than at the first
+			// claim.
 			if !coursepki.DeviceCAExists(a.pkiDir()) {
 				return errors.New("no Manufacturer Device CA exists; run ./course keys create device-ca first")
+			}
+			if !coursepki.OperationalCAExists(a.pkiDir()) {
+				return errors.New("no Operational Device CA exists; run ./course keys create operational-ca first")
 			}
 			arguments = append(arguments, "--mutual-tls")
 		}

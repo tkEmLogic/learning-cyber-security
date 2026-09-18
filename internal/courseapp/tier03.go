@@ -73,7 +73,7 @@ func (a *app) keys(args []string) error {
 	switch args[0] {
 	case "create":
 		if len(args) < 2 {
-			return errors.New("usage: ./course keys create release|attacker|device-ca|shared-identity")
+			return errors.New("usage: ./course keys create release|attacker|device-ca|operational-ca|shared-identity")
 		}
 		return a.keysCreate(args[1])
 	case "list":
@@ -98,12 +98,15 @@ func (a *app) keysCreate(role string) error {
 	if role == "device-ca" {
 		return a.keysCreateDeviceCA()
 	}
+	if role == "operational-ca" {
+		return a.keysCreateOperationalCA()
+	}
 	if role == "shared-identity" {
 		return a.keysCreateSharedIdentity()
 	}
 	description, ok := signingRoles[role]
 	if !ok {
-		return fmt.Errorf("unknown key role %q; use release, attacker, device-ca or shared-identity", role)
+		return fmt.Errorf("unknown key role %q; use release, attacker, device-ca, operational-ca or shared-identity", role)
 	}
 	path := a.signingKeyPath(role)
 
@@ -266,7 +269,6 @@ func (a *app) keysList() error {
 	}
 	if found == 0 {
 		fmt.Fprintln(a.out, "No signing keys yet. Make one with ./course keys create release")
-		return nil
 	}
 	if _, err := os.Stat(a.publicKeyPath()); err == nil {
 		fmt.Fprintf(a.out, "\nThe bootloader is built against %s, and nothing else.\n", a.relative(a.publicKeyPath()))
@@ -275,7 +277,68 @@ func (a *app) keysList() error {
 		fmt.Fprintln(a.out, "\nBoth keys are ECDSA P-256 and both are equally valid.")
 		fmt.Fprintln(a.out, "Only the fingerprint compiled into the bootloader decides which one the device will run.")
 	}
+	a.certificateRoleInventory()
 	return nil
+}
+
+// certificateRoleInventory prints every authority and every leaf role in one
+// place.
+//
+// Until Tier 7 a Learner assembled this by hand from four scattered sources:
+// ./course tls show for the Course CA and the service certificate, the
+// one-time output of keys create device-ca, the one-time output of keys create
+// shared-identity, and this command for the signing keys. One command turns
+// the lab artifact from a screenshot a Learner is handed into a command they
+// run. Each authority still prints itself at creation; this is the place to
+// look back.
+func (a *app) certificateRoleInventory() {
+	dir := a.pkiDir()
+	authorities := []struct {
+		file  string
+		signs string
+	}{
+		{coursepki.CourseCACert, "the update service's own server certificate"},
+		{coursepki.DeviceCACert, "Factory identities: which board this is"},
+		{coursepki.OperationalCACert, "Operational identities: which board, whose, for ninety days"},
+		{coursepki.UntrustedCACert, "nothing this course trusts, on purpose"},
+	}
+	fmt.Fprintln(a.out, "\nAuthorities")
+	for _, authority := range authorities {
+		state := "not made yet"
+		if _, err := os.Stat(filepath.Join(dir, authority.file)); err == nil {
+			state = a.relative(filepath.Join(dir, authority.file))
+		}
+		fmt.Fprintf(a.out, "  %-24s %s\n", authority.file, authority.signs)
+		fmt.Fprintf(a.out, "  %-24s %s\n", "", state)
+	}
+
+	leaves := []struct {
+		role   string
+		issuer string
+		where  string
+	}{
+		{"service certificate", "Course CA", coursepki.ServiceCert},
+		{"wrong-name certificate", "Course CA", coursepki.WrongNameCert},
+		{"untrusted service certificate", "Untrusted CA", coursepki.UntrustedCert},
+		{"shared development identity", "Manufacturer Device CA", coursepki.SharedIdentityCert},
+		{"Factory identity", "Manufacturer Device CA", "on the board, key never a file"},
+		{"Operational identity", "Operational Device CA", "on the board, key never a file"},
+		{"foreign client certificate", "Untrusted CA", "minted by the fixture at run time"},
+	}
+	fmt.Fprintln(a.out, "\nLeaf roles")
+	for _, leaf := range leaves {
+		where := leaf.where
+		if strings.HasSuffix(where, ".pem") {
+			if _, err := os.Stat(filepath.Join(dir, where)); err != nil {
+				where += ", not made yet"
+			}
+		}
+		fmt.Fprintf(a.out, "  %-30s %-24s %s\n", leaf.role, leaf.issuer, where)
+	}
+
+	fmt.Fprintln(a.out, "\nThe two signing keys above have no certificate at all, and that is the")
+	fmt.Fprintln(a.out, "point of listing them beside four authorities: a trust root does not have")
+	fmt.Fprintln(a.out, "to be a certificate authority. The bootloader anchors on a raw public key.")
 }
 
 func (a *app) relative(path string) string {
@@ -845,6 +908,46 @@ func (a *app) keysCreateDeviceCA() error {
 	}
 	fmt.Fprintf(a.out, "%s\n", described)
 	fmt.Fprintf(a.out, "Result: manufacturer device CA written to %s\n", a.relative(dir))
+	return nil
+}
+
+// keysCreateOperationalCA makes the fourth authority.
+//
+// It is the second authority that signs device identities, and it is made by
+// the Learner rather than by ./course setup. Two reasons, and the second is
+// the one that would have bitten. A Learner should watch the fourth trust
+// relationship appear, as they did the third. And adding a file to
+// coursepki.Generate() would do nothing for anyone who has already run setup,
+// because Exists() refuses to regenerate: every existing environment would
+// silently lack it and the symptom would surface a long way from the cause.
+func (a *app) keysCreateOperationalCA() error {
+	dir := a.deviceCADir()
+	if coursepki.OperationalCAExists(dir) {
+		fmt.Fprintln(a.errOut, "An operational device CA already exists.")
+		fmt.Fprintf(a.errOut, "  path: %s\n", a.relative(filepath.Join(dir, coursepki.OperationalCACert)))
+		fmt.Fprintln(a.errOut, "Every Operational certificate already issued chains to it, and the")
+		fmt.Fprintln(a.errOut, "update service verifies client certificates against it. Replacing it")
+		fmt.Fprintln(a.errOut, "would lock every claimed device out of its own update service.")
+		fmt.Fprintf(a.errOut, "To make a new one, remove it yourself first:\n  rm %s\n",
+			a.relative(filepath.Join(dir, coursepki.OperationalCACert)))
+		return errors.New("refusing to replace the existing operational device CA")
+	}
+	fmt.Fprintln(a.out, "The operational device CA. It signs Operational identities: one device,")
+	fmt.Fprintln(a.out, "one owner, ninety days. It is not the manufacturer device CA, which says")
+	fmt.Fprintln(a.out, "which board this is and says nothing about who owns it.")
+	fmt.Fprintln(a.out, "")
+	fmt.Fprintln(a.out, "The update service signs with this key while it is running, so the key")
+	fmt.Fprintln(a.out, "and the service that uses it live on one machine. In a product they do")
+	fmt.Fprintln(a.out, "not, and the module says what that separation buys.")
+	if err := coursepki.GenerateOperationalCA(dir); err != nil {
+		return err
+	}
+	described, err := coursepki.Describe(filepath.Join(dir, coursepki.OperationalCACert))
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(a.out, "%s\n", described)
+	fmt.Fprintf(a.out, "Result: operational device CA written to %s\n", a.relative(dir))
 	return nil
 }
 

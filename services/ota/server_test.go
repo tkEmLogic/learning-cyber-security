@@ -11,6 +11,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/hex"
 	"encoding/json"
+	"encoding/pem"
 	"io"
 	"math/big"
 	"net/http"
@@ -449,6 +450,7 @@ type mutualFixture struct {
 	operational  testAuthority
 	stateDir     string
 	provisionDir string
+	pkiDir       string
 }
 
 func newMutualFixture(t *testing.T) *mutualFixture {
@@ -474,6 +476,13 @@ func newMutualFixture(t *testing.T) *mutualFixture {
 		ImageSize:     int64(len(image)),
 	})
 
+	// The signing material the service issues Operational certificates from.
+	// It is a directory the service is handed, exactly as the running service
+	// is handed COURSE_PKI_DIR, so a test issues through the same path a
+	// Learner does.
+	pki := t.TempDir()
+	writeAuthorityFiles(t, pki, operational)
+
 	server, err := New(Config{
 		CourseID:      "learning-cyber-security",
 		EnvironmentID: "test-environment",
@@ -484,6 +493,7 @@ func newMutualFixture(t *testing.T) *mutualFixture {
 			ManufacturerCA:  manufacturer.cert,
 			OperationalCA:   operational.cert,
 			ProvisioningDir: provisioning,
+			PKIDir:          pki,
 		},
 	})
 	if err != nil {
@@ -495,6 +505,26 @@ func newMutualFixture(t *testing.T) *mutualFixture {
 		operational:  operational,
 		stateDir:     state,
 		provisionDir: provisioning,
+		pkiDir:       pki,
+	}
+}
+
+// writeAuthorityFiles writes an authority to disk under the host side's file
+// names, which are the names the service reads.
+func writeAuthorityFiles(t *testing.T, dir string, authority testAuthority) {
+	t.Helper()
+	der, err := x509.MarshalECPrivateKey(authority.key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	files := map[string][]byte{
+		operationalCACertFile: pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: authority.cert.Raw}),
+		operationalCAKeyFile:  pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: der}),
+	}
+	for name, content := range files {
+		if err := os.WriteFile(filepath.Join(dir, name), content, 0o600); err != nil {
+			t.Fatal(err)
+		}
 	}
 }
 
@@ -975,8 +1005,12 @@ func (s stubOwners) VerifyOwner(credential string) (string, *Refusal) {
 func TestOperatorClaimSitsBehindTheOwnerCredential(t *testing.T) {
 	f := newMutualFixture(t)
 
-	// With no store configured the route exists and says so, rather than
-	// answering 404 and sending a Learner looking for a typo.
+	// A service built with mutual TLS now has a store of its own, so the
+	// unbuilt answer has to be asked for. It stays asserted because the branch
+	// is still live: a caller may pass its own verifier, and one that passes
+	// none at all must be told the route exists rather than be sent looking
+	// for a typo.
+	f.server.cfg.OwnerCredentials = nil
 	recorder := httptest.NewRecorder()
 	f.server.OperatorHandler().ServeHTTP(recorder,
 		httptest.NewRequest(http.MethodPost, "/v1/claim", strings.NewReader(`{}`)))

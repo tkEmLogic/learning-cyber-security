@@ -87,6 +87,20 @@ type Release struct {
 type Server struct {
 	cfg Config
 	mu  sync.Mutex
+
+	// One mutex across the whole claim, and a map of the windows it guards.
+	//
+	// Tier 6's atomicity came free: the station was a command doing one
+	// O_APPEND write, and that one line was the whole state change. A daemon
+	// has no such luck, so match-and-issue is held under claimMu from the
+	// nonce check to the appended record. It is deliberately not s.mu, which
+	// the event log already takes while a claim is in progress.
+	claimMu      sync.Mutex
+	claimWindows map[string]*claimWindow
+
+	// claimSleep serves the bounded backoff. It is a field so that a test can
+	// observe the delay rather than wait it out; nothing else replaces it.
+	claimSleep func(time.Duration)
 }
 
 func New(cfg Config) (*Server, error) {
@@ -107,7 +121,32 @@ func New(cfg Config) (*Server, error) {
 			return nil, errors.New("mutual TLS needs the provisioning directory to read claims from")
 		}
 	}
-	return &Server{cfg: cfg}, nil
+	server := &Server{
+		cfg:          cfg,
+		claimWindows: map[string]*claimWindow{},
+		claimSleep:   time.Sleep,
+	}
+	// The claim engine and the Owner credential store are defaults rather than
+	// requirements: a caller that supplies its own keeps it, and a caller that
+	// supplies neither gets the ones this package builds out of the
+	// directories it was already given. Both routes exist either way, because
+	// a route that exists and is unbuilt is a different fact from a route that
+	// does not exist.
+	if cfg.MutualTLS != nil {
+		if server.cfg.Claim.Device == nil {
+			server.cfg.Claim.Device = server.claimDeviceHandler()
+		}
+		if server.cfg.Claim.Operator == nil {
+			server.cfg.Claim.Operator = server.claimOperatorHandler()
+		}
+		if server.cfg.OwnerCredentials == nil {
+			server.cfg.OwnerCredentials = ownerStore{
+				dir: cfg.MutualTLS.ProvisioningDir,
+				now: cfg.MutualTLS.Now,
+			}
+		}
+	}
+	return server, nil
 }
 
 // Handler serves every endpoint on one listener. This is the Tier 0 service,
