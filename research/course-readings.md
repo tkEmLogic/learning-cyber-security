@@ -144,6 +144,21 @@ The learner enrolls an owner-scoped operational identity and uses mutual TLS bet
 | [RFC 8995, Bootstrapping Remote Secure Key Infrastructure (BRSKI)](https://www.rfc-editor.org/rfc/rfc8995.html) | Recommended | Normative | How can a device use its factory identity to bootstrap trust with an owner? | The architecture and voucher sections. |
 | [RFC 5280, X.509 certificate profile](https://www.rfc-editor.org/rfc/rfc5280) | Recommended | Normative | How is the operational certificate structured and validated? | Section 4 and Section 6. |
 
+### Note: why the device has no authenticated time
+
+Tier 7 issues an Operational certificate that is valid for a limited period, and the device cannot check that period. The course build leaves `CONFIG_MBEDTLS_HAVE_TIME_DATE` off, so the device has no trusted wall-clock time, and the OTA service enforces expiry on its behalf. This note explains why getting the time is harder than it looks, and why section 7 of the course specification says that device time is evidence and not an authorization input.
+
+The device cannot simply be handed the time by the service it talks to. Section 6 of the course specification treats the OTA service as untrusted. It may deny an update or replay an old signed release, and it is trusted only to carry bytes that the device verifies for itself against a key it already holds. A plain timestamp is not such a byte string, because nothing on the device can check it. Taking the time from the party whose certificate you are about to validate is also circular. An attacker who controls that party sets the clock to a moment when the certificate they hold is still valid, and the check then passes every time.
+
+Plain SNTP does not solve it either. SNTP carries no authentication, so any attacker who can answer on the local network can return whatever time suits them. That is the same attacker Tier 0 and Tier 2 already teach, the one who reads and rewrites traffic on the classroom network. A device that trusts an SNTP answer has moved the decision from the service to whoever replies first.
+
+Two protocols do answer the problem. Network Time Security, RFC 8915, authenticates NTP using TLS key establishment, so the client knows which server answered and that the answer was not changed in transit. Roughtime takes a different route and lets a client collect signed answers from several servers, so a server that reports a false time can be shown to have lied. Both are out of scope for this course. Tier 7 records the device's blindness to time as a weakness-ledger row instead, and the service stays the single authority on whether a certificate has expired.
+
+| Reading | Level | Type | Learning question it answers | Where to read |
+| --- | --- | --- | --- | --- |
+| [RFC 8915, Network Time Security for the Network Time Protocol](https://www.rfc-editor.org/rfc/rfc8915.html) | Optional | Normative | How does a device get the time from a server it can authenticate? | Section 1.3 for the two protocols, then Section 8 for the attacks that remain, including the delay attack in Section 8.6 and NTS stripping in Section 8.7. |
+| [Roughtime, draft-ietf-ntp-roughtime](https://datatracker.ietf.org/doc/draft-ietf-ntp-roughtime/) | Optional | Explanatory | How can a client prove that a time server gave it a false answer? | Read it as a design sketch, not as a course requirement. Check the datatracker page first for the current status. |
+
 ## T8. Renewal, rotation, revocation, recovery, ownership transfer, and decommission
 
 The learner runs the full identity lifecycle: renew, rotate, revoke, recover, transfer ownership, and decommission.
@@ -226,6 +241,7 @@ These sources need manual attention at each review.
 | ISO/IEC 29147:2018 and ISO/IEC 30111:2019 | The ISO catalogue pages return 403 to an automated client, and the standards are paywalled. | Confirm the catalogue numbers by hand. Buy or access through a library if the content is needed. |
 | IEEE Std 802.1AR | The standard is paywalled, although IEEE 802 standards are often free through the IEEE GET Program after a delay. | Check current free availability, or purchase, before relying on the full text. |
 | catie-aq Zephyr STSAFE-A1xx driver | Community project, not an ST product, and pinned to one commit. It is the comparison fallback and may not pass hardware validation. | Re-check the commit and the project status. Prefer an official ST integration if one becomes available. |
+| Roughtime, draft-ietf-ntp-roughtime | An Internet-Draft, not yet an RFC. It was in final review at the RFC Editor on 19 September 2026, so it may gain an RFC number and a new URL. | Check the datatracker page and replace the draft link with the RFC link once one is assigned. |
 | Latacora post-quantum article | A vendor blog post, used only as discussion of cryptographic agility and product lifetime. | Keep it optional. Do not use it to add post-quantum cryptography to the course. |
 
 ## Source register
@@ -241,6 +257,8 @@ All sources were accessed and reviewed on 11 September 2026.
 | [RFC 6960, OCSP](https://www.rfc-editor.org/rfc/rfc6960) | June 2013, standards track. | Normative | IETF Trust. Free to read. |
 | [RFC 7030, EST](https://www.rfc-editor.org/rfc/rfc7030.html) | October 2013, standards track. | Normative | IETF Trust. Free to read. |
 | [RFC 8995, BRSKI](https://www.rfc-editor.org/rfc/rfc8995.html) | May 2021, standards track. | Normative | IETF Trust. Free to read. |
+| [RFC 8915, Network Time Security](https://www.rfc-editor.org/rfc/rfc8915.html) | September 2020, standards track. | Normative | IETF Trust. Free to read. Added for the Tier 7 authenticated-time note and checked on 19 September 2026, after this register's access date. |
+| [Roughtime, draft-ietf-ntp-roughtime](https://datatracker.ietf.org/doc/draft-ietf-ntp-roughtime/) | Revision 19, 17 March 2026. Internet-Draft with intended status Experimental, in final review at the RFC Editor on the check date. | Explanatory | IETF Trust. Free to read. Added for the Tier 7 authenticated-time note and checked on 19 September 2026, after this register's access date. |
 | [RFC 9019, IoT firmware update architecture](https://www.rfc-editor.org/rfc/rfc9019) | April 2021, informational. | Normative (informational) | IETF Trust. Free to read. |
 | [RFC 9124, SUIT manifest information model](https://www.rfc-editor.org/rfc/rfc9124) | January 2022, informational. | Normative (informational) | IETF Trust. Free to read. |
 | [The Update Framework specification](https://theupdateframework.github.io/specification/latest/) | Living specification, current on access date. | Normative | Cloud Native Computing Foundation project. Free to read. |
