@@ -41,6 +41,20 @@ type Config struct {
 	//                  after N bytes of body, which is a genuine partial
 	//                  transfer rather than a simulated one
 	RangeBehaviour string
+
+	// MutualTLS is nil unless the service was started with --mutual-tls, and
+	// nil is what Tiers 0 to 6 run with. The flag is the Learner's to set:
+	// nothing here turns it on by itself, because the fixture safety contract
+	// requires the fixture to find the Learner's own service rather than start
+	// or reconfigure one.
+	MutualTLS *MutualTLS
+
+	// Claim and OwnerCredentials are the seams issue #146 fills: the two
+	// halves of the claim exchange, and the store behind the three
+	// owner-credential checks. This ticket builds the listeners they sit on
+	// and the checks that run before them.
+	Claim            ClaimHandlers
+	OwnerCredentials OwnerVerifier
 }
 
 // Release is the Update assignment: the service's mutable choice of which
@@ -84,6 +98,14 @@ func New(cfg Config) (*Server, error) {
 	}
 	if err := os.MkdirAll(cfg.StateDir, 0o700); err != nil {
 		return nil, err
+	}
+	if cfg.MutualTLS != nil {
+		if cfg.MutualTLS.ManufacturerCA == nil || cfg.MutualTLS.OperationalCA == nil {
+			return nil, errors.New("mutual TLS needs both device authorities; the issuer is the role")
+		}
+		if cfg.MutualTLS.ProvisioningDir == "" {
+			return nil, errors.New("mutual TLS needs the provisioning directory to read claims from")
+		}
 	}
 	return &Server{cfg: cfg}, nil
 }
@@ -354,10 +376,22 @@ func (s *Server) deviceEvent(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "body device_id is required", http.StatusBadRequest)
 		return
 	}
+	accepted := bodyID
 	event["path_device_id"] = r.PathValue("device_id")
-	event["accepted_device_id"] = bodyID
 	event["service_received_at"] = time.Now().UTC().Format(time.RFC3339Nano)
-	event["tier_00_trust"] = "body_device_id"
+	// Which value the service believed, and why, written into the record
+	// itself. In Tier 0 it believed the body because nothing else was on
+	// offer. Behind mutual TLS it believes the client certificate, and the
+	// body identifier has already had to agree with it at
+	// identifier-consistent, so this line records a fact rather than a hope.
+	if identity, ok := DeviceFrom(r.Context()); ok {
+		accepted = identity.DeviceID
+		event["certificate_device_id"] = identity.DeviceID
+		event["accepted_from"] = "client_certificate"
+	} else {
+		event["tier_00_trust"] = "body_device_id"
+	}
+	event["accepted_device_id"] = accepted
 	line, err := json.Marshal(event)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -374,6 +408,14 @@ func (s *Server) deviceEvent(w http.ResponseWriter, r *http.Request) {
 	defer file.Close()
 	if _, err := file.Write(append(line, '\n')); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if _, authenticated := DeviceFrom(r.Context()); authenticated {
+		writeJSON(w, http.StatusAccepted, map[string]any{
+			"accepted":           true,
+			"accepted_device_id": accepted,
+			"accepted_from":      "client_certificate",
+		})
 		return
 	}
 	writeJSON(w, http.StatusAccepted, map[string]any{

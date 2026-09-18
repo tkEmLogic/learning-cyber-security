@@ -41,6 +41,7 @@ type manifest struct {
 		TLSPort              int    `yaml:"ota_tls_port"`
 		ImpersonationPort    int    `yaml:"impersonation_port"`
 		ImpersonationTLSPort int    `yaml:"impersonation_tls_port"`
+		OperatorTLSPort      int    `yaml:"operator_tls_port"`
 	} `yaml:"runtime"`
 	Paths struct {
 		State              string   `yaml:"state"`
@@ -1163,12 +1164,15 @@ func (a *app) service(args []string) error {
 	switch args[0] {
 	case "start":
 		https := false
+		mutualTLS := false
 		present := ""
 		rangeBehaviour := ""
 		for i := 1; i < len(args); i++ {
 			switch args[i] {
 			case "--https":
 				https = true
+			case "--mutual-tls":
+				mutualTLS = true
 			case "--present":
 				if i+1 >= len(args) {
 					return errors.New("--present requires service, untrusted, or wrong-name")
@@ -1188,10 +1192,18 @@ func (a *app) service(args []string) error {
 		if present != "" && !https {
 			return errors.New("--present applies only with --https")
 		}
+		// An opt-in named after the control it turns on, in the shape
+		// --present and --range already established. Not a --tier switch: the
+		// service has never had a tier dimension, and inventing one would need
+		// retrofitting to five published tiers. One flag, one behaviour, and
+		// with it off every byte the service emits is what it emits today.
+		if mutualTLS && !https {
+			return errors.New("--mutual-tls applies only with --https")
+		}
 		if err := checkRangeBehaviour(rangeBehaviour); err != nil {
 			return err
 		}
-		return a.serviceStart(https, present, rangeBehaviour)
+		return a.serviceStart(https, mutualTLS, present, rangeBehaviour)
 	case "stop":
 		return a.serviceStop()
 	case "status":
@@ -1279,7 +1291,7 @@ func checkRangeBehaviour(behaviour string) error {
 	return fmt.Errorf("unknown --range value %q; use ignore or interrupt:<bytes>", behaviour)
 }
 
-func (a *app) serviceStart(https bool, present string, rangeBehaviour string) error {
+func (a *app) serviceStart(https, mutualTLS bool, present string, rangeBehaviour string) error {
 	if _, running := a.runningService(); running {
 		return errors.New("the OTA service is already running; run ./course service stop first")
 	}
@@ -1304,6 +1316,18 @@ func (a *app) serviceStart(https bool, present string, rangeBehaviour string) er
 			return errors.New("no Course certificate authority exists; run ./course setup first")
 		}
 		arguments = append(arguments, "--https")
+		if mutualTLS {
+			// The device listener verifies against both device authorities, so
+			// both have to exist. Only one of them can be checked here yet:
+			// issue #146 adds ./course keys create operational-ca and the
+			// coursepki predicate that belongs beside this one. Until it
+			// lands, a missing Operational CA is reported by the service on
+			// startup rather than by this guard.
+			if !coursepki.DeviceCAExists(a.pkiDir()) {
+				return errors.New("no Manufacturer Device CA exists; run ./course keys create device-ca first")
+			}
+			arguments = append(arguments, "--mutual-tls")
+		}
 		if present == "" {
 			present = "service"
 		}
@@ -1344,9 +1368,22 @@ func (a *app) serviceStart(https bool, present string, rangeBehaviour string) er
 			"COURSE_SERVICE_NAME="+coursepki.ServiceName,
 		)
 	}
+	if mutualTLS {
+		// One directory for the authorities, and the manufacturing record's
+		// directory to read claims and revocations out of live. The service
+		// writes neither.
+		command.Env = append(command.Env,
+			"COURSE_OPERATOR_TLS_PORT="+strconv.Itoa(a.manifest.Runtime.OperatorTLSPort),
+			"COURSE_PKI_DIR="+a.pkiDir(),
+			"COURSE_PROVISIONING_DIR="+a.provisionDir(),
+		)
+	}
 	mode := "http"
 	if https {
 		mode = "https"
+	}
+	if mutualTLS {
+		mode = "mutual-tls"
 	}
 	if err := os.WriteFile(a.serviceModePath(), []byte(mode), 0o600); err != nil {
 		return err
@@ -1367,6 +1404,16 @@ func (a *app) serviceStart(https bool, present string, rangeBehaviour string) er
 			response.Body.Close()
 			fmt.Fprintln(a.out, "Result: OTA service is healthy")
 			if https {
+				if mutualTLS {
+					fmt.Fprintf(a.out, "Devices, presenting a client certificate: https://%s:%d\n",
+						coursepki.ServiceName, a.manifest.Runtime.TLSPort)
+					fmt.Fprintf(a.out, "Operators and the lab controls: https://%s:%d\n",
+						coursepki.ServiceName, a.manifest.Runtime.OperatorTLSPort)
+					fmt.Fprintf(a.out, "Health and the Course environment marker stay on http://%s:%s\n",
+						settings.advertised, settings.port)
+					fmt.Fprintln(a.out, "Next: ./course service certificate")
+					return nil
+				}
 				fmt.Fprintf(a.out, "Release records, firmware, and events: https://%s:%d\n",
 					coursepki.ServiceName, a.manifest.Runtime.TLSPort)
 				fmt.Fprintf(a.out, "Health and the Course environment marker stay on http://%s:%s\n",
@@ -1429,6 +1476,14 @@ func (a *app) serviceStatus() error {
 		return fmt.Errorf("health check returned %s", response.Status)
 	}
 	fmt.Fprintln(a.out, "Result: OTA service is healthy")
+	if a.serviceMode() == "mutual-tls" {
+		fmt.Fprintf(a.out, "Transport: devices on TLS port %d, which demands a client certificate from one of the two device authorities\n",
+			a.manifest.Runtime.TLSPort)
+		fmt.Fprintf(a.out, "Transport: operators and the lab controls on TLS port %d, which authenticates the server only\n",
+			a.manifest.Runtime.OperatorTLSPort)
+		fmt.Fprintln(a.out, "Transport: health and the Course environment marker stay on plain HTTP")
+		return nil
+	}
 	if a.serviceMode() == "https" {
 		fmt.Fprintf(a.out, "Transport: release records, firmware, and events on TLS port %d, presenting %s\n",
 			a.manifest.Runtime.TLSPort, coursepki.ServiceName)
