@@ -1,6 +1,6 @@
 # Fixture safety contract
 
-Status: Resolved design. Tier 0 rules are from the first runnable course release. Tier 2, Tier 3, Tier 4 and Tier 6 rules extend them. Tier 6 is the first to carry a named exception rather than only additions, and it is bounded in the section that takes it.
+Status: Resolved design. Tier 0 rules are from the first runnable course release. Tier 2, Tier 3, Tier 4, Tier 6 and Tier 7 rules extend them. Tier 6 is the first to carry a named exception rather than only additions, and it is bounded in the section that takes it. Tier 7 takes no new exception, and it writes the tightest bounds in this document, because its adversary holds a signing key that a correctly configured service obeys.
 
 This contract lets a Learner demonstrate insecure behavior, and later watch a control refuse it, without turning a course fixture into a general network attack tool.
 
@@ -112,7 +112,7 @@ All mutable inputs come from allowlisted records in `course.yml` and generated s
 
 ## Key material
 
-Every private key the course generates lives only under `.course-secrets/`. That covers the Course certificate authority, the Service certificate, the two Tier 2 bypass certificates, the Release signing key, and the attacker signing key.
+Every private key the course generates lives only under `.course-secrets/`. That covers the Course certificate authority, the Service certificate, the two Tier 2 bypass certificates, the Release signing key, the attacker signing key, and, from Tier 7, the Operational Device CA.
 
 A private key is never committed, never copied into `artifacts/generated/`, never written into an evidence record, and never named by a firmware build command.
 
@@ -123,6 +123,8 @@ The last clause is new at Tier 3 and it is deliberate. MCUboot's default is to r
 The two Tier 3 signing keys are made by the same command and are cryptographically identical. Only their names separate them. That is the lesson, so the course does not hide it behind two different generation paths, and every command that signs prints the fingerprint of the key it used.
 
 From Tier 4 the Release signing key signs two kinds of thing, and the enumeration above covers both. It signs the MCUboot image through `imgtool`, as it has since Tier 3, and it signs the exact bytes of a Release manifest through the course helper, because `imgtool` is image shaped and a detached signature over arbitrary bytes is not an image operation. The private key is named by `./course release sign` and `./course release hostile` and by nothing else. No firmware build command names it, no service holds it, and the manifest verification key compiled into the application is the public half only, extracted the same way the bootloader's is.
+
+From Tier 7 a course service holds a CA signing key for the first time, and that is recorded rather than slipped in. Started with `--mutual-tls`, the OTA service reads the Operational Device CA private key and issues Operational certificates with it. The material reaches it as one `COURSE_PKI_DIR` rather than as separate variables naming separate files. In a defensible process an operational CA signs for a service and is not the service, so this is a Weakness the module names rather than a property the course claims. The Tier 7 fixture reads the same key by the same route, and the bounds on what it may sign with it are in "Tier 7 fixtures" below.
 
 These rules are hygiene. They are not the boundary that makes a firmware image authentic. The signature check is, and the Tier 3 attack proves it by publishing hostile firmware through a service that passes every check Tier 2 added.
 
@@ -393,6 +395,156 @@ credential does not need the hardware it was copied from. What it may not claim
 is anything about a board, and the refusal it produces after hardening is the
 station's own.
 
+## Tier 7 fixtures
+
+These rules bind the adversary Tier 7 will add, before it is written, following the Tier 2 and Tier 6 precedent above.
+
+Tier 7's adversary is sharper than every fixture before it, and the section says so first rather than last. Tier 3 and Tier 4 published bytes a control was built to refuse. Tier 6's clone answered a station's nonce with a credential a Learner had already extracted. Tier 7's adversary mints certificates that a correctly configured service accepts, holds a legitimate owner account, and holds the private half of the authority that issues operational identity. Its power is not a trick the course invented. It is the Operational CA key having leaked, which is the threat the module names.
+
+**The adversary is one actor, not a set of fixtures, and it is not registered in `course.yml`.** It lives under `./course service bypass e-7-NN`, a sibling of `./course service start`, in the same way Tier 6's five station refusals were plain runners beside one registered fixture. This contract exists to stop fixtures claiming refusals they did not see, not to require a registered fixture per tier. So Tier 7 gets written rules instead of a manifest fixture entry, and every rule in this section binds every `./course service bypass` runner. Where this section says "the fixture", it means that one adversary.
+
+**The runners open sockets and write shared state, so they keep the Tier 0 guarantees that matter.** Dry run first, exact row identifier to execute, marker handshake over plain HTTP, bounded and manifest-owned inputs, an idempotent reset, and a machine-readable evidence record. Tier 6's extraction command was exempted from the handshake because it had no target and opened no socket. Nothing in Tier 7 is in that position.
+
+| Fixture | Permitted action | Refused behavior |
+| --- | --- | --- |
+| The Tier 7 adversary, `./course service bypass e-7-NN` | Enroll a bounded list of manifest-owned synthetic devices through the real provisioning station, drive both halves of a claim for them against the Learner's own running service, mint hostile Operational certificates from the local Operational CA, present them as a client to the Learner's own listeners, and record which check refused each one. | A Learner-supplied device identifier, owner slug, serial, certificate, endpoint, port or count. An identifier outside the manifest list. Acting without the matching marker. Starting, stopping or reconfiguring the service it is testing. Writing to any store other than the manufacturing record, the owner store, the revoked-serial store and its own state. Signing anything other than an Operational leaf certificate. |
+
+**The fixture requires the Learner's own service to be running under `--https --mutual-tls`, and refuses with a precise message when it is not.** It never starts a service of its own and never reaches inside one. It is a client, with no privileged access to the thing refusing it. An ephemeral service started per run would also throw away the refusal trail in the service's own `events.jsonl`, and that trail is the lab artifact the tier produces.
+
+### Synthetic identities are minted locally and never leave the lab
+
+Every identity the fixture holds is issued by a local disposable authority in `.course-secrets/pki`, created by this Course environment and trusted by nothing outside it.
+
+Synthetic Factory identities are enrolled through the real provisioning station, in process, exactly as Tier 6's runners do. The station signs them with the Manufacturer Device CA, which is the same authority that signed the Learner's own board. The fixture does not hold that CA key and does not need it.
+
+Hostile Operational certificates are signed by the Operational Device CA, whose key the fixture does hold. The bounds on that are in the next subsection, because they are the sharpest rules in this section.
+
+The one foreign client certificate, the one that fails at the handshake, comes from the existing Untrusted CA. That authority already means "an authority nothing here trusts" in the Tier 2 module's vocabulary, and Tier 7 adds no fifth authority.
+
+Device identifiers come from a bounded manifest-owned list in the `beacon-bypass-e7-NN` shape. They are never supplied on a command line and never invented at run time. An unbounded loop enrolling devices is not a demonstration of scale, it is a way to fill a disk.
+
+Private keys the fixture generates for synthetic devices live in generated state under `.course-state/`, which is ignored and never committed. They are never printed, never written to an evidence record, and never named by a firmware build command. Tier 6's compiled-in credential exception is not widened by one byte: no Tier 7 key reaches a firmware build.
+
+None of this material is ever presented to a host, a service, a device or a network outside this Course environment. The only endpoints a runner connects to are the Learner's own listeners, on this host, at manifest-owned ports.
+
+### The marker check, stated concretely
+
+Before any side effect, every runner performs the marker handshake with `matchMarker` in `internal/courseapp/app.go`, unchanged from Tier 0.
+
+It reads the expected marker from `.course-state/environment.json`, the path recorded as `safety.marker_path` in `course.yml`, and refuses when that file is missing or when the expected marker has expired.
+
+It then fetches `/.well-known/course-environment` over plain HTTP from the address the manifest gives, with redirects disabled, and continues only when `course_id`, `environment_id` and `tier` match exactly and `synthetic_data` is true on both sides.
+
+The address is derived from `runtime.bind_default` and `services.ota.port`, never from a command line. The standing target rules therefore hold unchanged: one literal loopback or private address, no DNS name but `localhost`, no wildcard, no range, no discovery.
+
+**The marker is never fetched over the mutual-TLS port, and Tier 7 is the tier where that rule earns its keep.** The reason is already written in the "Marker handshake" section: a safety check must not depend on the control it is being used to test. Here the point is sharper, because the fixture holds a key that would let a mutual-TLS marker fetch succeed. A check the adversary can satisfy with its own forged credential is not a check.
+
+A missing marker, a malformed marker, a redirected marker, an expired marker, a mismatched marker, or any failure to reach the plain endpoint is a refusal before side effects, and the runner exits nonzero naming the failed check.
+
+### The Operational CA signing key the fixture holds
+
+This is the most authority any fixture in this course is given, and the bound is written here rather than left to be inferred.
+
+The fixture reads the Operational Device CA private key from `.course-secrets/pki`, through the single `COURSE_PKI_DIR` variable, exactly as the service reads it. It does not copy it anywhere, and it does not write it to state, to evidence or to output.
+
+**The Operational Device CA is a local disposable authority.** It is a self-signed root created by the Learner with `./course keys create operational-ca`. It is trusted only by the Learner's own device listener, through the client pool that service builds. No device holds it as a trust anchor. Nothing outside this Course environment trusts it, and nothing outside this Course environment ever sees a certificate it signed.
+
+**What the key may sign is exactly one thing: an Operational leaf certificate for a device identifier this Course environment holds a record for.** That covers the bounded list of synthetic identifiers and, for the ownership-context row, an identifier the Learner's own claim produced. It signs nothing else. It signs no intermediate authority, no server certificate, no Factory identity, no Release manifest and no firmware image. It creates no new authority and it never replaces the one on disk.
+
+The forgeable issuing variant that these rows need takes a chosen serial and a chosen `NotAfter`, which the ordinary issuing path does not. That variant exists for this fixture and the module says why it exists. It stays bounded by the same rule: an Operational leaf certificate for a recorded identifier, and nothing else.
+
+**A fixture signing with the Operational CA key must say so while it is doing it**, exactly as Tier 4 requires of a fixture signing with the Release signing key. It names the row, states that the key is the Learner's own Operational CA, prints the fingerprint of the key it signed with, and says plainly that the capability under test is a leaked CA key. It also labels which rows need the key and which need only what a real outsider could plausibly hold, so a Learner can tell an insider failure from an outsider attack.
+
+Without that narration a Learner watching their own authority sign a certificate that the service then refuses would draw the wrong conclusion twice: first that the key had escaped the lab, and then that the refusal proves a CA signature is worthless. Neither is what the row shows.
+
+### Fixture-created records, and the tell that does not exist
+
+**Synthetic devices land in the real `.course-state/provisioning/records.jsonl`, through the real `enroll()`, with no marker field.** This is the same shape Tier 6's `beacon-bypass-*` devices already have. `provisionRecord` in `internal/courseapp/tier06.go` has no such field and does not gain one.
+
+**So the naming convention is the only tell, and this contract will not claim more than that.** A reader must not take "distinguishable" here to mean the record can prove which entries a fixture wrote. It cannot. A `beacon-bypass-e7-NN` identifier is a convention this course follows, not a property the station verifies, and anyone who can write the record can pick any name.
+
+That absence is a stated lesson rather than a gap, and it is the honest position. The station genuinely cannot tell a synthetic device from a real one, which is the fact that Tier 6's first two rows already turn on. A marker field would have the record assert knowledge the station does not have, which is worse than the record being silent. It is carried as a Weakness ledger row, in the words "the manufacturing record distinguishes fixture devices by naming convention alone".
+
+What can be reconstructed reliably is what each run did while it ran. The service appends every result to its own `events.jsonl`, and reset appends a `fixture_reset` entry naming the run and the entries that run produced. That trail, not a field in the device record, is where the honest account of the fixture's activity lives.
+
+### What reset clears, and what it must not
+
+Tier 6's rule continues and gains one exact boundary: **reset is append only wherever it can be, and it clears only live authorization state.**
+
+Reset removes nothing from `records.jsonl` and nothing from the service's `events.jsonl`. It writes one `fixture_reset` entry naming the run and what that run produced. The synthetic devices stay in the manufacturing record forever, for the reason Tier 6 already gives: a store that can be edited to tidy up after a fixture is no longer the append-only store the station's claim depends on.
+
+Reset clears exactly two things, and both are stores that decide what happens next rather than records of what happened:
+
+- The adversary owner's entry in `.course-state/provisioning/owners.jsonl`. Left behind, it is a live account that can authenticate to the operator listener after the lab is over.
+- The serials the fixture marked revoked. Left behind, they change how the service answers a later honest request.
+
+The distinction is the lesson and it fits in one sentence: **a record of what happened is never rewound, and a store that decides what happens next is.**
+
+Reset may not remove the Learner's own owner, the Learner's own claim records, or any serial the fixture did not mark. It names what it removed. It never touches key material, never removes an authority, and never stops or reconfigures the Learner's service.
+
+This narrows the general reset contract in the same way Tier 6 narrowed it. The known state of the manufacturing record cannot be restored, and reset restores live authorization state instead. The rule refusing the next run until reset has succeeded still holds, and the `fixture_reset` entry is what satisfies it. A Learner who wants an empty record discards the whole Course environment through the existing cleanup path, which is an environment reset and not something a fixture may reach for.
+
+### The second owner is a real account, and it is bounded
+
+**The adversary owner is a genuine entry in the real owner store, beside the Learner's own.** It has to be. An account that could not authenticate would be refused at the bearer checks and would never reach the authorization decision the rows exist to show. That is the lesson the tier is built on: the adversary is correctly authenticated, and every refusal it collects is an authorization decision rather than an authentication one.
+
+The bound is that there is exactly one. The slug is fixed in the manifest, never supplied by the Learner, minted idempotently by the first runner that needs it, and minted by nothing else. `./course setup` does not create it, and the Learner still mints their own owner as a lab step.
+
+Its credential is thirty-two random bytes. It is held in fixture state under `.course-state/`, which is ignored, and it is never printed, never written to evidence, never written to a course page and never committed. The store holds a `sha256:` verifier and never the credential itself. Reset removes the entry.
+
+### No credential, private key or nonce reaches a page, a log or the repository
+
+Tier 7 introduces three kinds of secret, and the rule for all three is the same.
+
+| Secret | Lives only in | What a record may hold |
+| --- | --- | --- |
+| Owner credential, thirty-two random bytes | printed once to the Learner for their own owner, held in fixture state for the adversary owner | a `sha256:` verifier in `owners.jsonl` |
+| Claim nonce, fifteen bytes as twenty-four characters | the device's RAM for the length of its window, or the fixture's memory when the fixture is both ends of a synthetic claim | a verifier in the service's trail and in the `claim` record |
+| Operational private keys, the CA's and each device's | `.course-secrets/pki` for the authority, PSA Secure Storage on the board, generated state under `.course-state/` for synthetic devices | a fingerprint |
+
+None of these is written to a course page, to a module, to an evidence record, to the service's `events.jsonl`, to a fixture's output, or to the repository. Records and evidence carry fingerprints and verifiers, exactly as every earlier tier carries hashes rather than contents.
+
+The owner credential travels only as an `Authorization: Bearer` header and never in a request body, so it does not land in any log that records bodies.
+
+A module that shows what a nonce or a credential looks like uses an illustrative value that no Course environment issued, and says that is what it is. A transcript in a course page never carries a live value from a real run.
+
+The fixture is both ends of a synthetic device's claim, so it generates and consumes nonces itself. It holds them in memory for the length of one run and prints none of them. This is also the honest reason the claim-window rows are labelled `host, board required` rather than pure host rows: for a real device the nonce leaves through a person reading a console, and when the fixture is both ends that property is simply absent.
+
+### It never targets anything the Learner does not own
+
+The standing rule holds without exception and Tier 7 states its concrete shape, because this is the first fixture that speaks to three listeners.
+
+Every connection a runner makes is to the Learner's own service, on this host, at a port the manifest records: the public port, the mutual-TLS device port, and the operator port. No other address, no other port, no second host, no scan, no discovery and no promiscuous capture.
+
+The fixture talks to no board. Two of the tier's rows are successes the board produces on the genuine path, and the fixture takes no part in them.
+
+**A host result never stands in for a device result, and the third witness value does not weaken that.** A row marked `host, board required` means a board opened a claim window and printed a nonce, and the refusal was then read on the host. The label records that a device made the result possible. It never lets a host runner claim that a device refused anything.
+
+`E-7-15` is the row whose result is an absence: the handshake closes and there is no status, no body, no check and no entry in the service's trail. The runner records the absence as an absence. It may not report a refusal it did not see, and it may not invent a reason code for a layer that emits none.
+
+### The minimal revoke command
+
+Nothing else in Tier 7 can make a serial revoked, so the tier adds one small host command that writes a `revoked.jsonl` under `.course-state/`, which the service reads live.
+
+It is a lab control and not a fixture. It opens no socket, has no target, and changes no service configuration, so a marker handshake and a reset would guard nothing while implying a check had happened. That is the same reading that kept Tier 6's extraction command out of the fixture rules.
+
+It accepts only a serial this Course environment issued and can show in its own records. It takes no arbitrary value, and it revokes nothing it cannot name a record for. Tier 8 owns the operator workflow around revocation. Tier 7 owns only the file, and a Learner can read that file, which is the point of putting the authority there rather than behind a request.
+
+### Manifest entries the runners read
+
+Every mutable input stays allowlisted. The exact manifest block is for the build ticket to place, but these values come from the manifest and never from a Learner.
+
+| Value | Read by | For |
+| --- | --- | --- |
+| The plain target and the selected interface | every runner | the marker handshake and the interface check, unchanged from Tier 0 |
+| The device port, the operator port and the service name | every runner that connects | so no endpoint, port or name is ever supplied on a command line |
+| The bounded list of synthetic device identifiers | the enrolling runners | so the count is bounded and the names are not invented at run time |
+| The single adversary owner slug | the runners that authenticate as the second owner | so there is exactly one, and it is not Learner-supplied |
+| The declared changes and the reset path | the runner wrapper | the standard dry-run disclosure and the reset it must invoke |
+| `paths.state`, `paths.secrets`, `paths.generated_artifacts` | every runner | where the records, the fixture state, the authorities and the evidence live |
+
+The fixture requires no hardware of its own. That is the lesson rather than a compromise: a forged certificate does not need the device it impersonates. What it may not claim is anything about a board.
+
 ## Capture rules
 
 A fixture may capture traffic only under these bounds.
@@ -443,7 +595,7 @@ The fixture exits nonzero and names the failed check.
 
 It never falls back to a weaker target check, a wider address scope, a default device, or an unrestricted command.
 
-Sources: [Define the Tier 0 fixture safety contract](https://github.com/tkEmLogic/learning-cyber-security/issues/24) for the Tier 0 rules, [Extend the fixture safety contract to HTTPS and a named service](https://github.com/tkEmLogic/learning-cyber-security/issues/41) for the transport, service name, and capture rules, [Extend the fixture safety contract to hostile firmware images and signing keys](https://github.com/tkEmLogic/learning-cyber-security/issues/53) for the key material and Tier 3 rules, [What does the fixture safety contract need for Tier 4?](https://github.com/tkEmLogic/learning-cyber-security/issues/70) for the manifest signing and replay rules, and [Write the Tier 6 section of the fixture safety contract](https://github.com/tkEmLogic/learning-cyber-security/issues/122) for the compiled-in credential exception, the append-only reset, and the flash dump rules.
+Sources: [Define the Tier 0 fixture safety contract](https://github.com/tkEmLogic/learning-cyber-security/issues/24) for the Tier 0 rules, [Extend the fixture safety contract to HTTPS and a named service](https://github.com/tkEmLogic/learning-cyber-security/issues/41) for the transport, service name, and capture rules, [Extend the fixture safety contract to hostile firmware images and signing keys](https://github.com/tkEmLogic/learning-cyber-security/issues/53) for the key material and Tier 3 rules, [What does the fixture safety contract need for Tier 4?](https://github.com/tkEmLogic/learning-cyber-security/issues/70) for the manifest signing and replay rules, [Write the Tier 6 section of the fixture safety contract](https://github.com/tkEmLogic/learning-cyber-security/issues/122) for the compiled-in credential exception, the append-only reset, and the flash dump rules, and [Write the Tier 7 section of the fixture safety contract](https://github.com/tkEmLogic/learning-cyber-security/issues/149) for the Operational CA signing bounds, the reset split between history and live authorization state, and the naming-convention limitation.
 
 ## Where each rule is enforced
 
@@ -478,5 +630,14 @@ A rule with no named enforcement point is a wish. This table says where each rul
 | The clone takes the identifier it impersonates from the manufacturing record, and its invented identifiers from a bounded manifest list | `cloneSharedIdentity` in `internal/courseapp/tier06.go`, reading `phantom_ids` from `course.yml` | Enforced |
 | The clone's reset appends and never deletes | `resetClone` in `internal/courseapp/tier06.go`, wired into `resetFixtureState` | Enforced |
 | A flash dump is bounded to the `storage` partition and followed by the RTS reset | `deviceDump` in `internal/courseapp/tier06.go`, which takes no range and reads only `0x3b0000`,`0x030000` before pulsing RTS | Enforced |
+| The Operational CA private key is confined to `.course-secrets/pki` and reaches the service and the fixture only as `COURSE_PKI_DIR` | `./course keys create operational-ca`, `internal/coursepki`, `scripts/check-secrets.sh`, and `.gitignore` | Owed by [Build the Operational CA, the Owner credential store and the claim endpoints](https://github.com/tkEmLogic/learning-cyber-security/issues/146) and [Add client-certificate authentication to the OTA service](https://github.com/tkEmLogic/learning-cyber-security/issues/147) |
+| The forgeable issuing variant signs only an Operational leaf certificate for a recorded identifier, and prints the fingerprint of the key it used | the Tier 7 issuing helper in `internal/coursepki` | Owed by [Build the Operational CA, the Owner credential store and the claim endpoints](https://github.com/tkEmLogic/learning-cyber-security/issues/146) |
+| Every `./course service bypass` runner performs the marker handshake over plain HTTP before any side effect | `matchMarker` in `internal/courseapp/app.go`, against `services.ota` in `course.yml` | Owed by [Build the Tier 7 attack fixture and the bypass runners](https://github.com/tkEmLogic/learning-cyber-security/issues/150) |
+| A runner requires the Learner's own `--mutual-tls` service and never starts, stops or reconfigures it | the Tier 7 bypass runners | Owed by [Build the Tier 7 attack fixture and the bypass runners](https://github.com/tkEmLogic/learning-cyber-security/issues/150) |
+| Synthetic device identifiers and the single adversary owner slug come from a bounded manifest list, never from a Learner | the Tier 7 bypass runners, against `course.yml` | Owed by [Build the Tier 7 attack fixture and the bypass runners](https://github.com/tkEmLogic/learning-cyber-security/issues/150) |
+| A runner signing with the Operational CA key says so, names the row, and prints the key fingerprint | the Tier 7 bypass runners | Owed by [Build the Tier 7 attack fixture and the bypass runners](https://github.com/tkEmLogic/learning-cyber-security/issues/150) |
+| Reset appends a `fixture_reset` entry, deletes nothing from `records.jsonl` or `events.jsonl`, and clears only the adversary owner entry and the serials the fixture marked | the Tier 7 reset path | Owed by [Build the Tier 7 attack fixture and the bypass runners](https://github.com/tkEmLogic/learning-cyber-security/issues/150) |
+| No owner credential, private key or claim nonce is printed, written to evidence, written to a course page, or committed | the Tier 7 bypass runners, `writeAttackEvidence`, `scripts/check-secrets.sh`, and `.gitignore` | Owed by [Build the Tier 7 attack fixture and the bypass runners](https://github.com/tkEmLogic/learning-cyber-security/issues/150) |
+| The revoke command accepts only a serial this Course environment issued and can show a record for | the Tier 7 revoke command | Owed by [Build the Operational CA, the Owner credential store and the claim endpoints](https://github.com/tkEmLogic/learning-cyber-security/issues/146) |
 
 When a rule moves, this table moves with it.
