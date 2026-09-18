@@ -79,7 +79,7 @@ jobs:
             echo "skip=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          if echo "$changed" | grep -qvE '^(course-material/|docs/|prototypes/|evidence/|README\.md$|CONTEXT\.md$|\.github/ISSUE_TEMPLATE/)'; then
+          if echo "$changed" | grep -qvE '^(course-material/|docs/|research/|prototypes/|evidence/|README\.md$|CONTEXT\.md$|AGENTS\.md$|\.github/ISSUE_TEMPLATE/)'; then
             echo "Something outside the documentation allowlist changed, so building."
             echo "skip=false" >> "$GITHUB_OUTPUT"
           else
