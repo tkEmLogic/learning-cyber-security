@@ -61,7 +61,12 @@ _Avoid_: Device password, owner identity
 
 **Operational identity**:
 A rotatable, per-device identity used for normal mutual TLS access to services.
-It belongs to the device's current ownership context.
+It belongs to the device's current ownership context. It is issued by the
+Operational Device CA when a claim succeeds, it names its owner in its owner
+scope, and it lives ninety days. The device cannot tell that it has expired,
+because the device has no trusted clock, so the service alone enforces the end
+of its life. A device holding no Operational identity does not fall back to its
+Factory identity. It stays unable to download.
 _Avoid_: Factory identity, user account
 
 **Bootstrap credential**:
@@ -70,8 +75,16 @@ enrollment. It cannot authorize normal device operation or firmware download.
 _Avoid_: Default password, device identity
 
 **Claim window**:
-A short period opened by physical action during which a device may be assigned
-to a new owner and receive a new operational identity.
+A ten-minute period opened by a physical action, a ten-second hold of the BOOT
+button, during which a device may be assigned to a new owner and receive a new
+operational identity. The same press generates the Claim nonce and the Pending
+Operational key.
+
+Two parties bound the window and they do not time the same ten minutes. The
+device times its own window from the press and closes it by destroying the
+nonce and the pending key. The service times the claimable period on its own
+clock and is the only party that decides a claim is expired. A reset ends the
+window, and neither party resumes it.
 _Avoid_: Pairing mode, maintenance mode
 
 **Provisioning station**:
@@ -82,10 +95,13 @@ back to the device. It stores no private-key material.
 _Avoid_: OTA service, server
 
 **Provisioning record**:
-The append-only manufacturing record the provisioning station keeps. It records
-credential issuance and enrollment, including the certificate fingerprint and
-which credential was consumed, and never holds a private key. An entry is never
-edited or removed, including one a clone put there.
+The append-only device lifecycle record. The provisioning station is its first
+writer rather than its only one. The station records credential issuance and
+enrollment, including the certificate fingerprint and which credential was
+consumed, and from Tier 7 the OTA service appends the claim that binds a device
+to an owner. It never holds a private key, and a secret it refers to is kept
+only as a hash. An entry is never edited or removed, including one a clone put
+there.
 _Avoid_: Database, key store
 
 **Proof of possession**:
@@ -253,4 +269,131 @@ From Tier 4 that second key is held in two places: the bootloader checks the
 Image signature with it and the application checks the Release manifest
 signature with it. Same key material, two independent verifiers, and a pass by
 one is never evidence about the other.
+
+Tier 7 adds no third anchor. The device presents an Operational certificate and
+never verifies one, so it holds nothing for the Operational Device CA. It
+checks an issued certificate against its own key and its own identifier
+instead.
 _Avoid_: Root certificate store, trusted key
+
+**Customer operator**:
+The person who installs and manages a device on the customer side. They work
+for an owner, they are not the manufacturer, and they hold no device identity.
+In Tier 7 they run the operator half of a claim: they present an Owner
+credential and submit the device identifier with the Claim nonce that the
+device showed them.
+_Avoid_: User, administrator, owner
+
+**Owner**:
+The party a device belongs to once it has been claimed. An owner is named by a
+short slug, such as `northwind`, written in lower-case letters, digits and
+hyphens. That slug is what an Operational certificate carries and what the
+device record stores. An owner is not a person. A Customer operator acts for an
+owner.
+_Avoid_: User, account, tenant
+
+**Owner credential**:
+A credential that authorizes a person rather than a device. It is thirty-two
+random bytes, minted by the course and printed once, and only a hash of it is
+kept. The holder presents it as a bearer token on every operator request. It is
+reusable for ninety days, and minting a new credential for the same owner
+replaces the previous one. It is never a device identity and it is never stored
+as the device's private key.
+_Avoid_: Password, API key, device identity
+
+**Authenticated owner**:
+The owner that the service works out from the Owner credential presented on one
+operator request. The service never trusts an owner name carried in the request
+body, and it keeps nothing about the caller between requests. The course
+specification calls this an owner session. The course has no session object,
+and the word session does not appear in the code.
+_Avoid_: Owner session, login, signed-in user
+
+**Claim nonce**:
+A one-use secret that the device generates when its Claim window opens. It is
+printed on the device console as twenty-four characters in six groups, in an
+alphabet chosen so that a person can copy it without confusing similar
+characters. That person gives it to the service, which is how the claim proves
+that someone is physically at that device. The service keeps only a hash of it
+and spends it on the first successful match.
+_Avoid_: Pairing code, password, activation key
+
+**Pending Operational key**:
+The Operational key a device generates when its Claim window opens, before any
+certificate for it exists. It is held only in memory, so the end of the window
+and a reset both destroy it, and a flash dump taken during an open window does
+not contain it. It becomes the device's stored Operational key only when the
+issued certificate arrives.
+_Avoid_: Provisional certificate, temporary key, pending Operational identity
+
+**Mutual TLS**:
+A TLS connection on which both ends present a certificate, so the service
+identifies the device while the device identifies the service. The service
+reads three facts from the certificate it receives, and each fact has one
+source. The device identifier is the subject common name. The role is which
+certificate authority signed the certificate, taken from the verified chain,
+because a second signal could disagree with the chain. The owner scope is the
+subject organizational unit. Nothing else in the certificate names a role.
+_Avoid_: Two-way SSL, client authentication, certificate pinning
+
+**Device listener**:
+The service port that accepts only mutual TLS connections and serves the routes
+a device uses: its update assignment, release manifests, image downloads,
+status events, and the device half of a claim. A caller holding no device
+certificate never reaches a handler here, because the handshake happens before
+the request is read. The listener boundary is therefore the coarsest
+authorization decision the service makes.
+_Avoid_: HTTPS endpoint, API server, secure port
+
+**Operator listener**:
+The service port a person reaches. It authenticates the service to the caller
+and asks for no client certificate, which is what lets an Owner credential be
+presented on it at all. It serves the operator half of a claim and the lab
+controls.
+_Avoid_: Admin port, management API, operator session
+
+**Owner scope**:
+The owner slug that an Operational certificate carries, in the subject
+organizational unit. It states which owner the certificate was issued for. It
+is a statement the certificate makes about itself, so on its own it is not
+evidence that the owner is still the current one.
+_Avoid_: Ownership context, tenant identifier, subject name
+
+**Ownership context**:
+The property a connection is checked against: the owner scope in the presented
+certificate must equal the owner that the device record names now. The
+certificate states an owner and the record holds the current one, and the
+record decides. A certificate that is genuine and unexpired is still refused
+when the device has moved out of its ownership context.
+_Avoid_: Owner scope, owner session, ownership claim
+
+**Operational Device CA**:
+The certificate authority that signs Operational certificates. It is a
+self-signed root, separate from the manufacturer authority that signs Factory
+certificates, so operational trust does not descend from manufacturing trust.
+The Learner creates it, and the OTA service holds its signing key while mutual
+TLS is on. The device never holds it as a Trust anchor, because a device
+presents an Operational certificate and never verifies one.
+_Avoid_: Operational certificate authority, intermediate CA
+
+**Check**:
+The named property that had to hold, which a refusal reports. The provisioning
+station started this grammar in Tier 6, and the OTA service continues it in
+Tier 7 with its own separate set of names, because which component refused a
+request is part of what the refusal says. A refusal body carries the name in a
+field called `check` and one sentence in a field called `reason`. Every
+authorization refusal returns the same HTTP status, so the check is the reason
+and the status never is.
+
+A refusal at the TLS handshake carries no check at all. Nothing has read the
+request yet, so the caller sees only a closed connection. Which layer refuses
+decides how useful a refusal can be.
+_Avoid_: Error code, reason code, failure type
+
+**Reason code**:
+The device's own reason for the result it is reporting, carried in the status
+event the device sends. It has meant that since Tier 0 and Tier 7 does not
+change it. The course specification also uses the words "distinct reason codes"
+for the refusals the service must keep apart, and those refusals are named by a
+Check instead. Always say which of the two is meant.
+_Avoid_: Check, HTTP status
