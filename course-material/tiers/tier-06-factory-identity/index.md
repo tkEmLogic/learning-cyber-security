@@ -195,7 +195,7 @@ The device reports the identifier out of its own certificate, and the station's 
 ./course provision record --device beacon-404cca5ea9fc
 ```
 
-The factory versus field distinction is worth naming here. This is factory provisioning: a trusted cable, a one-use credential, a station you control. It is not how a consumer device is set up in the field, where there is no cable and no trusted operator. Tier 7 is where the field shape appears, with the phone-and-SoftAP claiming flow that a modern consumer product uses. The challenge-response over the cable in this tier is the design for a channel that authenticates neither end; Tier 7 solves the same problem the other way, with a connection that authenticates both.
+The factory versus field distinction is worth naming here. This is factory provisioning: a trusted cable, a one-use credential, a station you control. It is not how a consumer device is set up in the field, where there is no cable and no trusted operator. Tier 7 is where the field shape appears: someone physically present at the device, a code the device shows that person, and a second party who proves they own the device. The challenge-response over the cable in this tier is the design for a channel that authenticates neither end; Tier 7 solves the same problem the other way, with a connection that authenticates both.
 
 ## Replay the clone
 
