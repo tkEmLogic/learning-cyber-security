@@ -13,11 +13,12 @@
  * and reaching the key through mbedtls_pk_wrap_psa().
  *
  * This is the smallest thing that answers that question. It is a client only, it
- * handles one connection at a time, it is blocking, and it implements just
- * enough of socket_op_vtable to connect, send, receive and close. It does not
- * implement poll, so Zephyr's http_client cannot run on it as written; whether
- * the descriptor is good enough for http_client_req() is a separate question
- * this spike deliberately does not answer.
+ * handles one connection at a time, and it implements just enough of
+ * socket_op_vtable to connect, send, receive and close.
+ *
+ * Issue #158 extended it with the one thing #157 left out: poll. See the block
+ * above opaque_ioctl() for what that costs and which two failures it has to
+ * handle to let http_client_req() run on this descriptor.
  */
 
 #include "opaque_tls.h"
@@ -92,6 +93,12 @@ struct opaque_ctx {
 	bool in_use;
 	int sock;
 	bool handshake_done;
+	bool peer_closed;
+	/* What bio_recv() passes to zsock_recv(). Zero everywhere except inside
+	 * the poll data check, which must not block on the underlying socket.
+	 * Zephyr's tls_data_check() does exactly this with ctx->flags.
+	 */
+	int recv_flags;
 	mbedtls_ssl_context ssl;
 	mbedtls_ssl_config conf;
 	mbedtls_x509_crt ca;
@@ -106,6 +113,22 @@ static const struct socket_op_vtable opaque_fd_op_vtable;
 
 /* What the last handshake did, for the spike to report. */
 static struct course_opaque_tls_result last_result;
+
+/*
+ * Which poll branch fired how often, so the evidence for the two hard cases is
+ * a count off the board rather than an argument about record sizes.
+ */
+static struct course_opaque_tls_poll_stats poll_stats;
+
+const struct course_opaque_tls_poll_stats *course_opaque_tls_poll_stats(void)
+{
+	return &poll_stats;
+}
+
+void course_opaque_tls_reset_poll_stats(void)
+{
+	memset(&poll_stats, 0, sizeof(poll_stats));
+}
 
 const struct course_opaque_tls_result *course_opaque_tls_last_result(void)
 {
@@ -138,7 +161,7 @@ static int bio_send(void *arg, const unsigned char *buf, size_t len)
 static int bio_recv(void *arg, unsigned char *buf, size_t len)
 {
 	struct opaque_ctx *ctx = arg;
-	ssize_t got = zsock_recv(ctx->sock, buf, len, 0);
+	ssize_t got = zsock_recv(ctx->sock, buf, len, ctx->recv_flags);
 
 	if (got < 0) {
 		if (errno == EAGAIN || errno == EWOULDBLOCK) {
@@ -349,6 +372,7 @@ static ssize_t opaque_recvfrom(void *obj, void *buf, size_t max_len, int flags,
 	} while (got == MBEDTLS_ERR_SSL_WANT_READ || got == MBEDTLS_ERR_SSL_WANT_WRITE);
 
 	if (got == MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY) {
+		ctx->peer_closed = true;
 		return 0;
 	}
 	if (got < 0) {
@@ -381,18 +405,204 @@ static int opaque_close(void *obj, int fd)
 	return 0;
 }
 
-/* Poll is not implemented, which is the one thing a caller is most likely to
- * want next. http_client_req() polls the descriptor, so this spike cannot carry
- * it and does not claim to.
+/*
+ * Poll.
+ *
+ * This is the whole of issue #158. http_client_req() does not read and write a
+ * descriptor; it polls it, in sendall() for ZSOCK_POLLOUT and in
+ * http_wait_data() for ZSOCK_POLLIN, and calls zsock_recv() only once poll has
+ * said data is there. A descriptor whose ioctl refuses ZFD_IOCTL_POLL_PREPARE
+ * makes zsock_poll() fail outright, so #157's socket could not carry it.
+ *
+ * Forwarding the two ioctls to the underlying TCP descriptor is most of the
+ * answer, and the part it gets wrong is the part that matters:
+ *
+ *   - TLS arrives in records. The TCP descriptor can be readable while the
+ *     record is incomplete, so nothing decrypts out of it. Reporting POLLIN
+ *     there sends http_client into a zsock_recv() that blocks until the rest of
+ *     the record arrives, and with it the request timeout stops being a timeout.
+ *   - mbedTLS buffers. A read can decrypt a whole record and return less than
+ *     it holds, leaving bytes sitting in the SSL context with nothing left for
+ *     the TCP descriptor to signal. Poll would then block forever on data the
+ *     socket already has. This is the one that hangs rather than stalls.
+ *
+ * Zephyr's own sockets_tls.c answers both, and this mirrors it deliberately
+ * rather than inventing a second answer: ztls_poll_prepare_pollin() returns
+ * -EALREADY when mbedtls_ssl_get_bytes_avail() is non-zero, and
+ * tls_update_pollin() runs a non-blocking data check and hands -EAGAIN back to
+ * zvfs_poll_internal(), which retries with the event set back to NOT_READY.
  */
+
+/*
+ * Decrypt whatever has arrived, without blocking, and say how many bytes are
+ * now readable. mbedtls_ssl_read() with a NULL buffer and zero length processes
+ * records into the context and copies nothing out.
+ *
+ * Zephyr's tls_data_check() resets the mbedTLS session on an unexpected error.
+ * A spike has nothing to reset to, so it reports the error and lets the caller
+ * see POLLERR.
+ */
+static int data_check(struct opaque_ctx *ctx)
+{
+	int ret;
+
+	if (!ctx->handshake_done) {
+		return -ENOTCONN;
+	}
+	if (ctx->peer_closed) {
+		return -ENOTCONN;
+	}
+
+	ctx->recv_flags = ZSOCK_MSG_DONTWAIT;
+	ret = mbedtls_ssl_read(&ctx->ssl, NULL, 0);
+	ctx->recv_flags = 0;
+
+	if (ret < 0) {
+		if (ret == MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY) {
+			ctx->peer_closed = true;
+			return -ENOTCONN;
+		}
+		if (ret == MBEDTLS_ERR_SSL_WANT_READ || ret == MBEDTLS_ERR_SSL_WANT_WRITE) {
+			return 0;
+		}
+		printk("spike.poll data check err=-0x%04x\n", (unsigned int)-ret);
+		return -ECONNABORTED;
+	}
+
+	return (int)mbedtls_ssl_get_bytes_avail(&ctx->ssl);
+}
+
+/* The underlying TCP descriptor, with its lock held for the call, exactly as
+ * ztls_poll_prepare_ctx() takes it.
+ */
+static int forward_ioctl(struct opaque_ctx *ctx, unsigned int request,
+			 struct zsock_pollfd *pfd, struct k_poll_event **pev,
+			 struct k_poll_event *pev_end)
+{
+	const struct fd_op_vtable *vtable;
+	struct k_mutex *lock;
+	void *obj;
+	int ret;
+
+	obj = zvfs_get_fd_obj_and_vtable(ctx->sock, &vtable, &lock);
+	if (obj == NULL) {
+		return -EBADF;
+	}
+
+	(void)k_mutex_lock(lock, K_FOREVER);
+	if (request == ZFD_IOCTL_POLL_PREPARE) {
+		ret = zvfs_fdtable_call_ioctl(vtable, obj, request, pfd, pev, pev_end);
+	} else {
+		ret = zvfs_fdtable_call_ioctl(vtable, obj, request, pfd, pev);
+	}
+	k_mutex_unlock(lock);
+
+	return ret;
+}
+
+static int poll_prepare(struct opaque_ctx *ctx, struct zsock_pollfd *pfd,
+			struct k_poll_event **pev, struct k_poll_event *pev_end)
+{
+	int ret;
+
+	/* Forward first, unconditionally. The k_poll_event slots have to be
+	 * filled the same way on every call, because POLL_UPDATE walks the same
+	 * array; returning -EALREADY before forwarding would leave *pev short by
+	 * one and desynchronise the update pass.
+	 */
+	ret = forward_ioctl(ctx, ZFD_IOCTL_POLL_PREPARE, pfd, pev, pev_end);
+	if (ret != 0) {
+		return ret;
+	}
+
+	if ((pfd->events & ZSOCK_POLLIN) && mbedtls_ssl_get_bytes_avail(&ctx->ssl) > 0) {
+		/* Decrypted bytes are already here. -EALREADY tells
+		 * zvfs_poll_internal() to collect events without waiting.
+		 */
+		poll_stats.prepare_already++;
+		return -EALREADY;
+	}
+
+	poll_stats.prepare_forwarded++;
+	return 0;
+}
+
+static int poll_update(struct opaque_ctx *ctx, struct zsock_pollfd *pfd,
+		       struct k_poll_event **pev)
+{
+	int ret;
+
+	ret = forward_ioctl(ctx, ZFD_IOCTL_POLL_UPDATE, pfd, pev, NULL);
+	if (ret != 0) {
+		return ret;
+	}
+
+	if ((pfd->events & ZSOCK_POLLIN) == 0) {
+		return 0;
+	}
+
+	/* Buffered in mbedTLS, so the TCP descriptor has nothing to say. */
+	if (mbedtls_ssl_get_bytes_avail(&ctx->ssl) > 0) {
+		poll_stats.update_buffered++;
+		pfd->revents |= ZSOCK_POLLIN;
+		return 0;
+	}
+
+	if ((pfd->revents & ZSOCK_POLLIN) == 0) {
+		return 0;
+	}
+
+	ret = data_check(ctx);
+	if (ret == -ENOTCONN || (pfd->revents & ZSOCK_POLLHUP)) {
+		pfd->revents |= ZSOCK_POLLHUP;
+		return 0;
+	}
+	if (ret < 0) {
+		pfd->revents |= ZSOCK_POLLERR;
+		return 0;
+	}
+	if (ret > 0) {
+		poll_stats.update_decrypted++;
+		return 0;
+	}
+
+	/* Ciphertext arrived, no plaintext came of it. Withdraw the readiness
+	 * the TCP descriptor reported and ask for another iteration.
+	 */
+	poll_stats.update_partial_record++;
+	pfd->revents &= ~ZSOCK_POLLIN;
+	if (pfd->revents == 0) {
+		(*pev - 1)->state = K_POLL_STATE_NOT_READY;
+		return -EAGAIN;
+	}
+
+	return 0;
+}
+
 static int opaque_ioctl(void *obj, unsigned int request, va_list args)
 {
-	ARG_UNUSED(obj);
-	ARG_UNUSED(request);
-	ARG_UNUSED(args);
+	struct opaque_ctx *ctx = obj;
 
-	errno = EOPNOTSUPP;
-	return -1;
+	switch (request) {
+	case ZFD_IOCTL_POLL_PREPARE: {
+		struct zsock_pollfd *pfd = va_arg(args, struct zsock_pollfd *);
+		struct k_poll_event **pev = va_arg(args, struct k_poll_event **);
+		struct k_poll_event *pev_end = va_arg(args, struct k_poll_event *);
+
+		return poll_prepare(ctx, pfd, pev, pev_end);
+	}
+
+	case ZFD_IOCTL_POLL_UPDATE: {
+		struct zsock_pollfd *pfd = va_arg(args, struct zsock_pollfd *);
+		struct k_poll_event **pev = va_arg(args, struct k_poll_event **);
+
+		return poll_update(ctx, pfd, pev);
+	}
+
+	default:
+		errno = EOPNOTSUPP;
+		return -1;
+	}
 }
 
 static const struct socket_op_vtable opaque_fd_op_vtable = {

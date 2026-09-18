@@ -1,0 +1,184 @@
+I: Bootloader chainload address offset: 0x20000
+I: Image version: v0.6.0
+I: Jumping to the first image slot
+I: br_image_off = 0x20000
+I: ih_hdr_size = 0x20
+I (boot): Loading image 0 - slot 0 from flash, area id: 2
+I (boot): Application start=40803258h
+I (boot): DRAM	: lma=0002c22ch vma=4080c1c0h size=03464h ( 13412) load
+I (boot): IRAM	: lma=00020080h vma=40800000h size=0c1ach ( 49580) load
+I (boot): IROM	: lma=00030000h vma=42000000h size=83960h (538976) map
+I (boot): DROM	: lma=000c0000h vma=42800000h size=14D24h ( 85284) map
+I (boot): libc heap size 241 kB.
+I (spi_flash): detected chip: boya
+I (spi_flash): flash io: dio
+W (spi_flash): Detected size(16384k) larger than the size in the binary image header(4096k). Using the size in the binary image header.
+*** Booting Zephyr OS build v4.4.2 ***
+WARNING: Using a potentially insecure PSA ITS encryption key provider.
+ESP32-C6 Reference product: Tier 6, factory device identity
+Image label: factory
+Running release: tier-06-factory-identity
+Security counter of the running image: 3
+Release channel this device follows: stable
+Board: esp32c6_devkitc/esp32c6/hpcore
+Silicon revision read from eFuse: v0.1
+Product hardware revision asserted by this build: 1
+The first is read from the chip. The second is asserted and signed, because
+nothing on this part reports which product a board was built into.
+Tier 6 boot mode: signed MCUboot images, swap using offset, TEST upgrade
+Tier 6 downgrade prevention: by security counter, enforced by the bootloader
+Source revision of this build: d29498066fa7c2f26ed120b3332da5e7cb6fa871-dirty
+That identifies the build, not the release. It also travels in a protected
+MCUboot TLV, so the bootloader can say what it is swapping in. Your own build
+carries your hash and will not match a published one.
+Trial behaviour compiled into this image: healthy
+Image verification key this build trusted: 2f5fe5123abe8715ecde8cde2cac0e734969e5c0110d71eb839a15ceebd6c1e4
+That is the key the build used. This application cannot read what the bootloader holds.
+Release manifest verification key: 2f5fe5123abe8715ecde8cde2cac0e734969e5c0110d71eb839a15ceebd6c1e4
+One key signs both the image and the manifest, and two independent verifiers
+check them. Passing one is never evidence for the other.
+Tier 6 keeps every Tier 5 control and changes where the device's name comes
+from. It verifies signed release metadata before it parses it, installs on
+trial, and puts the old image back when the new one cannot prove it works.
+Identity model compiled into this image: factory
+Build-time device identifier: beacon-development-shared
+That is what the build asserted. From Tier 6 the identifier the device
+actually reports is read out of its own certificate, so watch identity.state
+below rather than this line.
+OTA service: https://ota.course.example:8443 at address 192.168.68.81
+Trust anchor: 9287bc8a7ad1339e
+Beacon state: steady, toggle period: 0 ms
+Hardware note: this board's onboard LED is wired to 3V3 and cannot be driven
+identity.state provisioned device_id=beacon-remfg-404cca5ea9fc
+identity.state certificate fingerprint=sha256:e0944a5bd16a94dc24073296abb11f313b4b79064ddd538d61f81238f84a822d
+recovery.state sharing the settings NVS instance at 0x3b0000, 8 sectors of 4096 bytes
+recovery.state record ids 1 to 3; settings uses 0x8000 and above
+recovery.state Tier 6 shares this instance with PSA Secure Storage
+provision.gate provisioned, and the provisioning interface is not running
+provision.gate nothing on this console will enroll it. Hold BOOT for 10
+provision.gate seconds to reopen it deliberately. No reset is needed.
+health.watchdog armed at 20000 ms on channel 0
+health.watchdog Only the thread doing the work feeds it, never a timer. A feed on
+health.watchdog a timer would keep running while the thread it vouches for was
+health.watchdog dead, and the watchdog would be guarding nothing.
+boot.state running image is confirmed
+boot.state no reason was recorded by a previous boot
+boot.state A crash or a hang leaves nothing here: the device can say why
+boot.state it gave up only if it was still alive enough to write it down.
+boot.state release tier-05-healthy was tried 1 times and is not what is running
+event.queued update.reverted release_id=tier-06-factory-identity detail=tier-05-healthy reason-unrecorded
+event.queued held until the link is up. Nothing here waits on the network,
+event.queued because the decision it describes was made without one.
+recovery.state download none in progress
+recovery.state trial release_id=tier-05-healthy attempts=1 of 3
+wifi.connecting ssid=Astronaut security=wpa2-psk band=2.4GHz
+wifi.association succeeded ssid=Astronaut
+wifi.address 192.168.68.69 assigned by DHCP
+spike.begin one mutually authenticated handshake, issue #157
+spike.identity presenting beacon-remfg-404cca5ea9fc
+spike.socket protocol 260 dispatched to the course implementation, fd=0
+spike.tls wrapped PSA key 0x00000601, no private material exported
+spike.result HANDSHAKE COMPLETED TLSv1.2 TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256
+spike.result peer verification flags 0x00000000
+spike.data the service answered: HTTP/1.1 200 OK
+spike.key 0x00000601 still present after the handshake and the free
+spike.key usage flags 0x00001400, exportable=no
+spike.stack after the raw handshake main has 5132 bytes of 8192 never touched, high water 3060
+spike.http asking http_client_req() to run on the opaque socket, GET /spike
+spike.tls wrapped PSA key 0x00000601, no private material exported
+spike.http http_client_req returned 49 after 19 ms
+spike.http HTTP OVER THE OPAQUE SOCKET WORKED url=/spike status=200 body=60 complete=yes reads=1
+spike.poll /spike prepare: 1 forwarded, 0 already-had-plaintext
+spike.poll /spike update: 1 decrypted-now, 0 from-mbedtls-buffer, 0 partial-record
+spike.key 0x00000601 still present after the handshake and the free
+spike.key usage flags 0x00001400, exportable=no
+spike.stack after http_client_req main has 5124 bytes of 8192 never touched, high water 3068
+spike.http asking http_client_req() to run on the opaque socket, GET /spike/large
+spike.tls wrapped PSA key 0x00000601, no private material exported
+spike.http http_client_req returned 55 after 850 ms
+spike.http HTTP OVER THE OPAQUE SOCKET WORKED url=/spike/large status=200 body=65536 complete=yes reads=135
+spike.poll /spike/large prepare: 11 forwarded, 124 already-had-plaintext
+spike.poll /spike/large update: 11 decrypted-now, 124 from-mbedtls-buffer, 128 partial-record
+spike.key 0x00000601 still present after the handshake and the free
+spike.key usage flags 0x00001400, exportable=no
+spike.stack after the 64 KiB download main has 4968 bytes of 8192 never touched, high water 3224
+Thread analyze:
+ beacon              : STACK: unused 796 usage 228 / 1024 (22 %); CPU: 0 %
+                     : Total CPU cycles used: 3713
+ rx_q[0]             : STACK: unused 984 usage 1064 / 2048 (51 %); CPU: 0 %
+                     : Total CPU cycles used: 1531650
+ net_mgmt            : STACK: unused 3556 usage 540 / 4096 (13 %); CPU: 0 %
+                     : Total CPU cycles used: 10881
+ tcp_work            : STACK: unused 1288 usage 760 / 2048 (37 %); CPU: 0 %
+                     : Total CPU cycles used: 239147
+ shell_uart          : STACK: unused 7948 usage 244 / 8192 (2 %); CPU: 0 %
+                     : Total CPU cycles used: 631
+ wifi                : STACK: unused 1704 usage 1880 / 3584 (52 %); CPU: 5 %
+                     : Total CPU cycles used: 19900223
+ sysworkq            : STACK: unused 416 usage 608 / 1024 (59 %); CPU: 0 %
+                     : Total CPU cycles used: 14013
+ esp_timer           : STACK: unused 3704 usage 392 / 4096 (9 %); CPU: 0 %
+                     : Total CPU cycles used: 127692
+ idle                : STACK: unused 280 usage 232 / 512 (45 %); CPU: 17 %
+                     : Total CPU cycles used: 61624112
+ main                : STACK: unused 4968 usage 3224 / 8192 (39 %); CPU: 75 %
+                     : Total CPU cycles used: 264100428
+ ISR0                : STACK: unused 0 usage 2048 / 2048 (100 %); CPU: 0 %
+                     : Total CPU cycles used: 0
+spike.concurrency a second socket is refused with errno=12, one at a time
+spike.end
+spike.sleep next attempt in 30 seconds
+spike.begin one mutually authenticated handshake, issue #157
+spike.identity presenting beacon-remfg-404cca5ea9fc
+spike.socket protocol 260 dispatched to the course implementation, fd=0
+spike.tls wrapped PSA key 0x00000601, no private material exported
+spike.result HANDSHAKE COMPLETED TLSv1.2 TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256
+spike.result peer verification flags 0x00000000
+spike.data the service answered: HTTP/1.1 200 OK
+spike.key 0x00000601 still present after the handshake and the free
+spike.key usage flags 0x00001400, exportable=no
+spike.stack after the raw handshake main has 4968 bytes of 8192 never touched, high water 3224
+spike.http asking http_client_req() to run on the opaque socket, GET /spike
+spike.tls wrapped PSA key 0x00000601, no private material exported
+spike.http http_client_req returned 49 after 10 ms
+spike.http HTTP OVER THE OPAQUE SOCKET WORKED url=/spike status=200 body=60 complete=yes reads=1
+spike.poll /spike prepare: 1 forwarded, 0 already-had-plaintext
+spike.poll /spike update: 1 decrypted-now, 0 from-mbedtls-buffer, 0 partial-record
+spike.key 0x00000601 still present after the handshake and the free
+spike.key usage flags 0x00001400, exportable=no
+spike.stack after http_client_req main has 4968 bytes of 8192 never touched, high water 3224
+spike.http asking http_client_req() to run on the opaque socket, GET /spike/large
+spike.tls wrapped PSA key 0x00000601, no private material exported
+spike.http http_client_req returned 55 after 947 ms
+spike.http HTTP OVER THE OPAQUE SOCKET WORKED url=/spike/large status=200 body=65536 complete=yes reads=135
+spike.poll /spike/large prepare: 11 forwarded, 124 already-had-plaintext
+spike.poll /spike/large update: 11 decrypted-now, 124 from-mbedtls-buffer, 128 partial-record
+spike.key 0x00000601 still present after the handshake and the free
+spike.key usage flags 0x00001400, exportable=no
+spike.stack after the 64 KiB download main has 4968 bytes of 8192 never touched, high water 3224
+Thread analyze:
+ beacon              : STACK: unused 796 usage 228 / 1024 (22 %); CPU: 0 %
+                     : Total CPU cycles used: 15719
+ rx_q[0]             : STACK: unused 984 usage 1064 / 2048 (51 %); CPU: 0 %
+                     : Total CPU cycles used: 3828805
+ net_mgmt            : STACK: unused 3556 usage 540 / 4096 (13 %); CPU: 0 %
+                     : Total CPU cycles used: 10881
+ tcp_work            : STACK: unused 1288 usage 760 / 2048 (37 %); CPU: 0 %
+                     : Total CPU cycles used: 463555
+ shell_uart          : STACK: unused 7948 usage 244 / 8192 (2 %); CPU: 0 %
+                     : Total CPU cycles used: 631
+ wifi                : STACK: unused 1704 usage 1880 / 3584 (52 %); CPU: 3 %
+                     : Total CPU cycles used: 38409092
+ sysworkq            : STACK: unused 416 usage 608 / 1024 (59 %); CPU: 0 %
+                     : Total CPU cycles used: 14013
+ esp_timer           : STACK: unused 3704 usage 392 / 4096 (9 %); CPU: 0 %
+                     : Total CPU cycles used: 546975
+ idle                : STACK: unused 280 usage 232 / 512 (45 %); CPU: 48 %
+                     : Total CPU cycles used: 534810356
+ main                : STACK: unused 4968 usage 3224 / 8192 (39 %); CPU: 47 %
+                     : Total CPU cycles used: 526979039
+ ISR0                : STACK: unused 0 usage 2048 / 2048 (100 %); CPU: 0 %
+                     : Total CPU cycles used: 0
+spike.concurrency a second socket is refused with errno=12, one at a time
+spike.end
+spike.sleep next attempt in 30 seconds

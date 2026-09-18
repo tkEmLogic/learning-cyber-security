@@ -10,6 +10,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/tls"
 	"crypto/x509"
 	"flag"
@@ -19,6 +20,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 )
 
 func main() {
@@ -76,6 +78,26 @@ func main() {
 		}
 		log.Printf("request %s %s from %s, version 0x%04x suite 0x%04x",
 			r.Method, r.URL.Path, name, r.TLS.Version, r.TLS.CipherSuite)
+
+		// Issue #158. A 60 byte reply fits in one TLS record and in one
+		// recv_buf, so it never asks the poll implementation the hard
+		// question. This one does: 64 KiB is several full sized records
+		// against a 512 byte recv_buf, so mbedTLS decrypts far more per
+		// record than http_client takes per read, and bytes sit buffered
+		// in the SSL context with nothing left for the TCP descriptor to
+		// signal. That is the case that hangs a naive forwarding poll,
+		// and it is the shape of the image download Tier 7 needs.
+		if r.URL.Path == "/spike/large" {
+			const size = 64 * 1024
+			w.Header().Set("Content-Type", "application/octet-stream")
+			w.Header().Set("Content-Length", strconv.Itoa(size))
+			payload := bytes.Repeat([]byte("0123456789abcdef"), size/16)
+			if _, err := w.Write(payload); err != nil {
+				log.Printf("large body write failed: %v", err)
+			}
+			return
+		}
+
 		fmt.Fprintf(w, "mutual TLS reached the handler as %s\n", name)
 	})
 
