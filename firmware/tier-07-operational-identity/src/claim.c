@@ -52,13 +52,26 @@ static const char crockford[] = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
  */
 #define CLAIM_CSR_MAX 768
 #define CLAIM_REQUEST_MAX 1400
-#define CLAIM_RESPONSE_MAX 1400
+/*
+ * The reply is the larger of the two, because #146 settled that the service
+ * PEM-encodes the issued certificate and sends six fields beside it. PEM costs
+ * a third over the DER and then the armour and the line breaks on top, and
+ * every one of those newlines arrives as a two-character JSON escape. A little
+ * over a kilobyte is what that measures out to; the rest is the margin that
+ * keeps a longer device identifier or owner slug from turning into -EMSGSIZE
+ * on the one exchange in this tier that cannot be retried into working.
+ */
+#define CLAIM_RESPONSE_MAX 2048
+/* A certificate, unarmoured. Not CLAIM_RESPONSE_MAX: the decoded DER is
+ * roughly three quarters of its own encoding and none of the fields around it.
+ */
+#define CLAIM_CERT_MAX 1024
 
 static unsigned char csr_der[CLAIM_CSR_MAX];
 static size_t csr_der_len;
 static char request_body[CLAIM_REQUEST_MAX];
 static char response_body[CLAIM_RESPONSE_MAX];
-static unsigned char issued_cert[CLAIM_RESPONSE_MAX];
+static unsigned char issued_cert[CLAIM_CERT_MAX];
 
 static char nonce_text[CLAIM_NONCE_TEXT_MAX + 1];
 
@@ -270,6 +283,16 @@ void course_claim_print_status(void)
  * tiers. device_id is deliberately absent: #136 adds it only when the service
  * knows it, and a field the device does not need is a field it should not
  * require.
+ *
+ * The service also sends result, claim_window_expires_at, poll_after_seconds,
+ * owner_id, certificate_serial, certificate_fingerprint and not_after, and
+ * none of them is named here. result would be a second way to ask a question
+ * check already answers. The two time fields are the service's clock, and this
+ * device has no wall clock to compare them against; its own k_timer closes its
+ * own window and that is the only duration it is entitled to act on. The three
+ * certificate fields describe the certificate that arrived in the same body,
+ * and identity.c reads them out of the certificate itself rather than out of
+ * the sentence next to it.
  */
 struct claim_reply {
 	const char *check;
@@ -298,9 +321,30 @@ static int build_request(void)
 	}
 	csr_b64[encoded] = '\0';
 
+	/*
+	 * Two fields, and the absence of a third is the decision.
+	 *
+	 * This device used to send device_id as well. It cannot: the service
+	 * decodes the body with DisallowUnknownFields, so a third field is a
+	 * 400 and the claim never starts. #137 named three sources for the
+	 * device's identifier — the client certificate, the request path, and
+	 * the certification request's subject — and a fourth would only be a
+	 * fourth thing that can disagree with the other three. The path already
+	 * carries it, and the Factory certificate on this connection is what
+	 * actually establishes it.
+	 *
+	 * The nonce goes out in the grouped form it was printed in. The service
+	 * canonicalises before it hashes — upper case, hyphens dropped, and
+	 * Crockford's I, L, O and U folded — so the spelling a person reads off
+	 * this console and the spelling they type hash to the same verifier.
+	 *
+	 * The certification request goes out as base64 DER, which is what this
+	 * device has. The service takes PEM or base64 DER and checks the
+	 * signature either way.
+	 */
 	len = snprintf(request_body, sizeof(request_body),
-		       "{\"device_id\":\"%s\",\"nonce\":\"%s\",\"csr\":\"%s\"}",
-		       course_identity_device_id(), nonce_text, csr_b64);
+		       "{\"nonce\":\"%s\",\"csr\":\"%s\"}",
+		       nonce_text, csr_b64);
 	if (len < 0 || len >= (int)sizeof(request_body)) {
 		printk("claim.post the request body does not fit\n");
 		return -ENOMEM;
@@ -311,19 +355,46 @@ static int build_request(void)
 /*
  * Accept the certificate the service issued, and stop.
  *
- * The certificate arrives base64 in JSON, which is what Go's encoding/json
- * produces for a []byte without anybody writing an encoder. identity.c refuses
- * it if it is not for the key this device is holding or does not carry this
- * device's name, and those refusals are the reason the window can be closed
- * either way afterwards.
+ * It arrives PEM armoured. This device used to assume bare base64 DER, on the
+ * reasoning that Go's encoding/json produces exactly that for a []byte; #146
+ * settled it the other way and the service encodes a PEM block, so the armour
+ * is stripped here. The two spellings are told apart by the header rather than
+ * by a content type, which is the same thing the service does in the other
+ * direction with the certification request, and means neither side breaks if
+ * the other changes its mind.
+ *
+ * Zephyr's base64_decode skips newlines but refuses the hyphens in the
+ * BEGIN and END lines, so the armour has to come off before it rather than be
+ * tolerated by it.
+ *
+ * identity.c refuses the result if it is not for the key this device is
+ * holding or does not carry this device's name, and those refusals are the
+ * reason the window can be closed either way afterwards.
  */
 static void accept_certificate(const char *encoded)
 {
+	static const char pem_begin[] = "-----BEGIN CERTIFICATE-----";
+	static const char pem_end[] = "-----END CERTIFICATE-----";
+	const char *armoured = strstr(encoded, pem_begin);
+	const char *base64_start = encoded;
+	size_t base64_len = strlen(encoded);
 	size_t decoded = 0;
 	int err;
 
+	if (armoured != NULL) {
+		const char *footer = strstr(armoured, pem_end);
+
+		base64_start = armoured + sizeof(pem_begin) - 1;
+		if (footer == NULL || footer < base64_start) {
+			printk("claim.issued the certificate opens a PEM block and never closes it\n");
+			close_window("the issued certificate could not be read");
+			return;
+		}
+		base64_len = (size_t)(footer - base64_start);
+	}
+
 	err = base64_decode(issued_cert, sizeof(issued_cert), &decoded,
-			    (const uint8_t *)encoded, strlen(encoded));
+			    (const uint8_t *)base64_start, base64_len);
 	if (err != 0) {
 		printk("claim.issued the certificate will not decode err=%d\n", err);
 		close_window("the issued certificate could not be read");
@@ -351,13 +422,51 @@ static void accept_certificate(const char *encoded)
 	printk("claim.window it claims or recovers.\n");
 }
 
+/* Wait out one poll interval before asking again.
+ *
+ * Every path that decides "no answer yet" goes through this, because the one
+ * that did not was a busy loop: an exchange that completes without moving
+ * next_exchange_ms is re-sent on the very next pass through course_claim_step,
+ * which is a TLS handshake and a certification request every few milliseconds
+ * for as long as the window lives.
+ */
+static void wait_one_poll(void)
+{
+	next_exchange_ms = k_uptime_get() + CONFIG_COURSE_CLAIM_POLL_SECONDS * 1000;
+}
+
 static void handle_reply(int status_code, size_t body_len)
 {
 	struct claim_reply reply = {0};
 	int err;
 
+	/*
+	 * 400 is the one answer on this route that is not an authorization
+	 * decision, and #146 is explicit that it never borrows a check name: it
+	 * means the service could not read the request. The body is plain text
+	 * rather than JSON, so there is nothing here to parse.
+	 *
+	 * It is terminal. Every poll re-sends identical bytes, so asking again
+	 * cannot change the answer, and a claim that kept asking would open a
+	 * mutually authenticated connection every few seconds until the window
+	 * closed. It is also the one reply on this route that says the fault is
+	 * on this side of the wire, so it says so.
+	 */
+	if (status_code == 400) {
+		printk("claim.refused status=400, the service could not read this request\n");
+		if (body_len > 0) {
+			printk("claim.refused %.*s\n", (int)body_len, response_body);
+		}
+		printk("claim.refused that is this device failing to say what it meant, not the\n");
+		printk("claim.refused service refusing the claim. Re-sending the same bytes cannot\n");
+		printk("claim.refused change it, so the window closes.\n");
+		close_window("the service could not read the claim request");
+		return;
+	}
+
 	if (body_len == 0) {
 		printk("claim.reply status=%d with no body, treating it as pending\n", status_code);
+		wait_one_poll();
 		return;
 	}
 
@@ -365,6 +474,7 @@ static void handle_reply(int status_code, size_t body_len)
 			     ARRAY_SIZE(claim_reply_descr), &reply);
 	if (err < 0) {
 		printk("claim.reply unreadable status=%d err=%d\n", status_code, err);
+		wait_one_poll();
 		return;
 	}
 
@@ -410,7 +520,7 @@ static void handle_reply(int status_code, size_t body_len)
 		       CONFIG_COURSE_CLAIM_POLL_SECONDS);
 	}
 	state = CLAIM_POLL;
-	next_exchange_ms = k_uptime_get() + CONFIG_COURSE_CLAIM_POLL_SECONDS * 1000;
+	wait_one_poll();
 }
 
 static void exchange_failed(int err)

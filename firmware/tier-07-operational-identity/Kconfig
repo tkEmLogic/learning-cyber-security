@@ -233,16 +233,31 @@ config COURSE_IDENTITY_FACTORY
 	  Tier 6 published two images from one source tree, because where the
 	  device's identity comes from was that tier's whole subject. Tier 7's
 	  subject is what an identity authorizes, and it takes the per-device
-	  Factory identity as given: a shared image has no identity it can prove
-	  is its own, so it has nothing to claim with and no certificate anyone
-	  could scope to an owner. The comparison is Tier 6's and Tier 6 still
-	  publishes both halves of it.
+	  Factory identity as given. The comparison is Tier 6's and Tier 6
+	  still publishes both halves of it.
+
+	  Be precise about why the shared image is not carried forward. It is
+	  not that it cannot prove anything. Its certificate is a real Factory
+	  certificate signed by the manufacturer device CA, so it proves
+	  possession of its key exactly as well as a per-device one does, and
+	  it would pass the identity-factory check at the claim endpoint. What
+	  it cannot prove is which device it is. Every shared image carries the
+	  same subject, and a claim binds an owner to a device rather than to a
+	  fleet.
+
+	  Follow that through and the shared image fails in a way worth
+	  knowing. Ownership is first come, so the first shared board to
+	  complete a claim takes the identifier, and every other board flashed
+	  from the same image is refused at device-unowned from then on. No
+	  attacker appears anywhere in that story. That is the strongest
+	  argument for per-device identity, and it is why this symbol is not a
+	  choice.
 
 	  The symbol keeps its prompt and its name so the generated Tier 6
-	  fragment still configures this tree, and so the two tiers are readable
-	  side by side. Turning it off builds an image with no identity
-	  subsystem at all, which is not a Tier 7 variant, it is a broken
-	  configuration.
+	  fragment still configures this tree, and so the two tiers are
+	  readable side by side. Turning it off builds an image with no
+	  identity subsystem at all, which is not a Tier 7 variant, it is a
+	  broken configuration.
 
 config COURSE_IDENTITY_NAME
 	string
