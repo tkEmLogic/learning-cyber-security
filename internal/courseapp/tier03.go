@@ -327,6 +327,8 @@ func (a *app) release(args []string) error {
 			return a.releaseSignTier05(releaseVariantOption(args[1:]))
 		case "06":
 			return a.releaseSignTier06(releaseVariantOption(args[1:]))
+		case "07":
+			return a.releaseSignTier07(releaseVariantOption(args[1:]))
 		}
 		return a.releaseSign()
 	case "assign":

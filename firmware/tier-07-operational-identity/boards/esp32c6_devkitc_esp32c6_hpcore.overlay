@@ -1,0 +1,19 @@
+#include "../dts/esp32c6_4m_flash_map.dtsi"
+
+/*
+ * The board's default console is the physical uart0 pins, which need a
+ * separate USB-UART adapter to observe. Route the console over the
+ * DevKitC's built-in USB-Serial/JTAG peripheral instead, so application
+ * logs are visible on the same connector already used to build and flash
+ * (see docs/esp32c6-build-baseline.md, "Safe hardware check").
+ */
+&usb_serial {
+	status = "okay";
+};
+
+/ {
+	chosen {
+		zephyr,console = &usb_serial;
+		zephyr,shell-uart = &usb_serial;
+	};
+};

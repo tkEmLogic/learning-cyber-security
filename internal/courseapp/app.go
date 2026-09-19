@@ -782,6 +782,7 @@ var firmwareApps = map[string]string{
 	"04": "firmware/tier-04-release-policy",
 	"05": "firmware/tier-05-recovery",
 	"06": "firmware/tier-06-factory-identity",
+	"07": "firmware/tier-07-operational-identity",
 }
 
 // tierSignsItsOwnImage names the tiers whose bootloader is built separately
@@ -792,7 +793,7 @@ var firmwareApps = map[string]string{
 // the property is "this tier's bootloader checks who published an image", and
 // every tier from Tier 3 on has it.
 func tierSignsItsOwnImage(tier string) bool {
-	return tier == "03" || tier == "04" || tier == "05" || tier == "06"
+	return tier == "03" || tier == "04" || tier == "05" || tier == "06" || tier == "07"
 }
 
 func variantsForTier(tier string) map[string]firmwareVariant {
@@ -807,6 +808,8 @@ func variantsForTier(tier string) map[string]firmwareVariant {
 		return tier05Variants
 	case "06":
 		return tier06Variants
+	case "07":
+		return tier07Variants
 	default:
 		return firmwareVariants
 	}
@@ -871,7 +874,7 @@ func (a *app) buildFirmware(args []string) error {
 	// can verify a Release manifest. It is a separate variable from the trust
 	// anchor because it answers a separate question: the anchor says which
 	// service to talk to, this says whose release metadata to believe.
-	if tier == "04" || tier == "05" || tier == "06" {
+	if tier == "04" || tier == "05" || tier == "06" || tier == "07" {
 		keyDir, err := a.writeSigningPublicKeyInc()
 		if err != nil {
 			return err
@@ -1026,7 +1029,7 @@ CONFIG_COURSE_TRUST_ANCHOR_FINGERPRINT=%q
 	//
 	// The hardware revision is asserted here and nowhere read. The channel is
 	// a policy choice, not a property of the device.
-	if tier == "04" || tier == "05" || tier == "06" {
+	if tier == "04" || tier == "05" || tier == "06" || tier == "07" {
 		body += fmt.Sprintf(`CONFIG_COURSE_SECURITY_COUNTER=%d
 CONFIG_COURSE_HARDWARE_REVISION=%d
 CONFIG_COURSE_RELEASE_CHANNEL=%q
@@ -1045,7 +1048,7 @@ CONFIG_COURSE_RELEASE_CHANNEL=%q
 	// swapping in. Both copies are covered by the image signature. It
 	// identifies the build and not the release, and a Learner's own build
 	// carries their hash and will usually be dirty.
-	if tier == "05" || tier == "06" {
+	if tier == "05" || tier == "06" || tier == "07" {
 		symbol, err := trialBehaviourSymbol(variant.trialBehaviour)
 		if err != nil {
 			return "", "", err
@@ -1059,7 +1062,11 @@ CONFIG_COURSE_RELEASE_CHANNEL=%q
 	// deliberately no third that falls back from one to the other: "failed
 	// enrollment silently falls back to shared identity" is a stated failure
 	// criterion in section 11.
-	if tier == "06" {
+	// Tier 7 emits the same symbol, and it is the one arm Tier 6's choice had
+	// that Tier 7 keeps: CONFIG_COURSE_IDENTITY_FACTORY is a plain bool there
+	// rather than half of a choice, so the generated line configures both
+	// trees and the two tiers stay readable side by side.
+	if tier == "06" || tier == "07" {
 		symbol, err := identityModelSymbol(variant.identityModel)
 		if err != nil {
 			return "", "", err

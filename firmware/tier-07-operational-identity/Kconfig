@@ -1,0 +1,416 @@
+# Configuration Tier 5 adds on top of the shared options in firmware/common.
+#
+# The first block is inherited from Tier 2, which taught the device to verify
+# the service it talks to. Tier 4 keeps every word of it: the manifest is
+# fetched over that same verified connection, and a signed manifest does not
+# make an unverified connection acceptable.
+
+menu "Tier 2 authenticated service"
+
+config COURSE_OTA_SERVICE_NAME
+	string "Name the service certificate must carry"
+	default "ota.course.example"
+	help
+	  The device connects to CONFIG_COURSE_OTA_HOST, a literal address, and
+	  then requires the certificate presented there to carry this name.
+
+	  The name is never resolved. There is no DNS resolver in this image.
+	  It is the value the TLS layer compares the certificate against, which
+	  is why a wrong name is refused even though the address was right.
+
+config COURSE_OTA_TLS_PORT
+	int "OTA service TLS port"
+	default 8443
+	help
+	  Tier 2 moves release records, firmware bytes, and status events to
+	  this port. Health and the Course environment marker stay on the plain
+	  HTTP port, because a safety check must not depend on the control it
+	  is used to test.
+
+config COURSE_TRUST_ANCHOR_FINGERPRINT
+	string "Fingerprint of the trust anchor compiled into this image"
+	default "unknown"
+	help
+	  Printed at boot so a stale trust anchor diagnoses itself instead of
+	  looking like a broken network. ./course build firmware writes this
+	  value, and ./course service certificate prints the same one.
+
+	  The device does not compute it. Computing a digest on the board to
+	  describe material the board already holds would prove nothing that the
+	  build cannot state.
+
+endmenu
+
+menu "Tier 4 release policy"
+
+config COURSE_SECURITY_COUNTER
+	int "Security counter of the running image"
+	default 1
+	help
+	  The anti-rollback counter this image was signed with. The same value
+	  goes into the signed MCUboot image TLV and into the signed Release
+	  manifest, and ./course build firmware writes it from the one constant
+	  in internal/courseapp/tier04.go so the two cannot disagree.
+
+	  The application refuses a manifest whose counter is lower than this
+	  one. Equal is allowed; lower never is. That check saves a wasted
+	  download and is not the boundary: the bootloader is what actually
+	  stops a downgrade, by comparing the candidate's counter against the
+	  counter in the image already in the primary slot.
+
+	  It is deliberately not derived from the human-readable version.
+	  "Human-readable versions override the security counter" is the
+	  failure this tier is about.
+
+config COURSE_HARDWARE_REVISION
+	int "Product hardware revision this build asserts"
+	default 1
+	help
+	  The product hardware revision a release is targeted at, compared
+	  against the manifest's signed hardware_revision_min..max range.
+
+	  It is asserted, not read. The chip reports its silicon stepping from
+	  eFuse and the boot banner prints that beside this value, but nothing
+	  on this part reports which product a board was built into. Product
+	  identity is asserted and protected; a value the device reads is not a
+	  claim anybody signed.
+
+config COURSE_RELEASE_CHANNEL
+	string "Release channel this device follows"
+	default "stable"
+	help
+	  One of stable or candidate. The device refuses a manifest published
+	  to any other channel, even a correctly signed one.
+
+	  This is the check that has no attacker behind it. Nobody without the
+	  Release signing key can produce a manifest that gets this far, so a
+	  channel mismatch means whoever holds the key published something for
+	  the wrong devices. The device cannot tell that from a leaked key, and
+	  refusing is the same either way.
+
+endmenu
+
+menu "Tier 5 recoverable install"
+
+choice COURSE_TRIAL_BEHAVIOUR
+	prompt "How this image behaves during its trial boot"
+	default COURSE_TRIAL_HEALTHY
+	help
+	  Tier 5 publishes five images from this one source tree. They differ
+	  only in what happens between the trial boot and the confirmation,
+	  which is the whole subject of the tier, so the difference a Learner
+	  has to understand is one conditional rather than a diff between five
+	  directories.
+
+	  Every one of them is a real, correctly signed image. None of them is
+	  hostile: an unhealthy release is the manufacturer publishing something
+	  that does not work, which section 11 names beside the attacks.
+
+config COURSE_TRIAL_HEALTHY
+	bool "Healthy: pass every check and confirm"
+	help
+	  The release that works. It passes the four health checks, survives the
+	  60 second window, and calls boot_write_img_confirmed().
+
+config COURSE_TRIAL_CRASH
+	bool "Crash: fault before the health gate starts"
+	help
+	  Faults deliberately before the gate runs, so it is distinct from
+	  FAIL_HEALTH, which requires the gate to have run. The image never
+	  reaches the code that could record why, so the device identifies it by
+	  reset cause and by the absence of a written reason.
+
+config COURSE_TRIAL_HANG
+	bool "Hang: stop in the thread that feeds the watchdog"
+	help
+	  An ordinary loop, in main. Interrupts keep being serviced and the
+	  beacon thread keeps running; what stops is the watchdog feed, because
+	  main is the only thing that ever performs one.
+
+	  Feeding from the thread that does the work, rather than from a timer,
+	  is what makes this catchable at all. A feed on a timer keeps running
+	  while the thread it vouches for is dead, and the watchdog would be
+	  guarding nothing.
+
+	  This was checked on the board. The driver programs stage 0 as an
+	  interrupt whose handler is documented as clearing the interrupt and
+	  feeding the watchdog, which would mean only a hang that also blocked
+	  interrupts ever reached the resetting stage. It does not work out that
+	  way: that function must be called with write protection disabled, and
+	  wdt_esp32_isr() does not disable it, so its feed has no effect and
+	  stage 1 resets the chip. That is a property of this driver rather than
+	  a guarantee, and an upstream fix would change it silently.
+
+config COURSE_TRIAL_FAIL_HEALTH
+	bool "Fail health: fail one named check"
+	help
+	  Fails a single named check while the other three visibly pass, so the
+	  cause is read rather than inferred from where the output stopped.
+
+config COURSE_TRIAL_TIMEOUT_HEALTH
+	bool "Timeout health: never reach a verdict"
+	help
+	  Leaves one check unsatisfied so the 60 second window expires without a
+	  verdict. Distinct from FAIL_HEALTH: the specification separates a
+	  failed check from an expired timer, and these two images are what make
+	  that separation observable.
+
+endchoice
+
+config COURSE_TRIAL_BEHAVIOUR_NAME
+	string
+	default "healthy" if COURSE_TRIAL_HEALTHY
+	default "crash" if COURSE_TRIAL_CRASH
+	default "hang" if COURSE_TRIAL_HANG
+	default "fail-health" if COURSE_TRIAL_FAIL_HEALTH
+	default "timeout-health" if COURSE_TRIAL_TIMEOUT_HEALTH
+	help
+	  The name this image prints for its own trial behaviour. Not settable:
+	  it follows the choice above so the two cannot disagree.
+
+config COURSE_HEALTH_GATE_SECONDS
+	int "Length of the local health window"
+	default 60
+	help
+	  Section 6 fixes this at 60 seconds. It is measured from the end of the
+	  boot-time checks rather than from boot, so a slow boot cannot eat the
+	  window and make the gate's length depend on something it is not
+	  measuring.
+
+config COURSE_TRIAL_FAILURE_LIMIT
+	int "How many trials of one release before it is refused"
+	default 3
+	help
+	  Bounds the revert loop. A release that installs cleanly and then fails
+	  its trial would otherwise be offered, installed, fail and revert
+	  forever, because nothing about it is invalid.
+
+	  The count is incremented when a trial begins, never when one fails. A
+	  crashing image never reaches code that could record a failure, and a
+	  hung one is reset from interrupt context where an NVS write is not
+	  safe, so a count kept on failure would miss exactly the two failures
+	  that most need counting.
+
+	  This is persistent state about a release, and it is not the
+	  application-managed accepted-image database section 6 forbids. That
+	  prohibition exists so a failed trial can always revert to the
+	  previously confirmed image. This count never blocks a revert; it only
+	  stops the device re-attempting a release it has already proven bad.
+
+config COURSE_SOURCE_REVISION
+	string "Source revision this image was built from"
+	default "unknown"
+	help
+	  The git hash of the tree this image was built from, with -dirty
+	  appended when the tree was dirty, exactly as git describe --dirty
+	  reports it.
+
+	  It also travels in a protected MCUboot TLV at tag 0x00A0, so it is
+	  covered by the image signature and cannot be rewritten without
+	  invalidating the image. This Kconfig value is what the build put in
+	  that TLV.
+
+	  It identifies the build and not the release. A Learner's own build
+	  carries their hash and will usually be dirty, and will not match a
+	  published one. The course claims no reproducible builds, and this
+	  value is not evidence of any.
+
+	  What it answers is "what am I running" after a revert, when the
+	  Release manifest that described the image was consumed long ago and
+	  the device no longer holds it.
+
+endmenu
+
+menu "Tier 6 factory identity, carried into Tier 7"
+
+config COURSE_IDENTITY_FACTORY
+	bool "Factory: a key generated on this device"
+	default y
+	help
+	  Tier 7 builds one image, and the factory identity is not a choice in
+	  it.
+
+	  Tier 6 published two images from one source tree, because where the
+	  device's identity comes from was that tier's whole subject. Tier 7's
+	  subject is what an identity authorizes, and it takes the per-device
+	  Factory identity as given. The comparison is Tier 6's and Tier 6
+	  still publishes both halves of it.
+
+	  Be precise about why the shared image is not carried forward. It is
+	  not that it cannot prove anything. Its certificate is a real Factory
+	  certificate signed by the manufacturer device CA, so it proves
+	  possession of its key exactly as well as a per-device one does, and
+	  it would pass the identity-factory check at the claim endpoint. What
+	  it cannot prove is which device it is. Every shared image carries the
+	  same subject, and a claim binds an owner to a device rather than to a
+	  fleet.
+
+	  Follow that through and the shared image fails in a way worth
+	  knowing. Ownership is first come, so the first shared board to
+	  complete a claim takes the identifier, and every other board flashed
+	  from the same image is refused at device-unowned from then on. No
+	  attacker appears anywhere in that story. That is the strongest
+	  argument for per-device identity, and it is why this symbol is not a
+	  choice.
+
+	  The symbol keeps its prompt and its name so the generated Tier 6
+	  fragment still configures this tree, and so the two tiers are
+	  readable side by side. Turning it off builds an image with no
+	  identity subsystem at all, which is not a Tier 7 variant, it is a
+	  broken configuration.
+
+config COURSE_IDENTITY_NAME
+	string
+	default "factory"
+	help
+	  The name this image prints for its own identity model.
+
+config COURSE_PROVISIONING_SHELL
+	bool "Offer the provisioning shell while unprovisioned"
+	default y
+	depends on COURSE_IDENTITY_FACTORY
+	help
+	  The enrollment interface. It is a Zephyr shell rather than a private
+	  protocol on purpose: a hidden framing is obscurity and not security,
+	  and both are exposed on exactly the same terms once the gating below
+	  is in place.
+
+	  What makes it defensible is that it is reduced and closed. SHELL_MINIMAL
+	  turns off the kernel module, the built-in commands, history, tab
+	  completion and VT100 handling, all of which are gated on the same
+	  condition, so an attacker finding this shell finds two provisioning
+	  commands and nothing else. SHELL_AUTOSTART is off, so the application
+	  decides when it runs, and it stops it the moment enrollment succeeds.
+
+	  A Learner can check both halves: type a command after enrolling and
+	  watch nothing happen.
+
+config COURSE_PROVISIONING_BUTTON_REOPENS
+	bool "Let the BOOT button reopen provisioning on an enrolled device"
+	default y
+	depends on COURSE_PROVISIONING_SHELL
+	help
+	  Without this the interface closes permanently on enrollment, and there
+	  is then no way to send the erase command that remanufacturing needs.
+	  Reflashing does not help: Secure Storage lives in the storage
+	  partition and survives a slot 0 flash, exactly the way MCUboot's
+	  trailer does.
+
+	  The cost is a weakness worth naming rather than hiding: anyone with
+	  physical access and this button can put the device back into
+	  provisioning mode. That is a deliberate trade for recoverability, and
+	  Advanced Tier A is where the debug and download paths around it are
+	  closed.
+
+config COURSE_PROVISIONING_BUTTON_HOLD_SECONDS
+	int "Seconds the BOOT button must be held to reopen provisioning"
+	default 10
+	range 2 60
+	depends on COURSE_PROVISIONING_BUTTON_REOPENS
+	help
+	  The button is read while the application runs, not at reset.
+
+	  Reading it at reset cannot work on this part: sw0 is GPIO9, the
+	  ESP32-C6 strapping pin, so holding it through the reset edge straps
+	  the chip into the ROM download loader and the application never runs
+	  at all. The only window was therefore after the reset and before the
+	  gate, which is a fraction of a second, and hitting it reliably was not
+	  something a Learner should have to practise.
+
+	  So the button is armed with an interrupt instead, and a deliberate
+	  long press reopens the interface in place, with no reset and no
+	  re-enumeration of the USB device. A sustained hold is also harder to
+	  trigger by accident than a press during boot.
+
+endmenu
+
+menu "Tier 7 operational identity"
+
+config COURSE_CLAIM
+	bool "Build the Claim window"
+	default y
+	depends on COURSE_IDENTITY_FACTORY && COURSE_PROVISIONING_BUTTON_REOPENS
+	help
+	  The timed half of Tier 7: a nonce, a ten-minute window, a bounded
+	  submit and a poll, in src/claim.c.
+
+	  It depends on the button rather than merely on the factory identity,
+	  and that dependency is the decision #135 made rather than an accident
+	  of wiring. The Claim window is opened by a documented physical action
+	  and by nothing else. An image with the button disabled has no way to
+	  open one, and building the window into it would leave a claim path
+	  with no way to authorize it.
+
+config COURSE_CLAIM_WINDOW_SECONDS
+	int "Seconds a Claim window stays open on this device"
+	default 600
+	range 60 3600
+	depends on COURSE_CLAIM
+	help
+	  The device times this itself with a k_timer and closes its own window
+	  by destroying the nonce and the pending Operational key.
+
+	  This is not the service's ten minutes and it is not meant to be. The
+	  service starts counting when the request reaches it, some seconds
+	  later, and the service alone decides that a claim has expired. The
+	  device's timer only ever closes the device's own window: it never
+	  reports a time and it is never an authorization input, which is what
+	  keeps device time evidence rather than permission.
+
+	  CONFIG_MBEDTLS_HAVE_TIME_DATE=n costs this board wall-clock judgement,
+	  not duration judgement. It cannot tell you whether a certificate has
+	  expired. It can perfectly well count ten minutes.
+
+config COURSE_CLAIM_SUBMIT_ATTEMPTS
+	int "Attempts at submitting the device half before the window closes"
+	default 3
+	range 1 10
+	depends on COURSE_CLAIM
+	help
+	  Submitting is a thing that either lands or does not, so it is bounded.
+	  The delay doubles from two seconds between attempts, and after the last
+	  one the device closes its own window and says the button must be
+	  pressed again.
+
+	  This budget is not shared with the retrieval poll below, because the
+	  two bound different things: this bounds a submission, and the poll is
+	  the waiting state. The separate five-attempt budget on the *operator*
+	  half lives at the service, per #134.
+
+config COURSE_CLAIM_POLL_SECONDS
+	int "Seconds between retrieval polls while a window is open"
+	default 5
+	range 1 60
+	depends on COURSE_CLAIM
+	help
+	  How the device learns its certificate was issued. A fresh connection
+	  each time, closed after, bounded only by the window timer.
+
+	  A fresh connection rather than one held open for ten minutes: it keeps
+	  #158's one-connection-at-a-time decision intact with no connection
+	  lifetime state to carry, and it makes the poll the same run_request()
+	  as every other Tier 7 exchange rather than the tier's only long-lived
+	  socket with its own idle-timeout handling.
+
+endmenu
+
+source "Kconfig.zephyr"
+
+config COURSE_SIGNING_KEY_FINGERPRINT
+	string "Fingerprint of the image verification key this image was built beside"
+	default "unknown"
+	help
+	  Printed at boot so a Learner can see which key the build trusted, and
+	  so a key regenerated after flashing diagnoses itself instead of looking
+	  like a broken image.
+
+	  Read the wording in main.c before changing this. The application cannot
+	  see what the bootloader actually holds. This value comes from the same
+	  build that produced the bootloader, so it is a claim about the build and
+	  not an observation of the device. Verifying the bootloader itself is
+	  Advanced Tier A's subject.
+
+	  From Tier 4 the same fingerprint also describes the release manifest
+	  verification key compiled into the application, because section 7 fixes
+	  that one key signs both. Unlike the bootloader's copy, that one this
+	  application does hold, and release_policy.c reports when it is absent.
