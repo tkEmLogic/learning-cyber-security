@@ -134,6 +134,19 @@ behavior of the reference product. A claim is supported, partly supported,
 unsupported, or not applicable based on linked evidence.
 _Avoid_: Guarantee, compliance claim
 
+**Security requirement**:
+A statement of what the reference product must do and how someone else would
+see it happen, identified as `REQ-<nn>` and carrying an acceptance criterion. It
+names no product, library, protocol, or algorithm.
+_Avoid_: Spec item, feature, user story
+
+**Security control**:
+The technical or procedural measure that meets one or more security
+requirements, identified as `CTL-<nn>` and carrying a lifecycle state of
+`planned`, `implemented`, or `verified`. A control names the technology a
+requirement must not.
+_Avoid_: Mitigation, countermeasure, safeguard
+
 **Residual risk**:
 A known security risk that remains after the selected controls are applied,
 including its rationale, owner, and planned treatment or acceptance.

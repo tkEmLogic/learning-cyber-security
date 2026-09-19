@@ -456,7 +456,13 @@ Not supported against a power cut at every transition. Three of section 6's tran
 
 Not supported against sustained physical interference, which is `T5-W-14`.
 
-One control supports it, `CTL-07`, against `REQ-05`. Unlike `SC-01` and `SC-02`, this claim needs no second control for key custody, because nothing in it is about who signed anything.
+One control supports it. Unlike `SC-01` and `SC-02`, this claim needs no second control for key custody, because nothing in it is about who signed anything.
+
+| Control | What it does | Requirement | Status after this tier |
+| --- | --- | --- | --- |
+| CTL-05 | Two image slots with test boot, explicit confirmation, and automatic revert | REQ-05 | Implemented, and not exercised against a power cut at three of the transitions |
+
+`CTL-05` is the control Tier 1 planned for this tier, in the words Tier 1 used. Your own control record for it has been sitting at `planned` since Tier 1, and this is the tier that moves it.
 
 ## What this tier found in Tier 4
 
@@ -476,6 +482,7 @@ Add to your pack:
 - The interruption matrix: what happens when each transition is interrupted, including the three that were not reached and why.
 - Confirmation and revert logs for all five releases.
 - A recovery record: how you would restore a device whose primary image no longer works, using the serial recovery procedure below.
+- Your `control` records for `CTL-05`, moved from `planned` to `implemented`.
 - Residual availability risks, which for this tier are `T5-W-14` and `T5-W-15`.
 
 ## Serial recovery

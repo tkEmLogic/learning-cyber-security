@@ -295,6 +295,14 @@ It becomes **partly supported**.
 
 Three separately testable halves, which is why two controls support it rather than one. Seeing only the first would let you conclude that uniqueness comes from the key alone.
 
+`SC-06` is new, so the requirement under it is new as well. `REQ-07` reads in the same form as the six requirements Tier 1 wrote: a property, and a way for someone else to see it happen, naming no protocol, library, or algorithm.
+
+| ID | Requirement | Acceptance criterion | Supports |
+| --- | --- | --- | --- |
+| REQ-07 | Each device holds a private key that was generated on that device and never leaves it, and no credential enrols a second device in a device's name | The private key is present in no firmware image and in no other device's records, and a credential that has already enrolled one device is refused when it is presented for a second | SC-06 |
+
+Add that row to your own requirement table before you record the controls under it.
+
 | Requirement | Control | What it does |
 | --- | --- | --- |
 | REQ-07 | CTL-08 | The device generates a non-exportable identity key and stores it through the limited Secure Storage configuration |
@@ -308,7 +316,7 @@ The claim you must not make is the one everybody reaches for first: that a devic
 
 **SC-04 stays unsupported, and it is worth a line why.** Nothing about status reports changed. The same forged report succeeds after this tier as before it, so calling it partial support would mean a status moved because work happened nearby. You have just watched a duplicate enrollment refused, which primes you to believe your status reports are now authentic. They are not, and `SC-04` sitting at unsupported in your own pack, straight after a tier that felt like a win, is the honest setup for Tier 7.
 
-One thing to explain rather than assume: `SC-06` was not in Tier 1's table. Tier 1 turned Tier 0 observations into claims, and at Tier 0 no credential existed to clone, so key uniqueness was not observable and no claim named it. `SC-04` came from the spoofing fixture because spoofing was observable. Adding a sixth claim now is not Tier 1 having made a mistake; it is a new observation producing a new claim, which is how the register is supposed to grow.
+One thing to explain rather than assume: `SC-06` was not in Tier 1's table. Tier 1 turned Tier 0 observations into claims, and at Tier 0 no credential existed to clone, so key uniqueness was not observable and no claim named it. `SC-04` came from the spoofing fixture because spoofing was observable. Adding a sixth claim now is not Tier 1 having made a mistake; it is a new observation producing a new claim, which is how the register is supposed to grow. `REQ-07` arrives the same way. A claim that did not exist in Tier 1 can have no requirement under it in Tier 1, so the requirement is stated here, in the tier that can show it being met.
 
 ## What this tier found in Tier 5
 
@@ -328,6 +336,7 @@ Add to your pack:
 - The provisioning record for your enrolled device, and the certificate fingerprint it holds.
 - The proof-of-possession evidence: the certification request that carried the Bootstrap credential inside its signature.
 - The storage-boundary analysis: the `E-6-04` refusal, the `E-6-05` recovery, and the derivation that connects them.
+- The new `REQ-07` row in your requirement table, and your `control` records for `CTL-08` and `CTL-09`. Neither control was planned in Tier 1, because neither existed there, so both enter your records directly at `implemented` instead of moving from `planned`.
 - The four residual risks, `T6-W-16` to `T6-W-19`, each with its owner.
 
 The provisioning record and the certificate fingerprint become `observed` once you have run enrollment on the board. Do not let the host clone result stand in for a device enrollment: they answer different questions.
