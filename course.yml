@@ -689,6 +689,124 @@ verification:
       # resume run belongs with that.
       tier5_download_resume_rerun: not_reached
 
+  tier_07:
+    command: [./scripts/verify-tier-00.sh]
+    receipt: .course-state/receipts/tier-07.json
+    revision_bound: true
+    hardware:
+      # Board of record for every row in this block. The campaign ran on the
+      # Muse Lab nanoESP32-C6 1.0, MAC 40:4c:ca:5e:a9:fc, because it is the
+      # only board in the lab: no ESP32-C6-DevKitC-1 has been flashed yet.
+      # Tier 7 therefore joins Tiers 0 to 6 in owing #170 a run on the board
+      # the course now targets. The results below are real results on real
+      # hardware; they are not results on the targeted board.
+      results_observed_on_board: nanoESP32-C6 1.0
+      results_revalidated_on_target_board: awaiting
+      # Device of record: the campaign ran under three successive Factory
+      # identities. beacon-remfg-404cca5ea9fc carried the first claim, which
+      # the first defect below lost; beacon-t07-404cca5ea9fc carried the
+      # second, which the second defect lost; beacon-t07b-404cca5ea9fc holds
+      # the claim that stands. Each is a genuine remanufacture appended to the
+      # record, because ownership is first come and the service had already
+      # recorded a claim it could not take back. Nothing was rewritten.
+
+      # Two defects were found on the board in #151, both in the claim path,
+      # both invisible to every host test, and both fixed in that session.
+      # They are named here because a row that says "validated" after a fix is
+      # only honest if it says what it was validated against.
+      #
+      # 1. claim.c read the issued certificate through JSON_TOK_STRING, which
+      #    in Zephyr 4.4.2 does not unescape: only JSON_TOK_STRING_BUF does.
+      #    The PEM arrived with its newlines still spelled "\n" and
+      #    base64_decode refused the backslash. The service was correct and
+      #    the board threw away the certificate it had just earned.
+      # 2. identity.c copied the pending Operational key into its persistent
+      #    slot with psa_copy_key() and an unset target policy, believing a
+      #    copy inherits the source's. It intersects instead, so the key
+      #    landed permitted to do nothing and the first handshake that asked
+      #    it to sign failed inside CertificateVerify. #157's spike could not
+      #    have caught it: that key was generated with its own policy and
+      #    never copied.
+
+      # The Tier 7 image boots and reads its Factory identity out of Secure
+      # Storage, key 0x00000601, rather than trusting the build-time
+      # identifier compiled into it.
+      tier7_firmware_boots_reads_factory_identity: validated
+      # A device holding no Operational certificate opens no connection to a
+      # restricted endpoint, says so, and does not fall back to its Factory
+      # identity. This is the tier's sharpest line and the board draws it.
+      unclaimed_device_refuses_restricted_endpoints: validated
+      # The physical act generates: a ten second BOOT hold produced a volatile
+      # P-256 key in RAM, a 224 byte certification request, and a 24 character
+      # Crockford base32 nonce in six groups of four, printed immediately.
+      boot_hold_opens_claim_window_generates_key_prints_nonce: validated
+      # The device half reaches the mutual-TLS listener presenting the Factory
+      # certificate signed by PSA key 0x00000601, and polls on a fresh
+      # connection every five seconds.
+      device_half_reaches_mutual_tls_on_factory_certificate: validated
+
+      # E-7-01. The whole claim, both halves, on the board: BOOT hold, nonce
+      # read off the console, operator approval carrying an Owner credential
+      # on the server-authenticated listener, and the certificate stored.
+      # The pending key was copied into persistent slot 0x00000701 and the
+      # certificate into settings. Validated on the fixed firmware.
+      e7_01_claim_completes_certificate_stored: validated
+      # The stored Operational identity survives a reboot: after a reset the
+      # board read it back out of Secure Storage, printed its fingerprint and
+      # owner, and signed a fresh handshake with key 0x00000701.
+      operational_identity_survives_reboot: validated
+      # E-7-02. The device reached the restricted endpoints on its Operational
+      # identity: it fetched its assignment and the service recorded a
+      # status.observed whose accepted_from is client_certificate, with
+      # certificate_device_id, path_device_id and accepted_device_id all
+      # agreeing. That agreement is the property the tier exists to show.
+      e7_02_assignment_and_status_event_on_operational_identity: validated
+      # Not reached. No image body was transferred, because the board already
+      # runs the assigned release and the already-confirmed control refused
+      # it, correctly, over the Operational identity. Tier 7 publishes one
+      # variant, so there is no second release to be assigned. An image
+      # transfer over mutual TLS has therefore not been seen on the board.
+      e7_02_image_body_transferred_over_mutual_tls: not_reached
+
+      # Section 11 bypass rows. Thirteen of the fifteen are host runners by
+      # design and say so in their own output; E-7-01 and E-7-02 above are the
+      # two the board earns. Five of the thirteen are "host, board required":
+      # the refusal is read on the host, and a board is what makes the row
+      # possible. E-7-10 is the clearest case, forging against the claim the
+      # Learner's own board holds.
+      e7_03_factory_certificate_at_download_refused: validated
+      e7_04_operational_certificate_at_claim_refused: validated
+      e7_05_expired_certificate_refused: validated
+      e7_06_revoked_certificate_refused: validated
+      e7_07_never_issued_certificate_refused: validated
+      e7_08_forged_serial_unclaimed_device_refused: validated
+      e7_09_identifier_mismatch_refused: validated
+      e7_10_ownership_context_refused: validated
+      e7_11_replayed_nonce_refused: validated
+      e7_12_closed_window_refused: validated
+      e7_13_wrong_nonce_refused: validated
+      e7_14_already_claimed_device_refused: validated
+      e7_15_foreign_issuer_handshake_closed: validated
+
+      # Observed on the board and not on any row's list: a claim window opened
+      # before a remanufacture submitted a request naming the old identifier
+      # while the Factory certificate named the new one, and the service
+      # refused it at identifier-consistent with both names in the reason.
+      # The device half of that check had no planned board witness.
+      identifier_consistent_refused_on_device: validated
+
+      # Not checked. The board can be asked to export its Factory key, which
+      # is E-6-04, but no command asks it to export the Operational key, so
+      # the non-exportability the console claims for key 0x00000701 has no
+      # device witness. It holds by construction twice over, from the usage
+      # flags named in the copy and from the intersection with a source that
+      # never had PSA_KEY_USAGE_EXPORT, but construction is not observation.
+      operational_key_export_refused_on_device: not_checked_no_command
+      # Not reached. E-6-04 was not re-run against the Tier 7 image in this
+      # session; it needs the provisioning shell open, which is another
+      # physical hold, and the Factory key path is untouched by both fixes.
+      e6_04_export_refusal_rerun_on_tier7_image: not_reached
+
 tiers:
   "00":
     title: Build the unsecured reference product

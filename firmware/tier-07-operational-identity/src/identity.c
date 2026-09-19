@@ -833,11 +833,27 @@ int course_identity_store_operational_certificate(const unsigned char *der, size
 	psa_set_key_id(&attributes, COURSE_OPERATIONAL_KEY_ID);
 	psa_set_key_lifetime(&attributes, PSA_KEY_LIFETIME_PERSISTENT);
 	/*
-	 * No usage flags and no algorithm are set here on purpose. psa_copy_key()
-	 * takes the source key's policy when the target names none, and a copy
-	 * can only narrow it. Restating the flags would be a second place for
-	 * PSA_KEY_USAGE_EXPORT to creep in.
+	 * The policy is named here, and it has to be. psa_copy_key() does not
+	 * inherit the source's policy when the target names none: it intersects
+	 * the two, so an unset target policy means usage &= 0 and an algorithm
+	 * intersection of nothing with ECDSA, and the key lands in the
+	 * persistent slot permitted to do nothing at all. It still stores, it
+	 * still reads back, and it fails the first time it is asked to sign --
+	 * on the board, inside a handshake, as MBEDTLS_ERR_SSL_BAD_INPUT_DATA,
+	 * which this tree spells PSA_ERROR_INVALID_ARGUMENT. #157's spike could
+	 * not have caught it: that key was generated with its own policy and
+	 * never copied. Found on the board in #151.
+	 *
+	 * Naming the policy is not a second place for PSA_KEY_USAGE_EXPORT to
+	 * creep in, because a copy still cannot gain a flag its source lacks:
+	 * the intersection that broke this is the same rule that protects
+	 * E-6-04. What is deliberately dropped is PSA_KEY_USAGE_COPY, which the
+	 * pending key needed only to become this one. The Operational key is
+	 * the end of that chain and does not get to start another.
 	 */
+	psa_set_key_usage_flags(&attributes, PSA_KEY_USAGE_SIGN_HASH |
+					     PSA_KEY_USAGE_SIGN_MESSAGE);
+	psa_set_key_algorithm(&attributes, PSA_ALG_ECDSA(PSA_ALG_SHA_256));
 	status = psa_copy_key(pending_key, &attributes, &copied);
 	psa_reset_key_attributes(&attributes);
 	if (status != PSA_SUCCESS) {
