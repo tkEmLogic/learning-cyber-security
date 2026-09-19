@@ -718,10 +718,12 @@ func (x *tier07Adversary) rowOwnershipContext() error {
 // success criterion out of the board's reach.
 func (x *tier07Adversary) rowReplayedNonce() error {
 	const deviceID = "beacon-bypass-e7-11"
-	if _, ok := x.state.Devices[deviceID]; ok {
+	if device, ok := x.state.Devices[deviceID]; ok && device.OperationalCertificate != "" {
 		// The spent nonce is held only for the length of the run that spent
-		// it, so a rerun needs a device whose claim happens here.
-		return errors.New("this row spends a nonce and cannot replay one it did not see; run ./course service bypass reset first")
+		// it, and the claim that spent it cannot be undone: ownership is first
+		// come and the record is append only. Reset cannot give this row back,
+		// and it says so rather than letting the row fail at some other check.
+		return errors.New("this row replays a nonce it watched being spent, and the claim that spent it has already happened in this environment; reset cannot undo a claim, so discard the Course environment to run it again")
 	}
 	_, nonce, err := x.claimSynthetic(deviceID)
 	if err != nil {
@@ -993,7 +995,16 @@ func (a *app) bypassReset() error {
 		return err
 	}
 
-	if err := os.RemoveAll(a.bypassStateDir()); err != nil {
+	// The adversary keeps the keys to the identities it enrolled, because
+	// those enrollments are in the append-only record and reset cannot take
+	// them back. Deleting the keys would strand every one of them: the station
+	// refuses a second certificate under an identifier that already holds one,
+	// so the next run of almost every row would be refused at
+	// identifier-unused, which is not the check the row exists to show. It is
+	// also what the contract already says in one line, that reset never
+	// touches key material.
+	spent := a.discardAuthorizationState(state)
+	if err := a.saveAdversaryState(state); err != nil {
 		return err
 	}
 
@@ -1001,16 +1012,50 @@ func (a *app) bypassReset() error {
 		removedOwner, owner, a.relative(a.ownerStorePath()))
 	fmt.Fprintf(a.out, "  removed:  %d serial(s) this fixture marked revoked from %s\n",
 		removedSerials, a.relative(a.revokedPath()))
-	fmt.Fprintf(a.out, "  removed:  the fixture's own state under %s\n", a.relative(a.bypassStateDir()))
 	fmt.Fprintf(a.out, "  appended: one fixture_reset line to %s\n", a.relative(a.provisionRecordPath()))
+	fmt.Fprintf(a.out, "  kept:     the keys for the %d synthetic device(s) still in the record\n", len(devices))
 	fmt.Fprintln(a.out, "  kept:     every synthetic device in the manufacturing record")
 	fmt.Fprintln(a.out, "  kept:     every line the service wrote to its own events.jsonl")
 	fmt.Fprintln(a.out, "  kept:     your own owner, your own claims, and any serial you marked yourself")
 	fmt.Fprintln(a.out)
 	fmt.Fprintln(a.out, "A record of what happened is never rewound. A store that decides what")
 	fmt.Fprintln(a.out, "happens next is. That is the whole difference between the two lists above.")
+	if spent {
+		fmt.Fprintln(a.out)
+		fmt.Fprintln(a.out, "One row is spent in this environment and reset cannot give it back.")
+		fmt.Fprintln(a.out, "E-7-11 replays a nonce it watched being spent, and a nonce is spent once.")
+		fmt.Fprintln(a.out, "Discard the whole Course environment to run that row again.")
+	}
 	fmt.Fprintf(a.out, "Result: the Tier 7 adversary holds no live authorization state\n")
 	return nil
+}
+
+// discardAuthorizationState clears what reset can genuinely rewind and reports
+// whether a row was spent beyond recovery.
+//
+// The owner credential goes because the account it authenticates has gone. The
+// revoked serials go because they were un-revoked above. What stays is key
+// material, which reset may not touch, and the record of which devices this
+// fixture has already claimed, because that is a fact about the append-only
+// record rather than a store deciding anything.
+func (a *app) discardAuthorizationState(state *adversaryState) (spent bool) {
+	state.OwnerCredential = ""
+	state.RevokedSerials = nil
+	if device, ok := state.Devices["beacon-bypass-e7-11"]; ok && device.OperationalCertificate != "" {
+		spent = true
+	}
+	return spent
+}
+
+func (a *app) saveAdversaryState(state *adversaryState) error {
+	if err := os.MkdirAll(a.bypassStateDir(), 0o700); err != nil {
+		return err
+	}
+	raw, err := json.MarshalIndent(state, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(a.bypassStatePath(), raw, 0o600)
 }
 
 // removeOwnerEntries rewrites the owner store without one owner.
