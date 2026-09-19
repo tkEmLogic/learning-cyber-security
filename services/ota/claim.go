@@ -53,7 +53,13 @@ const ClaimWindowLifetime = 10 * time.Minute
 // retries exist. Burning the window on the first wrong nonce would turn one
 // typo into a walk back to the bench, which is a lesson about the lab rather
 // than about claiming.
-const claimAttemptBudget = 5
+//
+// Four, not the five #134 asked for, because the two halves of the claim now
+// share one backoff sequence and the sequence is what fixes the count. The
+// device half bounds its submissions with the same 0, 2, 4 and 8 seconds, so a
+// Learner reads one cadence in two places instead of two cadences that happen
+// to be bounded. The device half's own budget lives in Kconfig beside it.
+const claimAttemptBudget = 4
 
 // claimPollSeconds is what the device half tells the device to wait.
 const claimPollSeconds = 5
@@ -431,19 +437,26 @@ func (s *Server) matchAndIssue(deviceID, nonce, owner string) claimOutcome {
 }
 
 // claimBackoff is the bounded backoff section 8 asks for: nothing on the first
-// wrong nonce, then one, two, four and eight seconds.
+// wrong nonce, then two, four and eight seconds.
 //
 // It is bounded twice over, by the delay and by the attempt budget, and the
 // second bound is what makes the first honest. A backoff with no budget is a
 // slow door rather than a closed one.
+//
+// The delay belongs to the attempt it precedes, so the first wrong nonce is
+// answered at once and only a second one starts paying. The device half uses
+// this same sequence for its submissions, which is why it is written as a
+// table rather than a shift: one line a Learner can compare against the
+// firmware without deriving anything.
 func claimBackoff(attempt int) time.Duration {
-	if attempt <= 1 {
-		return 0
+	delays := []time.Duration{0, 2 * time.Second, 4 * time.Second, 8 * time.Second}
+	if attempt < 1 {
+		attempt = 1
 	}
-	if attempt > claimAttemptBudget {
-		attempt = claimAttemptBudget
+	if attempt > len(delays) {
+		attempt = len(delays)
 	}
-	return time.Duration(1<<(attempt-2)) * time.Second
+	return delays[attempt-1]
 }
 
 // issueOperational signs one Operational certificate.

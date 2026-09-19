@@ -248,8 +248,8 @@ func TestAnExpiredClaimWindowIsRefused(t *testing.T) {
 	assertRefusal(t, status, body, CheckClaimWindowOpen)
 }
 
-// Five backed-off attempts, and only a wrong nonce spends one.
-func TestOnlyNonceMatchSpendsAnAttemptAndFiveClosesTheWindow(t *testing.T) {
+// Four backed-off attempts, and only a wrong nonce spends one.
+func TestOnlyNonceMatchSpendsAnAttemptAndFourClosesTheWindow(t *testing.T) {
 	f := newMutualFixture(t)
 	device := "beacon-claim-404cca5ea9fc"
 	factory := f.claimable(t, device, "northwind", "owner-secret")
@@ -261,9 +261,11 @@ func TestOnlyNonceMatchSpendsAnAttemptAndFiveClosesTheWindow(t *testing.T) {
 		status, body := f.operatorHalf(t, "owner-secret", device, otherNonce)
 		assertRefusal(t, status, body, CheckNonceMatch)
 	}
-	// Nothing on the first wrong nonce — one typo is not an attack — then one,
-	// two, four and eight seconds.
-	want := []time.Duration{time.Second, 2 * time.Second, 4 * time.Second, 8 * time.Second}
+	// Nothing on the first wrong nonce — one typo is not an attack — then two,
+	// four and eight seconds. The zero is absent rather than recorded, because
+	// the handler only sleeps when there is something to sleep for. This is the
+	// same 0, 2, 4, 8 the device half uses for its submissions.
+	want := []time.Duration{2 * time.Second, 4 * time.Second, 8 * time.Second}
 	if len(delays) != len(want) {
 		t.Fatalf("delays = %v, want %v", delays, want)
 	}
@@ -274,7 +276,7 @@ func TestOnlyNonceMatchSpendsAnAttemptAndFiveClosesTheWindow(t *testing.T) {
 	}
 
 	// The budget is spent, so the window is gone: the right nonce now finds no
-	// window rather than a sixth attempt.
+	// window rather than a fifth attempt.
 	status, body := f.operatorHalf(t, "owner-secret", device, testNonce)
 	assertRefusal(t, status, body, CheckClaimWindowOpen)
 }
