@@ -43,7 +43,7 @@ static void announce(enum beacon_state state)
 	printk("Trust anchor: %s\n", ota_client_anchor_description());
 	printk("Beacon state: %s, toggle period: %u ms\n",
 	       beacon_state_name(state), beacon_toggle_period_ms(state));
-	printk("Hardware note: this board's onboard LED is wired to 3V3 and cannot be driven\n");
+	printk("Hardware note: %s\n", beacon_led_note());
 }
 
 /* Restart the whole chip, not only the processor.
@@ -113,6 +113,10 @@ int main(void)
 	enum beacon_state state = beacon_configured_state();
 	char address[NET_IPV4_ADDR_LEN];
 
+	/* Before the banner, so the banner's hardware note can report whether
+	 * the LED really started rather than whether it was asked to.
+	 */
+	beacon_led_start(state);
 	announce(state);
 
 	if (net_link_connect() != 0) {
