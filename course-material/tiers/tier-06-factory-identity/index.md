@@ -68,7 +68,7 @@ The row that this tier is about is `T0-W-02`. Every device shares one name, so t
 
 ## Give the fleet its shared credential
 
-This section has no equivalent in a control tier, and that is the point. A control tier attacks the product it inherited. This tier inherits a product with no shared credential to attack, so you build one.
+This section has no equivalent in the tiers before it, and that is the point. Every earlier tier attacked the product it inherited. This tier inherits a product with no shared credential to attack, so you build one.
 
 A shared identity is one certificate and one private key, minted once and compiled into every device's image. Create it, and build the shared variant of the firmware:
 
