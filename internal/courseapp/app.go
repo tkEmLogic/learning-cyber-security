@@ -402,7 +402,7 @@ func (a *app) setup(args []string) error {
 	sum := sha256.Sum256(image)
 	release := map[string]any{
 		"schema_version": 1, "release_id": "tier-00-baseline", "version": "0.0.0-insecure",
-		"board": "esp32c6_devkitc/esp32c6/hpcore", "image_path": filepath.Base(imagePath),
+		"board": a.manifest.Devices["reference_beacon"].Board, "image_path": filepath.Base(imagePath),
 		"image_sha256": hex.EncodeToString(sum[:]), "image_size": len(image), "mutable": true, "signed": false,
 	}
 	for _, name := range []string{"seed-release.json", "current-release.json"} {
@@ -1591,6 +1591,35 @@ func (a *app) device(args []string) error {
 	}
 }
 
+// rawSerialGlob is the raw device node the by-id lookup falls back to. It is a
+// variable rather than a literal so a test can aim it away from the host's own
+// /dev, where a board attached to the machine would decide the result.
+var rawSerialGlob = "/dev/ttyACM*"
+
+// nativeSerialJTAGProduct is what udev makes of the product string the
+// ESP32-C6 reports for its own USB Serial/JTAG controller, "USB JTAG/serial
+// debug unit". It is the stable half of every by-id name that interface
+// produces.
+const nativeSerialJTAGProduct = "usb_jtag_serial_debug_unit"
+
+// isNativeSerialJTAG says whether a /dev/serial/by-id name is the interface the
+// ESP32-C6 presents on its own USB port, which is the one the console overlay
+// routes to and the one west flash drives.
+//
+// The DevKitC-1 carries a second USB Type-C port behind an on-board CP2102N
+// UART bridge, and that port is a serial device in its own right. This matches
+// the wanted interface instead of excluding the unwanted one, because the
+// bridge's descriptor strings live in a rewritable EEPROM: a list of names to
+// skip would only ever be a list of the boards somebody had already met.
+//
+// The -if00 suffix holds the match to the interface that carries the console.
+// udev appends -port<n> for a usb-serial driver such as cp210x and nothing for
+// CDC-ACM, so a bridge port cannot end in a bare -if00 either.
+func isNativeSerialJTAG(name string) bool {
+	lower := strings.ToLower(name)
+	return strings.Contains(lower, nativeSerialJTAGProduct) && strings.HasSuffix(lower, "-if00")
+}
+
 // selectSerialDevice returns the one stable serial path for an attached
 // board. It refuses to guess when several are present, because flashing the
 // wrong device is not recoverable from inside this tool.
@@ -1600,28 +1629,47 @@ func (a *app) selectSerialDevice() (string, error) {
 	if err != nil {
 		return a.fallbackSerialDevice(dev.StableSerialPrefix)
 	}
-	var found []string
+	var found, other []string
 	for _, entry := range entries {
 		name := entry.Name()
-		if strings.Contains(strings.ToLower(name), "espressif") && strings.HasSuffix(name, "-if00") {
+		if isNativeSerialJTAG(name) {
 			found = append(found, filepath.Join(dev.StableSerialPrefix, name))
+			continue
 		}
+		other = append(other, name)
 	}
 	sort.Strings(found)
+	sort.Strings(other)
 	switch len(found) {
 	case 0:
-		return a.fallbackSerialDevice(dev.StableSerialPrefix)
+		device, err := a.fallbackSerialDevice(dev.StableSerialPrefix)
+		if err == nil || len(other) == 0 {
+			return device, err
+		}
+		// Serial devices are attached but none of them is the chip's own
+		// interface. On a DevKitC-1 that is the cable sitting in the UART port,
+		// so name the port to move it to rather than repeat "no board".
+		return "", fmt.Errorf("no ESP32-C6 USB Serial/JTAG interface is attached under %s, only %s; the DevKitC-1 has two USB Type-C ports and the course uses the ESP32-C6 USB port, not the USB-to-UART port",
+			dev.StableSerialPrefix, strings.Join(other, ", "))
 	case 1:
 		return found[0], nil
 	default:
-		return "", fmt.Errorf("%d Espressif serial devices are attached; detach all but the course board", len(found))
+		// Only the chip's own interface is counted, and a board has exactly one,
+		// so this really is several boards. Say so, because the DevKitC-1's
+		// second port is normal and never appears in this list.
+		return "", fmt.Errorf("%d ESP32-C6 USB Serial/JTAG interfaces are attached, so this is %d boards and not one DevKitC-1 showing both its ports: %s; detach all but the course board",
+			len(found), len(found), strings.Join(found, ", "))
 	}
 }
 
 // fallbackSerialDevice covers a container that has the raw device node but not
 // the stable by-id tree. It still refuses to guess between several boards.
+//
+// The glob stays on /dev/ttyACM*: the chip's USB Serial/JTAG interface is
+// CDC-ACM, while the DevKitC-1's UART bridge is a cp210x and lands on
+// /dev/ttyUSB*, so the second port is already outside the glob.
 func (a *app) fallbackSerialDevice(prefix string) (string, error) {
-	matches, err := filepath.Glob("/dev/ttyACM*")
+	matches, err := filepath.Glob(rawSerialGlob)
 	if err != nil || len(matches) == 0 {
 		return "", fmt.Errorf("no board is attached under %s; hardware steps stay pending", prefix)
 	}
