@@ -74,6 +74,7 @@ Inherited from Tier 6. Not your own work yet.
 | T4-W-13 | The security counter is compared, never remembered | Rewrite the primary slot | The device forgets what it was running | Advanced Tier A |
 | T5-W-14 | A power cut during the health window forces a revert indefinitely | Power-cycle during the sixty second window | The device reverts each time | Residual availability risk |
 | T5-W-15 | The watchdog depends on a driver quirk an upstream fix would change | Upgrade Zephyr | The behaviour changes silently | Recorded limit |
+| T5-W-26 | A revert is reported once and nothing acknowledges it | Revert while the service is unreachable | The revert is never reported | Tier 8 revisits delivery |
 | T6-W-16 | The Secure Storage encryption key is a hash of public values | Dump the flash and run the published derivation | The private key is recovered | Advanced Tier B |
 | T6-W-17 | Stored records carry no freshness, so an older copy is accepted as authentic | Write back a superseded record from the same dump | The device accepts it | No tier on this course closes it |
 | T6-W-18 | The private key is protected at rest only | Privileged firmware, the application, or a debugger reads it | The key is reachable | Advanced Tier B |
@@ -823,7 +824,9 @@ Every control tier so far has found something in the tier before it, and this on
 
 **A weakness that fell off the ledger four tiers ago.** Tier 1 recorded `T1-W-08`, the readable device identifier, and said it would be reduced by Tier 6. Tier 2 carried it forward. Then it vanished: it appears in no tier from Tier 3 onwards, including Tier 6, which reduced it in substance and never wrote the row Tier 1 had promised. Nothing broke, which is exactly why nobody noticed. A ledger is only as good as the discipline of carrying every row forward, including the rows that are going well, and the failure mode is silent by construction. Tier 6's published ledger gains the missing row, and this tier closes it.
 
-**A defect this tier did not fix, because it belongs to Tier 5.** After a revert, nothing clears the trial record, because the code that clears it is only reached by an image that passes its health gate and a reverted board boots the confirmed image instead. So a reverted board reports a revert on every subsequent boot, and once the record ages it names a release it never tried. The code is Tier 5's, inherited unchanged by Tiers 6 and 7, so the fix is not Tier 7's to make alone. If your board reports a revert of a release you do not recognise, this is why.
+**A defect this tier found in Tier 5's code.** After a revert, nothing cleared the trial record, because the code that clears it is only reached by an image that passes its health gate and a reverted board boots the confirmed image instead. So a reverted board reported a revert on every subsequent boot, and once the record aged it named a release it had never tried. Moving a real image across mutual TLS is what exposed it: putting a second release on this board for the first time meant reverting for the first time.
+
+The fix belonged to Tier 5, whose code Tiers 6 and 7 carry unchanged, so all three tiers have it. It is worth knowing what the fix could not be. The obvious repair is to clear the record once the revert has been reported, and that would have been a worse defect than the one it fixed: the count in that record is also what stops the device installing a failing release forever, so forgetting it would have traded a duplicate message for a revert loop. The record is marked as reported instead, and `recovery.state trial` now prints whether the fleet has been told. What marking it costs is `T5-W-26`, which you inherited at the top of this tier.
 
 ## Update the Security evidence pack
 
@@ -853,7 +856,7 @@ One closure in this tier rests on a pair rather than on a single row, and you sh
 | A bypass row is refused at `identifier-unused` | That is Tier 6's provisioning check, not a Tier 7 check. The row is trying to enrol a synthetic device whose identifier is already in the record. Check that you are running against a Course environment you have not exhausted |
 | The operator half is refused at `owner-credential-known` | The credential was printed once. If you lost it, mint a new one, which supersedes the old one rather than recovering it |
 | The claim is refused at `identifier-consistent` | The request names one device and the Factory certificate names another. This happens after a remanufacture if a window was opened before the new enrollment |
-| The board reports a revert of a release you never installed | A known defect inherited from Tier 5, described above. It does not affect the claim or the certificate |
+| The board reports a revert of a release you never installed | A defect this tier found in Tier 5's code and fixed there, described above. A board flashed before that fix clears the stale record on its first boot afterwards and says so |
 
 If a refusal names a check you did not expect, stop and read the check before you change anything. A refusal for the wrong reason has not tested what you think it has, and this tier has thirteen check names precisely so that you can tell. That is when to bring in a Mentor.
 

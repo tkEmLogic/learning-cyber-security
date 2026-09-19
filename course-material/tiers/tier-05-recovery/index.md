@@ -401,6 +401,8 @@ Three things about that line repay attention.
 
 **A crash and a hang still report something.** They leave no reason, but they leave a trial record naming a release the device is not running, which is enough to report `reason-unrecorded`. The failures hardest to diagnose are the ones a fleet most needs to hear about, and a device that stayed silent about them would have inverted this tier's whole lesson.
 
+That report happens once. The record is marked as reported rather than cleared, because the count in it is also what bounds the retries, and you can watch both facts in one line: `recovery.state trial` prints the release, the attempt count, and whether the fleet has been told. `T5-W-26` is what marking it costs.
+
 ## Reveal
 
 Compare against what you predicted.
@@ -425,10 +427,19 @@ If you predicted that the network loss would fail the gate, you are in good comp
 | T4-W-13 | Unchanged | Open | Advanced Tier A |
 | T5-W-14 | New. Anyone who can power-cycle the board during the sixty second health window forces a revert, with no key, no network and no credential. The device can never complete an update while someone keeps doing it | Open | Residual availability risk. Named in the lab artifact |
 | T5-W-15 | New. The watchdog catches a hung thread only because the driver's stage 0 handler fails to feed it, which it does because `wdt_esp32_isr()` does not disable write protection first. An upstream fix would change this silently | Open | Recorded limit. Recheck on any Zephyr upgrade |
+| T5-W-26 | New. A revert is reported once, to nobody in particular. The event is held in RAM and sent when the link returns, and nothing acknowledges it, so a board that reverts and never reaches the service does not tell the fleet it reverted | Open | Recorded limit. Tier 8 revisits delivery |
 
-Two of the three changes are limits rather than achievements, which by now should be the expected shape of a control tier's ledger.
+Three of the four changes are limits rather than achievements, which by now should be the expected shape of a control tier's ledger.
 
 `T5-W-14` deserves attention because it is the first time in this course that adding a control has created new attack surface. Before this tier an install either completed or it did not. Now there is a sixty second window in which a physically present attacker can guarantee it does not, indefinitely, using nothing but the power switch.
+
+`T5-W-26` is a limit this tier chose on purpose, and it is worth seeing why, because the honest version looks worse than the broken one.
+
+The device records that a release was put on trial, and a board that reverted reads that record on the next boot and reports the revert. Nothing clears the record on that path, and nothing may: the same count is what stops the device installing a failing release forever, so forgetting it to tidy up would trade a duplicate message for a revert loop. The device marks the record as reported instead.
+
+Marking it means the report happens once. The event is queued in RAM, sent when the link returns, and nobody acknowledges it, so if that boot cannot reach the service the revert is never reported at all. Before the mark existed, the report fired on every boot until something got through, which looks like a retry and is not one: it was the device unable to tell that it had already spoken, and left running long enough it would name a release it had never tried. A message repeated until it is wrong is not more reliable than a message sent once. It is less honest about what the device actually knows.
+
+Delivery that survives a device being offline needs the service to acknowledge what it received and the device to keep what has not been acknowledged. That is a queue with durable state on both ends, and it belongs with the other lifecycle operations in Tier 8.
 
 ## Security claim and evidence status
 

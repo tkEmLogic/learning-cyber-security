@@ -568,6 +568,25 @@ verification:
       confirmation_reported_after_link_returns: validated
       revert_reported_after_link_returns: validated
       revert_without_reason_still_reported: validated
+      # Observed on the ESP32-C6-DevKitC-1 rather than the nanoESP32-C6 1.0
+      # this block is otherwise labelled for, because the defect it covers was
+      # found in Tier 7 and fixed here: #175. Named explicitly so the row does
+      # not inherit the block's board and claim a result nobody saw there.
+      #
+      # Three reverts of tier-05-fail-health produced exactly three
+      # update.reverted events, at 20:19:50Z, 20:21:44Z and 20:23:42Z, each
+      # naming the release that actually failed and the check it failed at
+      # rather than reason-unrecorded. Each new trial re-armed the report,
+      # because recovery_trial_begin() rewrites the whole record. A later
+      # boot of the confirmed image, holding the trial record for a release
+      # it is not running, queued nothing at all, which before the fix was
+      # the condition that reported forever.
+      one_revert_reports_exactly_one_event: validated
+      # The reason the fix marks the record rather than clearing it. After
+      # the third revert the board still refused the release at
+      # check=trial-limit with attempts=3 of 3, so silencing the duplicate
+      # report did not cost the bound that stops a revert loop.
+      reported_flag_does_not_disturb_the_trial_limit: validated
       # Section 6's claim, checked in MCUboot's source during charting and then
       # on the board: check_downgrade_prevention() runs only for TEST and PERM
       # swaps, so a revert never passes through it.
@@ -808,16 +827,25 @@ verification:
       # hazard exercised live, and the identity came through it. Settings NVS
       # reported 27,024 bytes free afterwards.
       operational_identity_survives_image_swap_and_revert: validated
-      # A defect this transfer found, and not in Tier 7: after a revert the
-      # trial record is never cleared, because recovery_trial_clear() is only
-      # reached by an image that passes its health gate, and a reverted board
-      # boots the confirmed image instead. main.c then reports a revert on
-      # every subsequent boot from that stale record. This board emitted
-      # update.reverted naming tier-05-healthy three times in this session
-      # for a release it never tried, and events.jsonl holds a fourth from
-      # before it. The code is Tier 5's, inherited unchanged by Tiers 6 and 7.
-      # Carried by #175; not fixed here.
-      stale_trial_record_reports_a_revert_on_every_boot: defect_found_not_fixed
+      # Fixed by #175 and re-observed on the ESP32-C6-DevKitC-1. The defect
+      # was that nothing cleared the trial record after a revert, so main.c
+      # reported one from that stale record on every subsequent boot. The
+      # record could not simply be cleared: the same count is the bound that
+      # stops a revert loop, so it now carries a reported flag instead.
+      #
+      # Reproduced on this board before the fix and quiet after it. The
+      # pre-fix boot emitted "release tier-05-healthy was tried 1 times and
+      # is not what is running" followed by update.reverted, for a release
+      # this board never tried; events.jsonl holds that one at 20:05:36Z as
+      # the last of its kind. After the fix the same board boots to
+      # "recovery.state trial no release is being tried" and queues nothing.
+      #
+      # Later in the same session the board read a trial record a Tier 5
+      # image had genuinely written, tier-05-fail-health attempts=3 of 3
+      # reported=yes, and still queued nothing. That is the reported flag
+      # surviving across the two NVS instances of the #118/#120 hazard, which
+      # is the exact shape the original false report took.
+      stale_trial_record_reports_a_revert_on_every_boot: fixed_and_validated
       # The Tier 5 trial image queued its own update.reverted, naming
       # tier-05-fail-health and update-client-ready, and could not deliver it:
       # it holds no Operational identity, and the device listener refused it.
