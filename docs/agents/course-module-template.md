@@ -48,16 +48,64 @@ changes.
 | --- | --- | --- |
 | Baseline | Tier 0 | Builds the unsecured product. No control to add, no attack to defeat. Records the successful attack as its result. |
 | Analysis | Tier 1 | Produces analysis artifacts. Changes no code and adds no control. Reclassifies the Tier 0 observation against threats, requirements, and planned controls. |
-| Control | Tier 2 to Tier 9, Advanced Tier A, Advanced Tier B | Reproduces an attack, adds one focused control, replays the attack, tests bypasses. Tier 2 is the worked example; see "What a control tier learned from Tier 2". |
+| Control | Tier 2 to Tier 9, Advanced Tier A, Advanced Tier B | Reproduces an attack, adds one focused control, replays the attack, tests bypasses. Tier 2 is the worked example; see "What a control tier learned from Tier 2 and Tier 3". |
 
 Tier 10 uses a fourth shape for integrated diagnosis and regression. It is not
 covered here, because nothing on the current map writes it.
 
+### There is no lifecycle variant
+
+`course.yml` gives every tier a `kind`, and from Tier 6 that value is
+`lifecycle`. It says where the tier sits in the course arc. It does not select a
+module shape, and no code reads it: the field is parsed into the tier struct in
+`internal/courseapp/app.go` and nothing in the repository consumes it.
+
+Tiers 6 to 9 are Control tiers. They reproduce an attack, add one focused
+control, replay the attack and test bypasses, which is the Control variant in
+full, and Tiers 5, 6 and 7 all say so in their own published text. What makes a
+tier a lifecycle tier is what the control *is*, not how the module is written.
+`CONTEXT.md` has held this since the beginning: a Hardening tier adds "one
+focused security control or lifecycle capability".
+
+This was asked twice before it was settled, in
+[#107](https://github.com/tkEmLogic/learning-cyber-security/issues/107) and
+again in
+[#145](https://github.com/tkEmLogic/learning-cyber-security/issues/145). The
+answer came from reading all eight published modules: the departures from this
+template do not track `kind` at all. The most template-conformant module since
+Tier 4 is Tier 7, a lifecycle tier, and the module that departs most is Tier 5,
+a control tier. Do not ask it a third time.
+
 ## Section order
 
-Every section is required in every variant. The only section a tier may omit is
-section 11, and only when the tier has neither a bypass to test nor a failure
-behavior to show. Say why in the module when you omit it.
+Every section is required in every variant.
+
+The list binds in two different strengths, and the difference is the one thing
+to understand before writing a module.
+
+**Sections 2 to 6 and 12 to 19 are the fixed spine.** Their headings are the
+same string in every module. Do not reword them, do not drop them, and do not
+move them. Eight published modules have never touched them, and a Learner
+navigates by them.
+
+**Sections 7 to 11 are the work band.** Their headings are tier-named by
+design, so naming one after what your tier actually does is the normal case and
+not a departure. A module may omit a section in this band when the tier has no
+such step, and when it does it **says so in its own text**, in one line a
+Learner reads, at the point where the step would have been. Section 11 already
+worked this way; the duty now covers the whole band. Tier 5 discharges it well
+for a step it does not build: `## Serial recovery` records outright that the
+boot matrix row is not satisfied by that tier, rather than leaving it silently
+absent.
+
+**A module may insert its own sections between listed ones**, in either band,
+as long as it moves no listed content out of a listed section. This is how the
+list learns. Section 14 below arrived exactly that way: three tiers inserted it
+in the same place before it was ever written down here.
+
+A bare "section N" in this file means a section of *this* list. Every reference
+to a section of `docs/course-specification.md` names that document, because the
+two numbering schemes collide and both are in use here.
 
 | # | Heading | Fixed or tier-named |
 | --- | --- | --- |
@@ -74,22 +122,39 @@ behavior to show. Say why in the module when you omit it.
 | 11 | `## Test bypass attempts` or `## Test safety and failure behavior` | Tier-named |
 | 12 | `## Weakness ledger after the work` | Fixed |
 | 13 | `## Security claim and evidence status` | Fixed |
-| 14 | `## Update the Security evidence pack` | Fixed |
-| 15 | `## Troubleshooting` | Fixed |
-| 16 | `## Informal Mentor conversation` | Fixed |
-| 17 | `## Continue` | Fixed |
-| 18 | `## Primary references` | Fixed |
+| 14 | `## What this tier found in <the earlier tier or tiers>` | Tier-named |
+| 15 | `## Update the Security evidence pack` | Fixed |
+| 16 | `## Troubleshooting` | Fixed |
+| 17 | `## Informal Mentor conversation` | Fixed |
+| 18 | `## Continue` | Fixed |
+| 19 | `## Primary references` | Fixed |
 
 A fixed heading is the same string in every module. Do not reword it. A
 tier-named heading says what this tier actually does, so a Learner scanning the
-page knows where the work is.
+page knows where the work is. Section 14 sits in the fixed spine but is
+tier-named, because a tier may have found something in one earlier tier or in
+several.
 
 Section 9 may use more than one level-2 heading when the tier's work has two
 distinct phases. Tier 0 uses two, because building the product and running the
 fixtures are separate jobs.
 
-Level-3 headings are optional everywhere except section 7, which always opens
+### Where Predict goes
+
+Level-3 headings are optional everywhere except section 7, which normally opens
 with `### Predict`.
+
+A module may lift Predict to a level-2 section of its own, placed before section
+7, **when its predictions span the whole tier rather than the reproduction**.
+The reason section 7 is the default home is that a control tier's answers arrive
+as real output rather than as a page to compare against, which holds while the
+questions are about the attack and stops holding when they are about the tier.
+
+A lifted Predict must be paired with a closing section that answers every
+question it opened. Tier 5 does this: `## Predict` near the top and `## Reveal`
+near the end, four questions asked and four answered. A lifted Predict with no
+close leaves the Learner holding written answers that nothing ever checks, which
+is worse than not asking.
 
 ## Show the mechanism, not the verdict
 
@@ -203,15 +268,28 @@ in their workspace under `evidence/learner/`, never in the wiki.
 identifier, then the conditions for supported, partly supported, and
 unsupported. State any claim the Learner must not make, and why.
 
-**14. Update the Security evidence pack.** The commands that create the Learner
+**14. What this tier found in the earlier tiers.** What exercising the previous
+tier's work in a new way turned up, one bold lead sentence per finding and a
+short paragraph under it. Say for each one whether this tier fixed it, named it
+as a limit, or handed it to a later tier, and name that tier. A finding that
+belongs to an earlier tier's code says so, so a Learner who meets the symptom
+knows where it lives.
+
+This section exists because "Expect to find a bug in the previous tier" below
+turned out to be true in every control tier so far, and three modules invented
+the same heading in the same place before it was written down here. Omit it only
+when the tier genuinely found nothing, and say that in one line rather than
+leaving the section out silently.
+
+**15. Update the Security evidence pack.** The commands that create the Learner
 evidence directory and copy templates, then a bullet list of what to record.
 Say which records become `observed` and which stay `pending`, and never let a
 host-only result replace a pending hardware field.
 
-**15. Troubleshooting.** A two-column pipe table: Observation, First check.
+**16. Troubleshooting.** A two-column pipe table: Observation, First check.
 Five or six rows. Close with one line on when to involve a Mentor.
 
-**16. Informal Mentor conversation.** What to show, what to explain, and one
+**17. Informal Mentor conversation.** What to show, what to explain, and one
 prepared failure case to diagnose together. State that there is no grade.
 
 The heading is fixed, but the content depends on whether the tier ends at a
@@ -220,7 +298,7 @@ the six tiers that do: Tier 1, Tier 3, Tier 5, Tier 7, Tier 9, and Tier 10, and
 `course.yml` carries the same fact as `mentor_review`. A tier with no gate says
 so and offers an optional conversation, which is what Tier 0 does. A tier with a
 gate says which gate it is and publishes its prompts under the four fixed
-headings from section 13: Show, Explain, Diagnose, and Plan. Every gate is still
+headings from section 13 of `docs/course-specification.md`: Show, Explain, Diagnose, and Plan. Every gate is still
 an informal coaching conversation with no grade, so the heading does not change.
 
 Three rules came out of writing the first gate, in Tier 3. They are the pattern
@@ -248,16 +326,16 @@ specification names it as the stated failure criterion for several. Tier 3 asks
 the Learner to name three things an attacker who owns the update service
 completely can still do. A Learner who cannot name one has overread the control,
 and the question finds that out in seconds without anyone feeling caught out,
-which section 13 explicitly asks for.
+which section 13 of `docs/course-specification.md` explicitly asks for.
 
 Section 13 of `docs/course-specification.md` already fixes the rest: the three
 outcomes, that only safety and dependency prerequisites may block progress, and
 what the Mentor review record contains. Do not reinvent any of it per tier.
 
-**17. Continue.** The next tier's name in bold, then two or three sentences
+**18. Continue.** The next tier's name in bold, then two or three sentences
 previewing its attack.
 
-**18. Primary references.** A pipe table with columns Reading, Level, Type,
+**19. Primary references.** A pipe table with columns Reading, Level, Type,
 Learning question, Where to read. Level is Required or Optional.
 
 ## Variant differences
@@ -370,6 +448,10 @@ Budget time for this, and when it happens, decide deliberately whether to fix
 the published tier or to name the limit. Do not fix it silently: a published
 tier changing underneath a Learner is its own problem.
 
+Five out of five have now found something, which is why this has a section of
+its own. Write what you found in section 14, not in a paragraph buried in
+section 12.
+
 **Predict and reveal did not carry over, and that is fine.** Unchanged from
 Tier 2. A control tier's work is running and reading, and its answers arrive as
 real output rather than as a page to compare against. Tier 3 opens section 7
@@ -413,6 +495,7 @@ Rules for an answers page:
 ## Test bypass attempts
 ## Weakness ledger after the work
 ## Security claim and evidence status
+## What this tier found in <the earlier tier or tiers>
 ## Update the Security evidence pack
 ## Troubleshooting
 ## Informal Mentor conversation
@@ -423,7 +506,11 @@ Rules for an answers page:
 ## Before you accept a module
 
 1. Read it as a technically capable Learner who is new to cybersecurity.
-2. Check every heading against the list above, in order.
+2. Check every heading against the list above, in order. Nothing enforces this,
+   so it is checked by a reader or not at all. The fixed spine must match
+   string for string. In the work band, check that every listed step is either
+   present under a tier-specific name or declared absent in the module's own
+   text.
 3. Check that every command has an expected result.
 4. Check that no em dash remains.
 5. Check that every canonical term matches `CONTEXT.md`.

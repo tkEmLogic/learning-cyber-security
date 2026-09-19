@@ -146,6 +146,27 @@ preserves the earlier behavior, demonstrates the new boundary, and adds
 evidence to the security evidence pack.
 _Avoid_: Course level, release version
 
+**Control tier**:
+A Hardening tier that reproduces an attack, adds one focused control, replays
+the attack against it, and tests bypasses. Every tier from Tier 2 to Tier 9 and
+both Advanced Tiers are control tiers, including the ones `course.yml` marks
+`kind: lifecycle`, because the kind says where a tier sits in the course arc and
+not how its module is shaped.
+_Avoid_: Lifecycle tier, hardening module
+
+**Baseline tier**:
+The single Hardening tier that builds the unsecured reference product. It has no
+control to add and no attack to defeat, and it records the successful attack as
+its result. Tier 0 is the only one.
+_Avoid_: Tier zero, starting tier
+
+**Analysis tier**:
+The single Hardening tier that produces analysis artifacts, changes no code and
+adds no control. It reclassifies an earlier observation against threats,
+requirements, and planned controls, and claims no technical rejection. Tier 1 is
+the only one.
+_Avoid_: Threat model tier, paper tier
+
 **Weakness ledger**:
 The per-tier record of known weaknesses, demonstrated attack vectors, controls
 that close or reduce them, evidence of the changed behavior, and weaknesses
