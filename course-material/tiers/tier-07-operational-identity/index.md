@@ -815,6 +815,14 @@ It is new because nothing in `SC-01` to `SC-06` is about ownership, and the spec
 
 Supported for the first claim and for wrong-owner refusal, which are `E-7-01` and `E-7-10` with `E-7-14`. Not supported for what happens afterwards: revocation, transfer and decommissioning are Tier 8, and the Owner credential is a bearer token with no rotation, which is `T7-W-21`.
 
+`SC-07` is new, and so is the requirement under it. `REQ-08` was not in Tier 1's table for the same reason `SC-07` was not: at Tier 1 no device had an owner, so nothing about ownership was observable. It reads in the form Tier 1 used.
+
+| ID | Requirement | Acceptance criterion | Supports |
+| --- | --- | --- | --- |
+| REQ-08 | A device takes an operational identity only when a physical action on that device and an authenticated owner are both present, and afterwards only that owner's authority applies to it | A request made without the physical action is refused and recorded as refused, and so is a request made by an owner other than the one the device already holds | SC-07 |
+
+Add that row to your own requirement table.
+
 Like `SC-06`, it needs more than one control, so it gets a table rather than a sentence:
 
 | Requirement | Control | What it does |
@@ -859,6 +867,8 @@ The lab artifact for this tier has five parts. Add each one:
 - **The updated lifecycle model.** Your device's journey through `manufactured` and `claimed`, the records that mark each transition, and the states Tier 8 will add.
 
 Also record the six new weaknesses, `T7-W-20` to `T7-W-25`, each with an owner, and the claim movements with their evidence.
+
+Your requirement and control records move here as well. Add the new `REQ-08` row. Move `CTL-04` from `planned` to `implemented`, which is the Tier 1 plan this tier completes. Record `CTL-10` and `CTL-11` directly as `implemented`, because neither was planned in Tier 1.
 
 Which records become `observed`: the claim sequence, the handshake evidence and the two success rows, once you have run them on the board. Which stay `pending`: anything you did not run on hardware.
 
