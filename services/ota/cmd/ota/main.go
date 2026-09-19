@@ -122,8 +122,8 @@ func main() {
 	// Three listeners with three different answers to "who may connect".
 	//
 	// The device listener demands a client certificate for the whole socket,
-	// because tls.RequireAndVerifyClientCert is decided before a byte of HTTP
-	// is read and therefore before any route is matched. The operator listener
+	// because who may connect is decided before a byte of HTTP is read and
+	// therefore before any route is matched. The operator listener
 	// authenticates only the server, because a person has no device
 	// certificate and a bearer token on a socket that rejects the handshake
 	// never reaches a handler. The plain listener keeps health and the Course
@@ -149,11 +149,17 @@ func main() {
 	})
 	serveTLS(tlsAddress, server.DeviceHandler(), &tls.Config{
 		Certificates: []tls.Certificate{certificate},
-		// The whole socket, one decision. A certificate from an authority
-		// outside this pool fails here, with no status, no body and no check
-		// name, and that asymmetry is taught rather than worked around.
-		ClientAuth: tls.RequireAndVerifyClientCert,
-		ClientCAs:  mutual.ClientCAPool(),
+		// The whole socket, one decision, and exactly one question: was this
+		// certificate signed by a device authority. A certificate from an
+		// authority outside the two fails here, with no status, no body and no
+		// check name, and that asymmetry is taught rather than worked around.
+		//
+		// Not tls.RequireAndVerifyClientCert, which would also judge the
+		// validity window here and so refuse an expired Operational
+		// certificate at a layer that cannot say why. See
+		// MutualTLS.VerifyClientCertificate for the whole argument.
+		ClientAuth:            tls.RequireAnyClientCert,
+		VerifyPeerCertificate: mutual.VerifyClientCertificate,
 	})
 }
 

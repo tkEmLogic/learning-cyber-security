@@ -42,6 +42,7 @@ type manifest struct {
 		ImpersonationPort    int    `yaml:"impersonation_port"`
 		ImpersonationTLSPort int    `yaml:"impersonation_tls_port"`
 		OperatorTLSPort      int    `yaml:"operator_tls_port"`
+		ServiceName          string `yaml:"service_name"`
 	} `yaml:"runtime"`
 	Paths struct {
 		State              string   `yaml:"state"`
@@ -65,7 +66,14 @@ type manifest struct {
 		HardwareRequired   []string `yaml:"hardware_required"`
 	} `yaml:"devices"`
 	Fixtures map[string]fixture `yaml:"fixtures"`
-	Safety   struct {
+
+	// Bypass holds the adversaries that are not registered fixtures. Tier 7's
+	// is one actor under `./course service bypass`, so it has no manifest
+	// fixture entry, but every mutable input it reads is still allowlisted
+	// here. See docs/fixture-safety-contract.md, "Tier 7 fixtures".
+	Bypass map[string]bypassManifest `yaml:"bypass"`
+
+	Safety struct {
 		SyntheticDataOnly         bool   `yaml:"synthetic_data_only"`
 		MarkerRequired            bool   `yaml:"marker_required"`
 		MarkerPath                string `yaml:"marker_path"`
@@ -98,6 +106,36 @@ type tier struct {
 	Prerequisites         []string `yaml:"prerequisites"`
 	ContinueSameWorkspace bool     `yaml:"continue_same_workspace"`
 	Fixtures              []string `yaml:"fixtures"`
+}
+
+// bypassManifest is what a `./course service bypass` adversary may read.
+//
+// It is deliberately not a fixture: there is no image, no selector and no
+// expected_effect, because one actor drives many rows and each row states its
+// own expected refusal in code beside the request that earns it. What it
+// shares with a fixture is the part the safety contract cares about — a plain
+// target for the marker handshake, a named interface, declared changes, a
+// reset, and an allowlist for every value a Learner might otherwise supply.
+type bypassManifest struct {
+	Tier      string `yaml:"tier"`
+	Target    string `yaml:"target"`
+	Interface string `yaml:"interface"`
+
+	// The two TLS ports and the name the service presents. Read from here so
+	// that no endpoint, port or name is ever typed on a command line.
+	DevicePort   int    `yaml:"device_port"`
+	OperatorPort int    `yaml:"operator_port"`
+	ServiceName  string `yaml:"service_name"`
+
+	// AdversaryOwner is the one owner slug the fixture may authenticate as.
+	AdversaryOwner string `yaml:"adversary_owner"`
+
+	// SyntheticIDs is the bounded list of device identifiers the fixture may
+	// enroll. An identifier outside it is refused before any side effect.
+	SyntheticIDs []string `yaml:"synthetic_ids"`
+
+	Changes []string `yaml:"changes"`
+	Reset   string   `yaml:"reset"`
 }
 
 type fixture struct {
@@ -1170,7 +1208,7 @@ func (a *app) publishFirmwareImage(variant firmwareVariant, buildDir, appName st
 // process only ever listens inside the container.
 func (a *app) service(args []string) error {
 	if len(args) == 0 {
-		return errors.New("service requires start, stop, or status")
+		return errors.New("service requires start, stop, status, certificate, or bypass")
 	}
 	switch args[0] {
 	case "start":
@@ -1221,8 +1259,14 @@ func (a *app) service(args []string) error {
 		return a.serviceStatus()
 	case "certificate":
 		return a.serviceCertificate()
+	// A sibling of start, and deliberately not a sibling of `provision
+	// bypass`. Tier 6's checks belong to a provisioning station on a bench and
+	// Tier 7's to a daemon on a network, so the namespace carries the sentence
+	// the tier spent two renames buying.
+	case "bypass":
+		return a.serviceBypass(args[1:])
 	default:
-		return fmt.Errorf("unknown service command %q", args[0])
+		return fmt.Errorf("unknown service command %q; use start, stop, status, certificate or bypass", args[0])
 	}
 }
 

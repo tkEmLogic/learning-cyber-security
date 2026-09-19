@@ -885,22 +885,7 @@ func TestForeignIssuerFailsAtTheHandshakeWithNoCheckName(t *testing.T) {
 	leaf, key := foreign.issue(t, 1, "beacon-remfg-404cca5ea9fc", "northwind",
 		now.Add(-time.Hour), now.Add(time.Hour))
 
-	listener := httptest.NewUnstartedServer(f.server.DeviceHandler())
-	listener.TLS = &tls.Config{
-		ClientAuth: tls.RequireAndVerifyClientCert,
-		ClientCAs:  f.server.cfg.MutualTLS.ClientCAPool(),
-	}
-	listener.StartTLS()
-	defer listener.Close()
-
-	client := listener.Client()
-	transport := client.Transport.(*http.Transport)
-	// Sent whatever the server says it will accept, so the refusal is the
-	// server rejecting the chain rather than the client declining to offer it.
-	transport.TLSClientConfig.GetClientCertificate = func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
-		return &tls.Certificate{Certificate: [][]byte{leaf.Raw}, PrivateKey: key}, nil
-	}
-	response, err := client.Get(listener.URL + "/v1/releases/current")
+	response, err := f.overTheWire(t, leaf, key, "/v1/releases/current")
 	if err == nil {
 		response.Body.Close()
 		t.Fatalf("the handshake accepted a foreign issuer, status %s", response.Status)
@@ -908,6 +893,65 @@ func TestForeignIssuerFailsAtTheHandshakeWithNoCheckName(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(f.stateDir, "events.jsonl")); !os.IsNotExist(err) {
 		t.Fatalf("a handshake failure must leave no row behind, err=%v", err)
 	}
+}
+
+// An expired certificate from a known authority must reach a handler, and be
+// refused at certificate-active with a check name.
+//
+// This runs over a real handshake rather than a synthesized r.TLS, because a
+// synthesized one cannot see the defect this test exists for.
+// tls.RequireAndVerifyClientCert runs x509.Verify, which judges the validity
+// window, so the listener used to refuse an expired Operational certificate
+// during the handshake — with no status, no body and no check, exactly like a
+// foreign issuer. Clause 1 of certificate-active was unreachable over the
+// wire, and the device could not tell "your certificate ran out" from "I have
+// never heard of your authority". Both rows now exist and they differ.
+func TestExpiredCertificateIsRefusedByACheckAndNotByTheHandshake(t *testing.T) {
+	f := newMutualFixture(t)
+	f.claim(t, "beacon-remfg-404cca5ea9fc", "northwind", 7101)
+	now := time.Now()
+	expired, key := f.operational.issue(t, 7101, "beacon-remfg-404cca5ea9fc", "northwind",
+		now.Add(-200*24*time.Hour), now.Add(-24*time.Hour))
+
+	response, err := f.overTheWire(t, expired, key, "/v1/releases/current")
+	if err != nil {
+		t.Fatalf("the handshake refused an expired certificate, so no check could name it: %v", err)
+	}
+	defer response.Body.Close()
+	var body map[string]any
+	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if response.StatusCode != http.StatusForbidden || body["check"] != CheckCertificateActive {
+		t.Fatalf("status %d check %v, want 403 %s", response.StatusCode, body["check"], CheckCertificateActive)
+	}
+	if reason, _ := body["reason"].(string); !strings.Contains(reason, "expired") {
+		t.Fatalf("reason = %q, want it to say the certificate expired", reason)
+	}
+}
+
+// overTheWire runs one request against a real device listener, configured
+// exactly as cmd/ota configures it, and presents one client certificate.
+func (f *mutualFixture) overTheWire(t *testing.T, leaf *x509.Certificate,
+	key *ecdsa.PrivateKey, path string) (*http.Response, error) {
+	t.Helper()
+	listener := httptest.NewUnstartedServer(f.server.DeviceHandler())
+	listener.TLS = &tls.Config{
+		ClientAuth:            tls.RequireAnyClientCert,
+		VerifyPeerCertificate: f.server.cfg.MutualTLS.VerifyClientCertificate,
+	}
+	listener.StartTLS()
+	t.Cleanup(listener.Close)
+
+	client := listener.Client()
+	transport := client.Transport.(*http.Transport)
+	// Sent whatever the server says it will accept, so the refusal is the
+	// server rejecting the certificate rather than the client declining to
+	// offer it.
+	transport.TLSClientConfig.GetClientCertificate = func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
+		return &tls.Certificate{Certificate: [][]byte{leaf.Raw}, PrivateKey: key}, nil
+	}
+	return client.Get(listener.URL + path)
 }
 
 // The safety check must never depend on the control it tests. The marker stays

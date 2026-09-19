@@ -144,12 +144,13 @@ func IssueOperationalCertificate(dir, deviceID, ownerSlug string, publicKey any)
 	if err != nil {
 		return nil, err
 	}
+	now := time.Now().UTC()
 	return IssueOperationalCertificateAs(dir, deviceID, ownerSlug, publicKey,
-		serial, time.Now().UTC().Add(OperationalLifetime))
+		serial, now.Add(-time.Hour), now.Add(OperationalLifetime))
 }
 
-// IssueOperationalCertificateAs is the same leaf with the serial and the
-// expiry chosen by the caller.
+// IssueOperationalCertificateAs is the same leaf with the serial and the whole
+// validity window chosen by the caller.
 //
 // It exists for the attack fixture, and it is deliberately the smallest
 // widening that the fixture's rows need: a certificate carrying a serial the
@@ -157,12 +158,17 @@ func IssueOperationalCertificate(dir, deviceID, ownerSlug string, publicKey any)
 // Both are certificates a leaked CA key can make, and the tier's argument is
 // that a CA signature is not an authorization.
 //
+// The window is both ends and not only the expiry, because a certificate
+// whose NotAfter has passed while its NotBefore is an hour ago is not an
+// expired certificate, it is a malformed one, and a Learner running openssl
+// over the fixture's output would be right to distrust the row.
+//
 // What it may sign is bounded by docs/fixture-safety-contract.md: an
 // Operational leaf for a device identifier this Course environment holds a
 // record for, and nothing else. It cannot make an authority, because it sets
 // no basic constraints and no certificate-sign key usage.
 func IssueOperationalCertificateAs(dir, deviceID, ownerSlug string, publicKey any,
-	serial *big.Int, notAfter time.Time) ([]byte, error) {
+	serial *big.Int, notBefore, notAfter time.Time) ([]byte, error) {
 	ca, caKey, err := LoadOperationalCA(dir)
 	if err != nil {
 		return nil, err
@@ -173,7 +179,7 @@ func IssueOperationalCertificateAs(dir, deviceID, ownerSlug string, publicKey an
 	template := &x509.Certificate{
 		SerialNumber: serial,
 		Subject:      operationalSubject(deviceID, ownerSlug),
-		NotBefore:    time.Now().UTC().Add(-time.Hour),
+		NotBefore:    notBefore,
 		NotAfter:     notAfter,
 		KeyUsage:     x509.KeyUsageDigitalSignature,
 		// Client authentication only, as the Factory identity. An Operational

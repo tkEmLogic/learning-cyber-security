@@ -102,8 +102,9 @@ func TestOperationalCertificateCarriesTheOwnerAndNinetyDays(t *testing.T) {
 	}
 }
 
-// The fixture's variant chooses a serial and an expiry, and nothing else.
-func TestTheForgeableVariantChoosesOnlySerialAndExpiry(t *testing.T) {
+// The fixture's variant chooses a serial and a validity window, and nothing
+// else.
+func TestTheForgeableVariantChoosesOnlySerialAndWindow(t *testing.T) {
 	dir := t.TempDir()
 	if err := GenerateOperationalCA(dir); err != nil {
 		t.Fatal(err)
@@ -112,9 +113,10 @@ func TestTheForgeableVariantChoosesOnlySerialAndExpiry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	opened := time.Now().UTC().Add(-200 * 24 * time.Hour)
 	expired := time.Now().UTC().Add(-time.Hour)
 	der, err := IssueOperationalCertificateAs(dir, "beacon-aabbccddeeff", "rival-labs",
-		key.Public(), big.NewInt(4242), expired)
+		key.Public(), big.NewInt(4242), opened, expired)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -128,11 +130,16 @@ func TestTheForgeableVariantChoosesOnlySerialAndExpiry(t *testing.T) {
 	if !issued.NotAfter.Before(time.Now()) {
 		t.Fatal("the chosen expiry was ignored")
 	}
+	// An expired certificate, not a malformed one: the window has to open
+	// before it closes or the row demonstrates a broken issuer.
+	if !issued.NotBefore.Before(issued.NotAfter) {
+		t.Fatalf("NotBefore %s is not before NotAfter %s", issued.NotBefore, issued.NotAfter)
+	}
 	if issued.IsCA || issued.KeyUsage&x509.KeyUsageCertSign != 0 {
 		t.Fatal("the forgeable variant must not be able to make an authority")
 	}
 	if _, err := IssueOperationalCertificateAs(dir, "beacon-aabbccddeeff", "rival-labs",
-		key.Public(), nil, expired); err == nil {
+		key.Public(), nil, opened, expired); err == nil {
 		t.Fatal("a certificate with no serial was issued")
 	}
 }

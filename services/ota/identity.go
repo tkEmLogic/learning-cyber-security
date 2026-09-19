@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -48,10 +50,10 @@ const (
 
 // The two certificate roles, which are the two authorities and nothing else.
 //
-// Role is which CA signed the certificate, read from VerifiedChains. A second
-// signal — an extension, a common-name prefix — would be a fact that can
-// disagree with the chain, and the day it does the service believes the wrong
-// one. There is nothing to reconcile if there is nothing to reconcile with.
+// Role is which CA signed the certificate, and nothing else. A second signal
+// — an extension, a common-name prefix — would be a fact that can disagree
+// with the signature, and the day it does the service believes the wrong one.
+// There is nothing to reconcile if there is nothing to reconcile with.
 const (
 	RoleFactory     = "factory"
 	RoleOperational = "operational"
@@ -90,8 +92,9 @@ type Refusal struct {
 // nil means every byte the service emits is what Tiers 0 to 6 already see.
 type MutualTLS struct {
 	// ManufacturerCA signs Factory identities and OperationalCA signs
-	// Operational ones. Both are self-signed roots, distinguishable at the top
-	// of a verified chain, which is what makes the issuer the role.
+	// Operational ones. Both are self-signed roots and no device certificate
+	// in this course carries an intermediate, so one signature check tells the
+	// two apart, which is what makes the issuer the role.
 	ManufacturerCA *x509.Certificate
 	OperationalCA  *x509.Certificate
 
@@ -197,22 +200,25 @@ func OwnerFrom(ctx context.Context) (string, bool) {
 	return owner, ok
 }
 
-// identityFrom reads the three facts out of the verified peer certificate.
+// identityFrom reads the three facts out of the peer certificate.
 //
-// It cannot be reached without one: the listener is at
-// tls.RequireAndVerifyClientCert, so a certificate from a genuinely foreign
-// issuer fails during the handshake, before any handler runs, and the caller
-// sees a closed connection with no status, no body and no check. That
-// asymmetry is the tier's clearest demonstration that a refusal's usefulness
-// depends on which layer refuses, and it is taught rather than worked around.
+// It cannot be reached without one: the listener demands a client certificate
+// for the whole socket and VerifyClientCertificate below refuses any issuer
+// outside the two device authorities, so a genuinely foreign certificate fails
+// during the handshake, before any handler runs, and the caller sees a closed
+// connection with no status, no body and no check. That asymmetry is the
+// tier's clearest demonstration that a refusal's usefulness depends on which
+// layer refuses, and it is taught rather than worked around.
+//
+// It reads PeerCertificates rather than VerifiedChains, because the listener
+// no longer asks crypto/tls to build a chain. See VerifyClientCertificate for
+// why, and note that the role is still the issuer and nothing else: the
+// signature that matched is what names it.
 func (m *MutualTLS) identityFrom(r *http.Request) (DeviceIdentity, bool) {
-	if r.TLS == nil || len(r.TLS.VerifiedChains) == 0 || len(r.TLS.VerifiedChains[0]) == 0 {
+	leaf := presentedLeaf(r)
+	if leaf == nil {
 		return DeviceIdentity{}, false
 	}
-	chain := r.TLS.VerifiedChains[0]
-	leaf := chain[0]
-	root := chain[len(chain)-1]
-
 	identity := DeviceIdentity{
 		DeviceID:  leaf.Subject.CommonName,
 		Serial:    leaf.SerialNumber.String(),
@@ -222,23 +228,95 @@ func (m *MutualTLS) identityFrom(r *http.Request) (DeviceIdentity, bool) {
 	if len(leaf.Subject.OrganizationalUnit) > 0 {
 		identity.OwnerScope = leaf.Subject.OrganizationalUnit[0]
 	}
-	switch {
-	case m.OperationalCA != nil && root.Equal(m.OperationalCA):
-		identity.Role = RoleOperational
-	case m.ManufacturerCA != nil && root.Equal(m.ManufacturerCA):
-		identity.Role = RoleFactory
-	default:
+	role, ok := m.roleOf(leaf)
+	if !ok {
 		return DeviceIdentity{}, false
 	}
+	identity.Role = role
 	return identity, true
 }
 
-// ClientCAPool is the pool the device listener verifies client certificates
-// against: the two device authorities and nothing else.
+// presentedLeaf is the client certificate this connection presented.
+//
+// VerifiedChains is honoured when crypto/tls filled it in, because the
+// service's own tests build a request that way and a chain the library
+// verified is not a worse answer than the leaf. Otherwise the leaf is
+// PeerCertificates[0], which is where the real listener leaves it.
+func presentedLeaf(r *http.Request) *x509.Certificate {
+	if r.TLS == nil {
+		return nil
+	}
+	if len(r.TLS.VerifiedChains) > 0 && len(r.TLS.VerifiedChains[0]) > 0 {
+		return r.TLS.VerifiedChains[0][0]
+	}
+	if len(r.TLS.PeerCertificates) > 0 {
+		return r.TLS.PeerCertificates[0]
+	}
+	return nil
+}
+
+// roleOf answers which of the two device authorities signed a certificate,
+// which is the only thing a role is in this tier.
+func (m *MutualTLS) roleOf(leaf *x509.Certificate) (string, bool) {
+	if m.OperationalCA != nil && leaf.CheckSignatureFrom(m.OperationalCA) == nil {
+		return RoleOperational, true
+	}
+	if m.ManufacturerCA != nil && leaf.CheckSignatureFrom(m.ManufacturerCA) == nil {
+		return RoleFactory, true
+	}
+	return "", false
+}
+
+// VerifyClientCertificate is the device listener's whole handshake decision:
+// was this certificate signed by one of the two device authorities.
+//
+// It replaces tls.RequireAndVerifyClientCert, and the reason is that
+// RequireAndVerifyClientCert answers a second question nobody asked it to.
+// It runs x509.Verify, which checks the validity window, so an expired
+// Operational certificate was refused inside the handshake with no status, no
+// body and no check name — indistinguishable, at the device, from a
+// certificate signed by an authority this course never heard of. That made
+// clause 1 of certificate-active unreachable over the wire, and it made
+// settled input 7's sentence — "only a genuinely foreign issuer fails at
+// handshake" — false. This makes it true.
+//
+// It is deliberately not x509.Verify with a doctored CurrentTime. Both device
+// authorities are self-signed roots and no device certificate in this course
+// carries an intermediate, so the chain is one link and one signature check is
+// the whole of it. A Verify call with a time chosen to be harmless would be a
+// time judgement made to have no effect, which is a harder thing to read than
+// no time judgement at all.
+//
+// Expiry is still enforced, and still by the service alone. It moved from a
+// layer with no vocabulary to certificate-active, which answers 403 and names
+// the check, and that is what lets a Learner see the refusal the device could
+// not have made for itself.
+func (m *MutualTLS) VerifyClientCertificate(raw [][]byte, _ [][]*x509.Certificate) error {
+	if len(raw) == 0 {
+		return errors.New("no client certificate was presented")
+	}
+	presented, err := x509.ParseCertificate(raw[0])
+	if err != nil {
+		return fmt.Errorf("the client certificate will not parse: %w", err)
+	}
+	if _, ok := m.roleOf(presented); !ok {
+		// The one refusal in this tier with no check name. There is no
+		// response to put one in.
+		return errors.New("the client certificate is not signed by a device authority this listener knows")
+	}
+	return nil
+}
+
+// ClientCAPool is the two device authorities and nothing else.
 //
 // The Course CA is deliberately absent. It signs the service's own server
 // certificate, and a pool that trusted it to authenticate clients would let a
 // service certificate log in as a device.
+//
+// It is no longer the listener's ClientCAs, because the listener verifies with
+// VerifyClientCertificate above. It stays because it is the honest answer to
+// "which authorities may a client come from", and a host client building a
+// chain asks that question too.
 func (m *MutualTLS) ClientCAPool() *x509.CertPool {
 	pool := x509.NewCertPool()
 	if m.ManufacturerCA != nil {
