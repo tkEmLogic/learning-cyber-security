@@ -178,6 +178,10 @@ int recovery_trial_begin(const char *release_id, uint32_t *attempt)
 		return err;
 	}
 
+	/* The memset is what clears reported. A new trial has not been reported
+	 * because it has not happened yet, and writing the whole record in one
+	 * go is what stops the mark from outliving the trial it belongs to.
+	 */
 	memset(&record, 0, sizeof(record));
 	strncpy(record.release_id, release_id, sizeof(record.release_id) - 1);
 	record.attempts = attempts + 1U;
@@ -196,6 +200,22 @@ int recovery_trial_clear(void)
 		return -ENODEV;
 	}
 	return nvs_delete(&course_nvs, RECOVERY_NVS_TRIAL);
+}
+
+int recovery_trial_mark_reported(void)
+{
+	struct trial_record record;
+	int err;
+
+	err = read_record(RECOVERY_NVS_TRIAL, &record, sizeof(record));
+	if (err != 0) {
+		return err;
+	}
+	if (record.reported) {
+		return 0;
+	}
+	record.reported = true;
+	return write_record(RECOVERY_NVS_TRIAL, &record, sizeof(record));
 }
 
 int recovery_failure_write(const char *release_id, const char *reason)
@@ -241,9 +261,10 @@ void recovery_state_report(void)
 	}
 
 	if (read_record(RECOVERY_NVS_TRIAL, &trial, sizeof(trial)) == 0) {
-		printk("recovery.state trial release_id=%s attempts=%u of %d\n",
+		printk("recovery.state trial release_id=%s attempts=%u of %d reported=%s\n",
 		       trial.release_id, trial.attempts,
-		       CONFIG_COURSE_TRIAL_FAILURE_LIMIT);
+		       CONFIG_COURSE_TRIAL_FAILURE_LIMIT,
+		       trial.reported ? "yes" : "no");
 	} else {
 		printk("recovery.state trial no release is being tried\n");
 	}

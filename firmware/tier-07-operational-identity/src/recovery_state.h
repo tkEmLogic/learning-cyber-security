@@ -62,10 +62,22 @@ struct download_record {
  * count kept on failure would miss the two failures that most need counting.
  * Counting attempts rather than failures is robust against a trial image
  * dying in any manner at all, including manners nobody has thought of.
+ *
+ * reported says the fleet has already been told about this trial. It is here
+ * because the record outlives the revert it describes: nothing clears the
+ * count on the path where a revert actually happened, and nothing may, because
+ * this same count is the bound that stops a revert loop. Clearing it to silence
+ * a duplicate report would hand the device straight back to installing a
+ * failing release forever.
+ *
+ * So the count stays and the report is marked instead. Keeping "already said"
+ * apart from "how many times tried" is what lets one record answer two
+ * questions that stop being true at different moments.
  */
 struct trial_record {
 	char release_id[RECOVERY_ID_MAX];
 	uint32_t attempts;
+	bool reported;
 };
 
 /* Why the last trial gave up.
@@ -129,6 +141,17 @@ int recovery_trial_begin(const char *release_id, uint32_t *attempt);
 
 /* Forgets the trial count, which happens when a release confirms. */
 int recovery_trial_clear(void);
+
+/* Records that the revert this trial record describes has been reported.
+ *
+ * Marks rather than clears, for the reason given on struct trial_record. The
+ * mark is set once the event is queued and not once it is delivered, because
+ * delivery is best effort and nothing acknowledges it. A device that reverts
+ * while it cannot reach the service therefore never reports that revert at
+ * all. That is a real limit, and this tier names it rather than hiding it
+ * behind a retry, which is what the duplicate reports were pretending to be.
+ */
+int recovery_trial_mark_reported(void);
 
 /* Records why a trial gave up, for the boot that follows the revert. */
 int recovery_failure_write(const char *release_id, const char *reason);
