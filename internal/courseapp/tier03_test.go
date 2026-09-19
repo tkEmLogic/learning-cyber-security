@@ -1,6 +1,7 @@
 package courseapp
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"testing"
@@ -113,5 +114,23 @@ func TestOnlyTheReleaseRoleHasAPublicHalf(t *testing.T) {
 	}
 	if len(signingRoles) != 2 {
 		t.Errorf("a third key role needs a decision about whether a build may read it, got %d", len(signingRoles))
+	}
+}
+
+// esptool takes a chip, not a Zephyr board target, and the chip is derived by
+// cutting the board at its first underscore. The manifest is the only place the
+// board is written down, so this reads it from there: a board renamed in
+// course.yml would otherwise hand esptool a chip it does not know, on the one
+// command that writes flash.
+func TestEspChipComesFromTheManifestBoard(t *testing.T) {
+	root := testRepository(t)
+	var out bytes.Buffer
+	a, err := load(root, &out, &out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if chip := espChip(a.manifest.Devices["reference_beacon"].Board); chip != "esp32c6" {
+		t.Errorf("espChip(%q) = %q, want esp32c6",
+			a.manifest.Devices["reference_beacon"].Board, chip)
 	}
 }
