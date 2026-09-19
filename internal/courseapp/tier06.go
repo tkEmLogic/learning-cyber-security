@@ -58,6 +58,13 @@ const (
 	recordDelivery         = "delivery_confirmed"
 	recordRemanufacture    = "remanufacture"
 	recordFixtureReset     = "fixture_reset"
+	// recordClaim is written by the OTA service rather than by the
+	// provisioning station, which is why the store's definition is the device
+	// lifecycle record rather than the manufacturing record. Tier 7's claim is
+	// a customer-side fact about a device the manufacturer has already
+	// released, and holding the line that this file is manufacturing-only
+	// would have forced claims into a third store for a definition's sake.
+	recordClaim = "claim"
 )
 
 // provisionRecord is one line of the manufacturing record.
@@ -87,7 +94,16 @@ type provisionRecord struct {
 	CredentialExpires  string `json:"credential_expires,omitempty"`
 	ConsumedCredential string `json:"consumed_credential,omitempty"`
 
-	// Factory certificate, public material only.
+	// Owner association, written by the claim rather than by the station. The
+	// claim nonce is kept as a verifier for the same reason the Bootstrap
+	// credential is: it is a secret that authorizes a state change, and the
+	// record keeps only what it needs to recognise it again.
+	OwnerID            string `json:"owner_id,omitempty"`
+	ClaimNonceVerifier string `json:"claim_nonce_verifier,omitempty"`
+
+	// Factory certificate, public material only. A claim record reuses these
+	// three for the Operational certificate rather than adding a parallel set:
+	// the struct is already long and `kind` disambiguates every other row.
 	CertSerial      string `json:"certificate_serial,omitempty"`
 	CertFingerprint string `json:"certificate_fingerprint,omitempty"`
 	CertPublicKey   string `json:"certificate_public_key,omitempty"`
@@ -573,6 +589,10 @@ func (a *app) provisionShowRecord(args []string) error {
 			} else {
 				fmt.Fprintf(a.out, "    refused: %s\n", record.Detail)
 			}
+		case recordClaim:
+			fmt.Fprintf(a.out, "    claimed by %s, lifecycle %s\n", record.OwnerID, record.Lifecycle)
+			fmt.Fprintf(a.out, "    operational certificate %s, fingerprint %s\n",
+				record.CertSerial, short(record.CertFingerprint))
 		}
 	}
 	fmt.Fprintf(a.out, "\nResult: %d record(s)\n", shown)
