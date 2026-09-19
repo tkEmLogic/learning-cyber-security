@@ -23,6 +23,7 @@ Everything runs in a dev container. Your own machine needs Podman and an editor,
 | [Tier 4: Protect release metadata and block downgrade](course-material/tiers/tier-04-release-policy/index.md) | Signed release metadata, and a security counter the device refuses to move backwards |
 | [Tier 5: Make installation recoverable](course-material/tiers/tier-05-recovery/index.md) | Resumable downloads, a trial boot, a local health gate, and a revert to the last confirmed image |
 | [Tier 6: Replace shared identity with per-device factory identity](course-material/tiers/tier-06-factory-identity/index.md) | On-device key generation, a per-device Factory identity, a one-use Bootstrap credential, and an honest read of what the storage protects |
+| [Tier 7: Add owner-scoped operational identity and mutual TLS](course-material/tiers/tier-07-operational-identity/index.md) | An Operational certificate authority, a two-party claim with a physical action and an authenticated owner, and mutual TLS on every endpoint a device uses |
 
 Eleven core tiers and two advanced tiers are planned. [The course page](course-material/index.md) lists all of them, so you can see where the work goes.
 
@@ -30,7 +31,7 @@ Eleven core tiers and two advanced tiers are planned. [The course page](course-m
 
 A physical ESP32-C6 development kit is optional for most work and required for flashing, serial output, Wi-Fi behavior, and anything the device itself must prove.
 
-No tier is validated on the ESP32-C6-DevKitC-1, which is the development kit this course now targets. Tier 0, Tier 2, Tier 3, Tier 4, Tier 5, and Tier 6 carry recorded hardware results, and every one of them was observed on the board the course used before, a nanoESP32-C6 1.0. Those results are real results on that earlier board. They are not results on the board the course now targets, so every one of them is awaiting revalidation.
+No tier is validated on the ESP32-C6-DevKitC-1, which is the development kit this course now targets. Tier 0, Tier 2, Tier 3, Tier 4, Tier 5, Tier 6, and Tier 7 carry recorded hardware results, and every one of them was observed on the board the course used before, a nanoESP32-C6 1.0. Those results are real results on that earlier board. They are not results on the board the course now targets, so every one of them is awaiting revalidation.
 
 `course.yml` records each hardware result, the board it was observed on, and the revalidation it still owes. A skipped hardware check never supports a hardware claim, and a result from another board never supports one either.
 

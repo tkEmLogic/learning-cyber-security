@@ -863,6 +863,55 @@ verification:
       # physical hold, and the Factory key path is untouched by both fixes.
       e6_04_export_refusal_rerun_on_tier7_image: not_reached
 
+      # Written while the Tier 7 module was being written (#152), on the same
+      # nanoESP32-C6. The module quotes this campaign's console output, so the
+      # rows it rests on are recorded here rather than left in a branch.
+      #
+      # The board now holds a fourth Factory identity,
+      # beacon-t07c-404cca5ea9fc. It was remanufactured once more so the
+      # module could quote a claim succeeding end to end rather than describe
+      # one: ownership is first come and the service had already recorded
+      # beacon-t07b-404cca5ea9fc's claim, which it cannot take back. Every
+      # identity is an appended record and nothing was rewritten.
+
+      # The whole claim again, both halves, driven this time by the new
+      # ./course claim approve command rather than by hand: BOOT hold, volatile
+      # pending key, 225 byte request, 24 character nonce, operator approval
+      # carrying an Owner credential on the operator listener, and the
+      # certificate copied into persistent slot 0x00000701.
+      e7_01_claim_completes_through_the_claim_approve_command: validated
+      # E-7-02 again on the new identity: the service recorded status.observed
+      # with accepted_from client_certificate and certificate_device_id,
+      # path_device_id and accepted_device_id all naming
+      # beacon-t07c-404cca5ea9fc.
+      e7_02_status_event_on_operational_identity_after_remanufacture: validated
+      # An erased board refuses to open a restricted connection and says so,
+      # re-observed after the erase rather than inherited from the earlier run.
+      unclaimed_device_refuses_restricted_endpoints_after_erase: validated
+      # E-7-14 witnessed by the board rather than by the fixture. A press on
+      # the still-claimed beacon-t07b-404cca5ea9fc generated a pending key and
+      # a nonce, the Learner's own owner approved it, and the service refused
+      # at device-unowned without touching the issued identity. The fixture's
+      # own E-7-14 uses a synthetic device; this one used the board.
+      e7_14_device_unowned_refused_on_the_board: validated
+      # The operator half arriving before the device half. The approval was
+      # sent four seconds before the board's first submit reached the service
+      # and was refused at claim-window-open, which is the ordering #135
+      # specifies, observed rather than reasoned about. It is in the module's
+      # troubleshooting table for that reason.
+      operator_half_before_device_half_refused_on_the_board: validated
+      # E-7-06 witnessed by the board. ./course claim revoke marked the
+      # board's own Operational certificate revoked and the board was refused
+      # at certificate-active on its next request. The board's account of that
+      # refusal is the module's prepared Mentor failure, because it is
+      # genuinely misleading: the handshake succeeds and says so, and the
+      # assignment path never reads the 403 before parsing, so a correct
+      # authorization decision reaches the console as
+      # "ota.assignment missing release_id or image_path". The revocation was
+      # removed afterwards and the board was observed reaching the service on
+      # its Operational identity again.
+      e7_06_revoked_certificate_refused_on_the_board: validated
+
 tiers:
   "00":
     title: Build the unsecured reference product
@@ -997,7 +1046,7 @@ tiers:
     title: Add owner-scoped operational identity and mutual TLS
     kind: lifecycle
     track: core
-    status: planned
+    status: implemented
     start_checkpoint: course-v1.0-tier-06-complete
     complete_checkpoint: course-v1.0-tier-07-complete
     module: course-material/tiers/tier-07-operational-identity/index.md

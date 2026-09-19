@@ -258,10 +258,13 @@ This is the result you should expect to observe. Your own ledger lives in your w
 | Weakness | Result after this tier | Status | Evidence or next action |
 | --- | --- | --- | --- |
 | T0-W-02 | Reduced. The device now has an identity that cannot be forged, generated where it lives. Nothing yet requires it to present that identity on the status path, so the service still believes a request body | Reduced | Tier 7 closes it with mutual TLS |
+| T1-W-08 | Reduced. Tier 1 recorded this row and said Tier 6 would reduce it. The shared identifier it named is gone: a device's identity is now a certificate it holds, and the identifier printed on the console is a name rather than a credential. Reading it still tells an attacker what a device is called | Reduced | Tier 7 closes it, when the service starts requiring an identity the connection proves. This row was added after Tier 7 found it had been missing since Tier 2 |
 | T6-W-16 | New. The Secure Storage encryption key is `SHA-256` of the board's MAC and the record's UID, both public. Anyone who can read the flash can derive the key | Open | Residual risk with an owner. Demonstrated in `E-6-05`. Advanced Tier B, STSAFE-A120 |
 | T6-W-17 | New. Stored records carry no freshness, so writing back an older copy is accepted as authentic. NVS appends, so superseded copies are usually still in the same dump. A record's state before a revocation can be restored without deriving any key | Open | Recorded limit. Zephyr states it does not protect against replay. No tier on this course closes it |
 | T6-W-18 | New. The private key is protected at rest only. Privileged firmware, the application itself, and a debugger can all reach it. The non-exportable marking is enforced at the course API boundary and nowhere below it | Open | Residual risk with an owner. Advanced Tier B, STSAFE-A120 |
 | T6-W-19 | New. The AES-GCM nonce is randomised once per boot then incremented, while the record's key never changes, so a nonce drawn before the RF subsystem is up would weaken the guarantee | Open | Recorded limit. Confirm Wi-Fi is up before the first Secure Storage write. Recheck on any Zephyr upgrade |
+
+One row in that table was added late, and it is marked as such rather than quietly slipped in. `T1-W-08` was recorded in Tier 1, carried by Tier 2, and then dropped: it appears in no tier from Tier 3 onwards. Tier 6 reduced it in substance and never wrote the row down. Tier 7 found the gap while moving the claim register and the row is restored here, because a ledger that loses a row while the work goes well is worth more as a lesson than as an embarrassment.
 
 Four new rows, every one a limit. That is the expected shape of a control tier's ledger, and it is sharper here: this tier adds per-device identity and reduces `T0-W-02`, and the storage underneath that identity opens four rows at once. `T6-W-16` is the one the lab puts in front of you. `T6-W-17` is the one most likely to be skipped, because nothing in the lab fails when you exercise it, which is exactly why it is worth naming.
 
@@ -333,7 +336,7 @@ You may still ask a Mentor to review the tier and one uncomfortable limitation. 
 
 ## Continue
 
-**Tier 7 adds an owner-scoped Operational identity and mutual TLS.** Your device now has a name it cannot forge, but nothing yet makes it present that name to be believed. Tier 7 requires an Operational identity on the ordinary endpoints, so a status report is trusted only when the connection proves who sent it, and it introduces the field-provisioning flow a real consumer product uses to claim a device without a factory cable.
+**[Tier 7: Add owner-scoped operational identity and mutual TLS](../tier-07-operational-identity/index.md).** Your device now has a name it cannot forge, but nothing yet makes it present that name to be believed. Tier 7 requires an Operational identity on the ordinary endpoints, so a status report is trusted only when the connection proves who sent it, and it introduces the field-provisioning flow a real consumer product uses to claim a device without a factory cable.
 
 Start it from an enrolled device holding its Factory identity.
 
