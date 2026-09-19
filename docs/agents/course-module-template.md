@@ -143,6 +143,14 @@ into this tier. Columns: Identifier, Weakness, Attack vector, Expected result,
 Planned treatment. Identifiers use the form `TN-W-01`. This table is inherited
 context, so it is not the Learner's own work.
 
+The number in an identifier is one sequence running across the whole course,
+not a per-tier count: `T5-W-15` is followed by `T6-W-16`. The prefix names the
+tier that introduced the row and the number is only ever a unique id, so a row
+added to an already-published tier takes the next free number rather than one
+near its neighbours. Check the highest number in use across all modules before
+adding a row. Sorting the identifiers by prefix hides a collision, because two
+rows from different tiers can share a number; sort by the number instead.
+
 **7. Reproduce the attack or observation.** Opens with `### Predict` and a
 numbered list of questions the Learner answers before running anything. Then a
 `### Look before you act` subsection showing a dry run. Then **one subsection
