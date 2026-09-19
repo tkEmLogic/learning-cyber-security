@@ -476,8 +476,21 @@ func TestResetClearsLiveStateAndRewindsNoHistory(t *testing.T) {
 	if len(revoked) != 0 {
 		t.Fatalf("reset left %d serial(s) marked revoked", len(revoked))
 	}
-	if _, err := os.Stat(f.app.bypassStatePath()); !os.IsNotExist(err) {
-		t.Fatalf("reset left the fixture's own state behind, err=%v", err)
+	// Cleared inside the fixture's own state: the credential for the account
+	// that no longer exists. Kept: the keys to identities the append-only
+	// record still holds, which reset may not touch.
+	state, err := f.app.readAdversaryState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.OwnerCredential != "" {
+		t.Fatal("reset kept the adversary owner's credential")
+	}
+	if len(state.RevokedSerials) != 0 {
+		t.Fatalf("reset kept %d serial(s) in the fixture's own state", len(state.RevokedSerials))
+	}
+	if len(state.Devices) == 0 {
+		t.Fatal("reset discarded the keys to devices the manufacturing record still holds")
 	}
 
 	// Kept: every line of history, plus one more saying what was reset.
@@ -616,4 +629,44 @@ func (f *bypassFixture) readLines(t *testing.T, path string) []string {
 		return nil
 	}
 	return strings.Split(trimmed, "\n")
+}
+
+// A row must still refuse at its own check after a reset.
+//
+// It did not, and the failure was invisible: reset deleted the fixture's
+// private keys while the enrollments they belong to stayed in the append-only
+// record, so the next run asked the station for a second certificate under an
+// identifier that already held one and was refused at identifier-unused. That
+// is Tier 6's check, not this row's, and nothing in the message said so.
+func TestARowStillRefusesAtItsOwnCheckAfterAReset(t *testing.T) {
+	f := newBypassFixture(t)
+	f.claimTheBoard(t)
+	f.run(t, "e-7-03")
+	if err := f.app.bypassReset(); err != nil {
+		t.Fatal(err)
+	}
+	output := f.run(t, "e-7-03")
+	if !strings.Contains(output, "refused at check identity-operational") {
+		t.Fatalf("E-7-03 did not refuse at its own check after a reset:\n%s", output)
+	}
+}
+
+// The one row a reset genuinely cannot give back says so itself.
+func TestTheReplayRowSaysAResetCannotUndoAClaim(t *testing.T) {
+	f := newBypassFixture(t)
+	f.run(t, "e-7-11")
+	if err := f.app.bypassReset(); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(f.out.String(), "E-7-11 replays a nonce") {
+		t.Fatalf("reset did not name the row it cannot give back:\n%s", f.out.String())
+	}
+	f.out.Reset()
+	err := f.app.serviceBypass([]string{"e-7-11", "--execute", "e-7-11"})
+	if err == nil {
+		t.Fatal("E-7-11 ran a second time against a claim that had already happened")
+	}
+	if !strings.Contains(err.Error(), "reset cannot undo a claim") {
+		t.Fatalf("the refusal did not explain itself: %v", err)
+	}
 }

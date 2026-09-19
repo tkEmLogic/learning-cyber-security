@@ -13,15 +13,22 @@ package courseapp
 // credential a person presents to it and read the record it writes.
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net"
+	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
+
+	"github.com/tkEmLogic/learning-cyber-security/internal/coursepki"
 )
 
 // ownerCredentialLifetime is how long an Owner credential may be used.
@@ -294,14 +301,142 @@ func validateOwnerID(slug string) error {
 
 func (a *app) claim(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: ./course claim revoke --serial <certificate serial>")
+		return errors.New("usage: ./course claim approve --device <id> --nonce <nonce> --credential <hex>|revoke --serial <certificate serial>")
 	}
 	switch args[0] {
+	case "approve":
+		return a.claimApprove(args[1:])
 	case "revoke":
 		return a.claimRevoke(args[1:])
 	default:
-		return fmt.Errorf("unknown claim command %q; use revoke", args[0])
+		return fmt.Errorf("unknown claim command %q; use approve or revoke", args[0])
 	}
+}
+
+// claimApprove is the operator half of the claim, and the only command in this
+// course that speaks for a person rather than for a device or a station.
+//
+// It takes no --owner flag, and the absence is the teaching. The service
+// derives the owner from the credential it verified, because a field the
+// caller fills in is not an authentication. There is nowhere in this exchange
+// for a caller to say who they are.
+//
+// It also never touches `.course-state` itself. Tier 6's station was a command
+// doing one append, so the command was the authority. Here the authority is
+// the service, and this command is one of the two parties talking to it.
+func (a *app) claimApprove(args []string) error {
+	deviceID, err := flagValue(args, "--device")
+	if err != nil {
+		return err
+	}
+	nonce, err := flagValue(args, "--nonce")
+	if err != nil {
+		return err
+	}
+	credential, err := flagValue(args, "--credential")
+	if err != nil {
+		return errors.New("--credential is required; it is the Owner credential ./course owner new printed once")
+	}
+	if strings.TrimSpace(credential) == "" {
+		return errors.New("--credential is empty")
+	}
+
+	pool, err := a.trustAnchorPool()
+	if err != nil {
+		return err
+	}
+	port := a.manifest.Runtime.OperatorTLSPort
+	address := net.JoinHostPort(hostOf(a.serviceURL()), strconv.Itoa(port))
+	base := "https://" + coursepki.ServiceName + ":" + strconv.Itoa(port)
+	client := a.verifyingClient(pool, coursepki.ServiceName, address)
+
+	fmt.Fprintln(a.out, "Approving a claim as the person who owns this device.")
+	fmt.Fprintln(a.out)
+	fmt.Fprintln(a.out, "An Owner credential authorizes a person, so it cannot ride the listener")
+	fmt.Fprintln(a.out, "the device uses. That listener demands a client certificate during the")
+	fmt.Fprintln(a.out, "handshake, before any header is read, and a person holds no device")
+	fmt.Fprintln(a.out, "certificate. The credential goes to the operator listener instead, as a")
+	fmt.Fprintln(a.out, "bearer token, over a connection that authenticates the server only.")
+	fmt.Fprintf(a.out, "  operator listener: %s\n", base)
+	fmt.Fprintf(a.out, "  device named:      %s\n", deviceID)
+	fmt.Fprintf(a.out, "  nonce presented:   %s\n", nonce)
+	fmt.Fprintln(a.out, "  owner named:       nothing. This command sends no owner field, and there")
+	fmt.Fprintln(a.out, "                     is no flag for one. The service derives the owner from")
+	fmt.Fprintln(a.out, "                     the credential it verified.")
+	fmt.Fprintln(a.out)
+
+	body, err := json.Marshal(map[string]string{"device_id": deviceID, "nonce": nonce})
+	if err != nil {
+		return err
+	}
+	request, err := http.NewRequest(http.MethodPost, base+"/v1/claim", bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Authorization", "Bearer "+credential)
+
+	fmt.Fprintf(a.out, "+ POST %s/v1/claim\n", base)
+	fmt.Fprintln(a.out, "  Authorization: Bearer <the credential, not printed>")
+	fmt.Fprintf(a.out, "  -> %s\n", body)
+
+	response, err := client.Do(request)
+	if err != nil {
+		return fmt.Errorf("the operator listener could not be reached at %s: %w; start the service with ./course service start --https --mutual-tls", address, err)
+	}
+	defer response.Body.Close()
+	answer, err := io.ReadAll(io.LimitReader(response.Body, 64*1024))
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(a.out, "  <- %d %s\n", response.StatusCode, http.StatusText(response.StatusCode))
+
+	if response.StatusCode != http.StatusOK {
+		var refusal struct {
+			Check  string `json:"check"`
+			Reason string `json:"reason"`
+		}
+		if err := json.Unmarshal(answer, &refusal); err != nil || refusal.Check == "" {
+			fmt.Fprintf(a.out, "     %s\n", strings.TrimSpace(string(answer)))
+			return fmt.Errorf("the operator half was refused with status %d", response.StatusCode)
+		}
+		fmt.Fprintf(a.out, "     refused at check %s\n", refusal.Check)
+		fmt.Fprintf(a.out, "     reason: %s\n", refusal.Reason)
+		fmt.Fprintln(a.out)
+		fmt.Fprintln(a.out, "The check name says which property did not hold, and the status does not.")
+		fmt.Fprintln(a.out, "Every authorization refusal in this tier answers 403, so reading the status")
+		fmt.Fprintln(a.out, "alone would tell you nothing about what went wrong.")
+		fmt.Fprintf(a.out, "Result: the operator half was refused at %s\n", refusal.Check)
+		return fmt.Errorf("refused at check %s", refusal.Check)
+	}
+
+	var issued struct {
+		Result      string `json:"result"`
+		DeviceID    string `json:"device_id"`
+		OwnerID     string `json:"owner_id"`
+		State       string `json:"lifecycle_state"`
+		Serial      string `json:"certificate_serial"`
+		Fingerprint string `json:"certificate_fingerprint"`
+		NotAfter    string `json:"not_after"`
+	}
+	if err := json.Unmarshal(answer, &issued); err != nil {
+		return fmt.Errorf("the operator listener answered 200 with a body this command cannot read: %w", err)
+	}
+	fmt.Fprintf(a.out, "     result:          %s\n", issued.Result)
+	fmt.Fprintf(a.out, "     device:          %s\n", issued.DeviceID)
+	fmt.Fprintf(a.out, "     owner:           %s\n", issued.OwnerID)
+	fmt.Fprintf(a.out, "     lifecycle state: %s\n", issued.State)
+	fmt.Fprintf(a.out, "     serial:          %s\n", issued.Serial)
+	fmt.Fprintf(a.out, "     fingerprint:     %s\n", issued.Fingerprint)
+	fmt.Fprintf(a.out, "     not after:       %s\n", issued.NotAfter)
+	fmt.Fprintln(a.out)
+	fmt.Fprintln(a.out, "The owner on that line was never sent. It came from the credential.")
+	fmt.Fprintln(a.out, "The certificate is now waiting in the open claim window, and the device")
+	fmt.Fprintln(a.out, "collects it on its next poll. Nothing was sent to the device from here:")
+	fmt.Fprintln(a.out, "the two halves never meet except inside the service.")
+	fmt.Fprintf(a.out, "Result: %s is claimed by %s, certificate %s\n",
+		issued.DeviceID, issued.OwnerID, short(issued.Fingerprint))
+	return nil
 }
 
 // revocationRecord is one line of revoked.jsonl.

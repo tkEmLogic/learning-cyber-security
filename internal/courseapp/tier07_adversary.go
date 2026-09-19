@@ -137,14 +137,7 @@ func (a *app) readAdversaryState() (*adversaryState, error) {
 }
 
 func (x *tier07Adversary) save() error {
-	if err := os.MkdirAll(x.app.bypassStateDir(), 0o700); err != nil {
-		return err
-	}
-	raw, err := json.MarshalIndent(x.state, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(x.app.bypassStatePath(), raw, 0o600)
+	return x.app.saveAdversaryState(x.state)
 }
 
 func (x *tier07Adversary) out() io.Writer { return x.app.out }
