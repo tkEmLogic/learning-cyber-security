@@ -84,7 +84,7 @@ What you have now is the reference product's insecure starting point for this ti
 
 ## Predict
 
-Before you run anything, write down:
+Before you run anything, write down your answers. The Reveal section near the end of this tier checks them.
 
 1. Where does the shared identity's private key physically live, and who can read that place?
 2. The provisioning station checks that whoever registers holds the fleet key. Why does that check pass for a device that was never manufactured?
@@ -251,6 +251,22 @@ Then dump the storage partition and recover the same key from it:
 The dump reads only the `storage` partition, then resets the board off the ROM loader. The private key is in there, encrypted, in the record named `its/2/601`, which is clear text in the dump. Recovering it needs no secret: the AES-GCM key is `SHA-256(MAC || 0x0000 || uid)`, the MAC is on the cable, and the `uid` is the record's own identifier read straight out of that name, `0x00000601` with the caller bits set, packed little-endian as the four bytes `01 06 00 80`. Run that derivation and the record decrypts to the P-256 private key. On the board this was recorded on, the earlier nanoESP32-C6 1.0, the recovered key matched the public key in the certificate the device holds. That is the boundary, stated as an observation rather than a warning: the key the API would not export is readable to anyone who can dump the flash and knows a published recipe.
 
 Record any unexpected actual result before you troubleshoot it, and do not mark the Security claim supported on the strength of a result you have not seen.
+
+## Reveal
+
+Compare these against what you predicted.
+
+1. The shared key lives inside a firmware image, and anyone who holds the image can read it. `./course provision extract` found the whole SEC1 private key structure at offset `0xa7f48` of a file you can flash to a board. Outside the lab the same file sits in the build pipeline, on the update server, and in the flash of every device built from it. Nothing had to be stolen, because nothing was ever kept.
+2. The station's check passes because it tests possession of a key, not the identity of the holder. Every device holds the same key, so possession proves fleet membership and nothing more. The clone fixture registered `beacon-phantom-0001` to `beacon-phantom-0003` with no board attached at all, every one of them carrying the fingerprint `sha256:d07fb116...`, and the station had nothing to compare them against.
+3. Generating the key on the board fixes the second problem, and it fixes only half of the first.
+
+Take the second problem first, because that half is clean. Possession now means something device by device. `E-6-02` was refused at `identifier-unused`, because the requested identifier already held a certificate. `E-6-07` presented the cloned fleet credential to the hardened station and was refused at `credential-carried`. One recovered key used to impersonate the whole fleet. It now impersonates exactly one device, the one it was recovered from.
+
+The first problem splits in two, and the tier answers its halves differently. Where the key lives did change: it is generated on the board, it is in no image, and the manufacturing record never held it. Whether that place can be read did not. `E-6-04` refused to export the key through the API, and `E-6-05` recovered the same key out of a flash dump, by running `SHA-256` over a MAC address and a record name that are both public. The set of people who can read the key narrowed from anyone holding an image to anyone holding the board, which is worth having, and it is not the same as the key being unreadable. That gap is `T6-W-16`, it is open, and it is why `SC-06` reaches partly supported rather than supported.
+
+If you predicted that per-device keys fix both problems, that is the answer this tier is built to correct, and it is the one most engineers give. Generating a key on the device changes where the key came from. It does not change what a flash dump yields. What this tier bought is the blast radius of one recovered key, not the difficulty of recovering one.
+
+This section was added after Tier 6 was published. The three questions were always here and nothing answered them, which meant a Learner was asked to commit to an answer and then left holding it. If you worked Tier 6 before this section existed, your three written answers are checkable now.
 
 ## Weakness ledger after the work
 
