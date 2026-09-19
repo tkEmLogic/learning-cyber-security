@@ -47,6 +47,8 @@ You need:
 
 The device recovers from a bad release, and it still answers to the same name as every other device you own.
 
+One note about the device output quoted in this module. Every serial line in it was recorded on the board the course used before, a nanoESP32-C6 1.0, and no tier has yet been run on the ESP32-C6-DevKitC-1 this course now targets. Treat the quoted lines as what to expect rather than as a result on your board, record what you actually see, and raise any difference with a Mentor instead of editing your observation to match the page.
+
 ## Weakness ledger before the work
 
 Inherited from Tier 5. Not your own work yet.
@@ -182,17 +184,19 @@ That last sentence is the whole boundary, and section 11 makes you prove it. The
 
 The second control is a one-use Bootstrap credential and an append-only manufacturing record. Enrollment consumes the credential and records the certificate in a single write, before anything is sent to the device, so nothing ever leaves the station that the record does not already contain, and the record never holds a private key.
 
-Enroll the device. The station issues the credential, the device generates its key and returns a certification request that carries the credential inside its own signature, and the station returns the certificate it issued:
+Enroll the device. The station issues the credential, the device generates its key and returns a certification request that carries the credential inside its own signature, and the station returns the certificate it issued.
+
+Your device needs a name of its own first, and the course builds one from the board in front of you: the word `beacon`, a hyphen, and your board's MAC in lower case with the colons removed. Read that MAC with `esptool read-mac` on the same cable you flash with, so a board with the MAC `aa:bb:cc:dd:ee:ff` is named `beacon-aabbccddeeff`. Substitute your own name for `beacon-aabbccddeeff` in all three commands below, because a name taken from this page would name somebody else's board.
 
 ```text
-./course provision credential new --device beacon-404cca5ea9fc
-./course provision enroll --device beacon-404cca5ea9fc --credential <hex from the line above>
+./course provision credential new --device beacon-aabbccddeeff
+./course provision enroll --device beacon-aabbccddeeff --credential <hex from the line above>
 ```
 
 The device reports the identifier out of its own certificate, and the station's record is what proves the enrollment, because it is the half a device cannot fake:
 
 ```text
-./course provision record --device beacon-404cca5ea9fc
+./course provision record --device beacon-aabbccddeeff
 ```
 
 The factory versus field distinction is worth naming here. This is factory provisioning: a trusted cable, a one-use credential, a station you control. It is not how a consumer device is set up in the field, where there is no cable and no trusted operator. Tier 7 is where the field shape appears: someone physically present at the device, a code the device shows that person, and a second party who proves they own the device. The challenge-response over the cable in this tier is the design for a channel that authenticates neither end; Tier 7 solves the same problem the other way, with a connection that authenticates both.
@@ -243,7 +247,7 @@ Then dump the storage partition and recover the same key from it:
 ./course device dump
 ```
 
-The dump reads only the `storage` partition, then resets the board off the ROM loader. The private key is in there, encrypted, in the record named `its/2/601`, which is clear text in the dump. Recovering it needs no secret: the AES-GCM key is `SHA-256(MAC || 0x0000 || uid)`, the MAC is on the cable, and the `uid` is the record's own identifier read straight out of that name, `0x00000601` with the caller bits set, packed little-endian as the four bytes `01 06 00 80`. Run that derivation and the record decrypts to the P-256 private key. On the validated board the recovered key matched the public key in the certificate the device holds. That is the boundary, stated as an observation rather than a warning: the key the API would not export is readable to anyone who can dump the flash and knows a published recipe.
+The dump reads only the `storage` partition, then resets the board off the ROM loader. The private key is in there, encrypted, in the record named `its/2/601`, which is clear text in the dump. Recovering it needs no secret: the AES-GCM key is `SHA-256(MAC || 0x0000 || uid)`, the MAC is on the cable, and the `uid` is the record's own identifier read straight out of that name, `0x00000601` with the caller bits set, packed little-endian as the four bytes `01 06 00 80`. Run that derivation and the record decrypts to the P-256 private key. On the board this was recorded on, the earlier nanoESP32-C6 1.0, the recovered key matched the public key in the certificate the device holds. That is the boundary, stated as an observation rather than a warning: the key the API would not export is readable to anyone who can dump the flash and knows a published recipe.
 
 Record any unexpected actual result before you troubleshoot it, and do not mark the Security claim supported on the strength of a result you have not seen.
 
@@ -290,11 +294,11 @@ One thing to explain rather than assume: `SC-06` was not in Tier 1's table. Tier
 
 A control tier is the first thing to exercise the previous tier's work in a new way, and five out of five have now found something.
 
-Tier 5 mounted its own NVS instance at the first byte of the `storage` partition, and explained at length why it used NVS directly. On its own that is correct, and it was hardware-validated as Tier 5.
+Tier 5 mounted its own NVS instance at the first byte of the `storage` partition, and explained at length why it used NVS directly. On its own that is correct, and it was validated on hardware as Tier 5, on the earlier nanoESP32-C6 1.0.
 
 Tier 6 is the first tier to also use that partition: it stores the Secure Storage key there, through the settings subsystem, whose own NVS instance takes its offset from the same first byte and cannot be moved. Both instances landed on the same bytes, and nothing detected it. `nvs_mount()` checks write block size, sector size and a minimum count, and nothing else, so both mounts returned zero and the damage did not even wait for a write. Tier 5 was the only user of the partition, so the fault could not exist until Tier 6 shared it. That is the instructive half: a correct, published, hardware-validated tier sat harmless until a later tier exercised the same resource in a new way, and this is exactly the mistake you will make for real when two subsystems quietly assume they own the same flash.
 
-It is fixed in Tier 6's own tree, in `recovery_state.c`, which stops mounting a second instance and writes through the one the settings subsystem already owns. Tier 5's published source is not changed, because a Learner following Tier 5 as written reaches no wrong conclusion. Validated on the board: Tier 5's records coexist with Secure Storage in the one shared instance.
+It is fixed in Tier 6's own tree, in `recovery_state.c`, which stops mounting a second instance and writes through the one the settings subsystem already owns. Tier 5's published source is not changed, because a Learner following Tier 5 as written reaches no wrong conclusion. Validated on the earlier nanoESP32-C6 1.0: Tier 5's records coexist with Secure Storage in the one shared instance.
 
 ## Update the Security evidence pack
 

@@ -130,6 +130,8 @@ You do not build the container image. The course publishes it, and your machine 
 
 You can build the firmware, run the local update service, and run every Tier 0 attack on Linux, macOS, and Windows.
 
+The board this course targets is one development kit, the Espressif ESP32-C6-DevKitC-1. No tier has been validated on it yet: the hardware results `course.yml` records were observed on the board the course used before, a nanoESP32-C6 1.0, and they are owed a run on the DevKitC-1. The Zephyr board target is `esp32c6_devkitc/esp32c6/hpcore`, which is the target the earlier board used as well, so the firmware is built the same way for both.
+
 Flashing a physical ESP32-C6 and reading its serial output need a Linux machine. macOS cannot pass a USB device into the Podman virtual machine, and Windows would need extra tooling that this course has not tested.
 
 If you are on macOS or Windows, you can still complete the work. The course records the hardware results as pending, which is a normal and honest state.

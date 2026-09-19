@@ -69,6 +69,8 @@ Your fingerprint will differ. It is generated for your Course environment and no
 
 Setup keeps an existing authority rather than replacing it. That matters more than it looks: the authority becomes part of every firmware image you build, so replacing it silently would leave a flashed board refusing a service it used to trust, with no obvious reason. If you ever do need a new one, ask for it by name with `--replace-certificate-authority`, and rebuild and reflash every board afterwards.
 
+One note about the device output quoted in this module. Every serial line in it was recorded on the board the course used before, a nanoESP32-C6 1.0, and no tier has yet been run on the ESP32-C6-DevKitC-1 this course now targets. Treat the quoted lines as what to expect rather than as a result on your board, record what you actually see, and raise any difference with a Mentor instead of editing your observation to match the page.
+
 All seven Tier 0 weaknesses are still present when this tier starts. This tier closes two of them.
 
 ## Weakness ledger before the work
