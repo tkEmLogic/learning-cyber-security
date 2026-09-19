@@ -63,6 +63,7 @@ Inherited from Tier 5. Not your own work yet.
 | T4-W-13 | The security counter is compared, never remembered | Rewrite the primary slot and the device forgets what it was running | Advanced Tier A |
 | T5-W-14 | A power cut during the health window forces a revert indefinitely | Power-cycle the board during the sixty second window | Residual availability risk |
 | T5-W-15 | The watchdog depends on a driver quirk that an upstream fix would change | Recheck on any Zephyr upgrade | Recorded limit |
+| T5-W-26 | A revert is reported once and nothing acknowledges it, so a board that reverts while it cannot reach the service never tells the fleet | Revert with the service stopped, then start it | Tier 8 revisits delivery |
 
 The row that this tier is about is `T0-W-02`. Every device shares one name, so the service cannot tell them apart even in principle. Nothing here has ever required a device to prove which one it is.
 

@@ -312,6 +312,7 @@ static bool report_boot_state(void)
 		       failure.release_id, failure.reason);
 		printk("boot.state and MCUboot has put this image back. That is a revert.\n");
 		queue_revert(failure.release_id, failure.reason);
+		(void)recovery_trial_mark_reported();
 	} else if (confirmed) {
 		struct trial_record trial;
 
@@ -329,12 +330,20 @@ static bool report_boot_state(void)
 		 * device that stayed silent here would leave the fleet blindest
 		 * about the failures that matter most.
 		 */
-		if (recovery_trial_peek(&trial) == 0 &&
+		/* Marked once told, rather than cleared once told. The record is
+		 * the only evidence a crash or a hang leaves, and it is also the
+		 * bound that stops a revert loop, so the boot that reports it
+		 * cannot be the boot that forgets it. Without the mark the
+		 * condition below stays true forever and the device reports the
+		 * same revert on every boot afterwards.
+		 */
+		if (recovery_trial_peek(&trial) == 0 && !trial.reported &&
 		    strncmp(trial.release_id, CONFIG_COURSE_RELEASE_ID,
 			    sizeof(trial.release_id)) != 0) {
 			printk("boot.state release %s was tried %u times and is not what is running\n",
 			       trial.release_id, trial.attempts);
 			queue_revert(trial.release_id, "reason-unrecorded");
+			(void)recovery_trial_mark_reported();
 		}
 	}
 
