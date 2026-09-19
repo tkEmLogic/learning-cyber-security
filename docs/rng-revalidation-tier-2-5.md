@@ -16,7 +16,7 @@ The module text is right as written. It was describing a confidentiality that th
 
 ## What was re-observed on the board
 
-Each tier was rebuilt with the fix, reflashed, and booted on the nanoESP32-C6 (MAC `40:4c:ca:5e:a9:fc`). The RNG-affected path, TLS, was confirmed working on every one, and the load-bearing outcome of each tier was re-observed. The RNG-independent refusal and recovery rows are rebound to the new binary by that rebuild and boot, on the reasoning above that the fix cannot change them; the physically destructive Tier 5 rows (power cut, hard reset during download) stay as `course.yml` already records them.
+Each tier was rebuilt with the fix, reflashed, and booted on the nanoESP32-C6 1.0 board (MAC `40:4c:ca:5e:a9:fc`), which is the board the course used at that time. The RNG-affected path, TLS, was confirmed working on every one, and the load-bearing outcome of each tier was re-observed. The RNG-independent refusal and recovery rows are rebound to the new binary by that rebuild and boot, on the reasoning above that the fix cannot change them; the physically destructive Tier 5 rows (power cut, hard reset during download) stay as `course.yml` already records them.
 
 | Tier | Re-observed on the fixed firmware |
 | --- | --- |
@@ -24,5 +24,7 @@ Each tier was rebuilt with the fix, reflashed, and booted on the nanoESP32-C6 (M
 | Tier 3 | Boots, `slot=primary header=ok tlv=ok signature=present key=match`, trust anchor reported at boot, TLS verified |
 | Tier 4 | Boots, `key=match counter=1`, security counter reported by the bootloader hook, TLS verified |
 | Tier 5 | Boots, `key=match counter=3`, `recovery.state mounted the storage partition at 0x3b0000`, watchdog armed, TLS verified, and a device confirmed its running image |
+
+The course has since moved to the Espressif ESP32-C6-DevKitC-1. The results in the table above were observed on the nanoESP32-C6 and stay recorded against it, and they are owed a repeat run on the ESP32-C6-DevKitC-1. Nothing in the reasoning above depends on the board, because the fix is a clock enable in `firmware/common` and the refusal outcomes do not read a random value.
 
 The build is a revision-bound artifact, so a `./course verify N` receipt taken on the new revision is the durable record. This note is the written check #126 asked for; the upstream Zephyr report and the teaching of the finding in a module are separate owed items on that issue.

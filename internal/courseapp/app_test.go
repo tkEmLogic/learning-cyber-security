@@ -311,3 +311,102 @@ func TestEnvironmentJSONShape(t *testing.T) {
 		t.Fatalf("unexpected environment JSON: %s", data)
 	}
 }
+
+// The names below are what udev builds from the USB descriptors: a bare -if00
+// for the chip's CDC-ACM interface, -if00-port<n> for anything a usb-serial
+// driver such as cp210x owns. The DevKitC-1's UART bridge is the third entry,
+// and the fourth is the same bridge with its EEPROM strings rewritten, which is
+// why the matcher names the interface it wants instead of the ones it does not.
+func TestNativeSerialJTAGMatchesOnlyTheChipsOwnInterface(t *testing.T) {
+	for name, want := range map[string]bool{
+		"usb-Espressif_USB_JTAG_serial_debug_unit_40:4C:CA:FF:FE:12:34:56-if00":         true,
+		"usb-Espressif_USB_JTAG_serial_debug_unit_40:4C:CA:FF:FE:12:34:56-if02":         false,
+		"usb-Silicon_Labs_CP2102N_USB_to_UART_Bridge_Controller_9a7c1f-if00-port0":      false,
+		"usb-Espressif_Systems_CP2102N_USB_to_UART_Bridge_Controller_9a7c1f-if00-port0": false,
+		"usb-FTDI_FT232R_USB_UART_A50285BI-if00-port0":                                  false,
+	} {
+		if got := isNativeSerialJTAG(name); got != want {
+			t.Errorf("isNativeSerialJTAG(%q) = %v, want %v", name, got, want)
+		}
+	}
+}
+
+// One DevKitC-1 with both cables attached is two serial devices. Selecting the
+// bridge would flash nothing and print nothing, so this asserts the chip's own
+// interface wins without the Learner detaching anything.
+func TestSelectSerialDeviceTakesTheChipPortWhenBothAreAttached(t *testing.T) {
+	const native = "usb-Espressif_USB_JTAG_serial_debug_unit_40:4C:CA:FF:FE:12:34:56-if00"
+	a, dir := testSerialApp(t, native,
+		"usb-Silicon_Labs_CP2102N_USB_to_UART_Bridge_Controller_9a7c1f-if00-port0")
+
+	device, err := a.selectSerialDevice()
+	if err != nil {
+		t.Fatalf("both ports of one board should still select one device: %v", err)
+	}
+	if want := filepath.Join(dir, native); device != want {
+		t.Errorf("selected %s, want the chip's own interface %s", device, want)
+	}
+}
+
+// Two of the chip's own interfaces really is two boards, because a board has
+// exactly one. The message has to say that, or it sends the Learner looking for
+// a second board that is only the DevKitC-1's second port.
+func TestSelectSerialDeviceReportsTwoBoardsRatherThanTwoPorts(t *testing.T) {
+	a, _ := testSerialApp(t,
+		"usb-Espressif_USB_JTAG_serial_debug_unit_40:4C:CA:FF:FE:12:34:56-if00",
+		"usb-Espressif_USB_JTAG_serial_debug_unit_40:4C:CA:FF:FE:65:43:21-if00")
+
+	_, err := a.selectSerialDevice()
+	if err == nil {
+		t.Fatal("two boards should not be guessed between")
+	}
+	for _, want := range []string{"2 boards", "detach all but the course board"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("expected %q in the refusal: %v", want, err)
+		}
+	}
+}
+
+// The cable in the UART port is the new everyday mistake. Nothing the course
+// drives is attached, so the message names the port to move it to.
+func TestSelectSerialDeviceNamesThePortToUseWhenOnlyTheBridgeIsAttached(t *testing.T) {
+	a, _ := testSerialApp(t,
+		"usb-Silicon_Labs_CP2102N_USB_to_UART_Bridge_Controller_9a7c1f-if00-port0")
+
+	_, err := a.selectSerialDevice()
+	if err == nil {
+		t.Fatal("the UART bridge port is not a device the course can flash")
+	}
+	for _, want := range []string{"ESP32-C6 USB port", "not the USB-to-UART port", "CP2102N"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("expected %q in the refusal: %v", want, err)
+		}
+	}
+}
+
+// testSerialApp points the by-id lookup at a directory holding the given names,
+// and aims the raw-node fallback away from the host's own /dev, where a board
+// attached to the machine running the tests would otherwise decide the result.
+func testSerialApp(t *testing.T, names ...string) (*app, string) {
+	t.Helper()
+	dir := t.TempDir()
+	for _, name := range names {
+		if err := os.WriteFile(filepath.Join(dir, name), nil, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	previous := rawSerialGlob
+	rawSerialGlob = filepath.Join(t.TempDir(), "ttyACM*")
+	t.Cleanup(func() { rawSerialGlob = previous })
+
+	out := &bytes.Buffer{}
+	a := &app{out: out, errOut: out}
+	a.manifest.Devices = map[string]struct {
+		SyntheticID        string   `yaml:"synthetic_id"`
+		SpoofID            string   `yaml:"spoof_id"`
+		Board              string   `yaml:"board"`
+		StableSerialPrefix string   `yaml:"stable_serial_prefix"`
+		HardwareRequired   []string `yaml:"hardware_required"`
+	}{"reference_beacon": {StableSerialPrefix: dir}}
+	return a, dir
+}

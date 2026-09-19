@@ -71,4 +71,42 @@ config COURSE_POLL_INTERVAL_SECONDS
 	int "Seconds between status reports"
 	default 30
 
+config COURSE_BEACON_LED
+	bool "Also show the beacon state on the onboard LED"
+	depends on LED_STRIP
+	default y
+	help
+	  The ESP32-C6-DevKitC-1 has one addressable RGB LED, a WS2812 on
+	  GPIO8, and the board overlay describes it as a led-strip alias. With
+	  this option the beacon state is shown there as well as on the serial
+	  console: on for steady, and blinking at the state's toggle period for
+	  the two error states.
+
+	  The console output does not change when this option is on or off. The
+	  console is where the course collects its evidence, and several tiers
+	  quote its lines, so the LED is always an addition and never a
+	  replacement.
+
+	  Turn this off when you build for a board that has no such LED, or
+	  when a bright LED is unwelcome. The firmware then behaves exactly as
+	  it did before, and says so in its boot banner. A board whose
+	  devicetree has no led-strip alias switches the LED off by itself, so
+	  you do not have to remember to.
+
+config COURSE_BEACON_LED_BRIGHTNESS
+	int "Brightness of each LED channel, 1 to 255"
+	depends on COURSE_BEACON_LED
+	range 1 255
+	default 24
+	help
+	  How hard each of the LED's three colour channels is driven. All three
+	  are driven equally, which gives white, because the product in the
+	  course story has one monochrome indicator and tells its states apart
+	  by blink rate rather than by colour.
+
+	  A WS2812 at its full value of 255 is uncomfortably bright to sit
+	  beside on a desk, and it draws about sixty milliamps per channel. The
+	  default of 24 is easy to see indoors and easy to look at. Raise it if
+	  you are working in daylight.
+
 endmenu

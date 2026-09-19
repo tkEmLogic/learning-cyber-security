@@ -51,6 +51,8 @@ You have finished Tier 4. Your device refuses seven hostile releases for disting
 
 You should see the Tier 4 banner and a verified connection.
 
+One note about the device output quoted in this module. Every serial line in it was recorded on the board the course used before, a nanoESP32-C6 1.0, and no tier has yet been run on the ESP32-C6-DevKitC-1 this course now targets. Treat the quoted lines as what to expect rather than as a result on your board, record what you actually see, and raise any difference with a Mentor instead of editing your observation to match the page.
+
 One thing to carry in clearly. Every install you have made so far was permanent, requested as `BOOT_UPGRADE_PERMANENT`, and the device has never once asked whether the result works. That is still true when you start, and it is what this tier closes.
 
 ## Weakness ledger before the work
@@ -414,7 +416,7 @@ If you predicted that the network loss would fail the gate, you are in good comp
 
 | Weakness | Result after this tier | Status | Evidence or next action |
 | --- | --- | --- | --- |
-| T0-W-07 | Closed. Every install is a trial, the device judges itself, and the fallback path that has existed since Tier 0 is finally used | Closed | The four reverts, observed on hardware |
+| T0-W-07 | Closed. Every install is a trial, the device judges itself, and the fallback path that has existed since Tier 0 is finally used | Closed | The four reverts, observed on hardware, on the earlier nanoESP32-C6 1.0 |
 | T0-W-02 | Unchanged | Open | Tier 6 and Tier 7 |
 | T2-W-09 | Unchanged | Open | Tier 8 |
 | T3-W-10 | Unchanged | Open | Advanced Tier A |
@@ -434,7 +436,7 @@ Two of the three changes are limits rather than achievements, which by now shoul
 
 It becomes **partly supported**.
 
-Supported against the failures this tier can demonstrate: a release that crashes, hangs, fails a health check or stalls during the window is reverted to the last confirmed image, and a download interrupted by a dropped connection or a reset resumes and completes. All of this was observed on the physical board.
+Supported against the failures this tier can demonstrate: a release that crashes, hangs, fails a health check or stalls during the window is reverted to the last confirmed image, and a download interrupted by a dropped connection or a reset resumes and completes. All of this was observed on the board the course used before, a nanoESP32-C6 1.0, and none of it has been repeated yet on the ESP32-C6-DevKitC-1 this course now targets.
 
 The revert path itself is not blocked by the anti-rollback control, observed
 with a trial image at counter 4 reverting to a confirmed image at counter 3.

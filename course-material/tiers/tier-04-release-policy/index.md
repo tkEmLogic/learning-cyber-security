@@ -53,6 +53,8 @@ Check that the service and the board are where you left them:
 
 You should see the Tier 3 banner and a verified connection. If you do not, finish Tier 3 before starting this tier.
 
+One note about the device output quoted in this module. Every serial line in it was recorded on the board the course used before, a nanoESP32-C6 1.0, and no tier has yet been run on the ESP32-C6-DevKitC-1 this course now targets. Treat the quoted lines as what to expect rather than as a result on your board, record what you actually see, and raise any difference with a Mentor instead of editing your observation to match the page.
+
 One thing to carry in clearly, because this tier is built on it. Tier 3 told you, in as many words, that the application checks nothing about the bytes it downloads. It writes whatever it is handed and says so on every install, and only the bootloader looks, and only at the last moment. That is still true when you start, and it is the weakness this tier closes.
 
 ## Weakness ledger before the work
@@ -486,7 +488,7 @@ Two of the three new rows are limits rather than achievements. `T4-W-13` is the 
 
 You wrote this in Tier 1 and recorded it as `unsupported`. This is the tier that moves it.
 
-It becomes **partly supported**. Supported against anyone who can reach or own the update service: they cannot forge a release the device accepts, and they cannot replay an older one, observed on the physical board. Not supported against an attacker with physical access, because the counter the bootloader compares against lives in flash that such an attacker can rewrite, which is `T4-W-13`. Not supported for the first install after the transition, which is `T4-W-12`.
+It becomes **partly supported**. Supported against anyone who can reach or own the update service: they cannot forge a release the device accepts, and they cannot replay an older one. That was observed on the board the course used before, a nanoESP32-C6 1.0, and it is owed a run on the ESP32-C6-DevKitC-1 this course now targets. Not supported against an attacker with physical access, because the counter the bootloader compares against lives in flash that such an attacker can rewrite, which is `T4-W-13`. Not supported for the first install after the transition, which is `T4-W-12`.
 
 The claim needs two controls, and a Learner who sees only the first has understood half of it:
 

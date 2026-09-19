@@ -73,7 +73,7 @@ Source: Wayfinder map [#1](https://github.com/tkEmLogic/learning-cyber-security/
 
 ## 2. Reference product and scenario
 
-**Fixed decision.** The reference product is an industrial equipment status beacon built around an ESP32-C6 development kit. It is non-actuating. It reports a simulated machine state and never controls real machinery.
+**Fixed decision.** The reference product is an industrial equipment status beacon built around an Espressif ESP32-C6-DevKitC-1 development kit. It is non-actuating. It reports a simulated machine state and never controls real machinery.
 
 ### Product behavior
 
@@ -87,6 +87,8 @@ Source: Wayfinder map [#1](https://github.com/tkEmLogic/learning-cyber-security/
 | State change | Caused by software logic or a test input. |
 | Status reporting | Over Wi-Fi to a service on the local network. |
 | Software updates | Received over Wi-Fi. |
+
+The Indicator row describes the fictional product, not the development kit. The ESP32-C6-DevKitC-1 carries one addressable RGB LED, and the course drives it in a single color, so the observable behavior is exactly the steady, fast-blinking, and slow-blinking states above. The product stays specified as one monochrome indicator, because no color in this product carries meaning. Adding color would change the fictional product rather than describe the hardware.
 
 ### Protected assets
 
@@ -162,7 +164,7 @@ Source: resolved research ticket [#3](https://github.com/tkEmLogic/learning-cybe
 
 | Component | Version | Note |
 | --- | --- | --- |
-| Board | ESP32-C6 development kit | Zephyr target `esp32c6_devkitc/esp32c6/hpcore`. |
+| Board | Espressif ESP32-C6-DevKitC-1 | Zephyr target `esp32c6_devkitc/esp32c6/hpcore`. |
 | Zephyr | 4.4.2 | Core course baseline. |
 | MCUboot | 2.4.0 | Core and advanced course baseline. |
 | ESP-IDF security docs | v6.1 | Used for ESP32-C6 hardware security features in Advanced Tier A. |
@@ -175,7 +177,7 @@ Source: resolved research ticket [#3](https://github.com/tkEmLogic/learning-cybe
 
 **Validation gate.** Secure boot, flash encryption, key protection, debug disable, and download-mode eFuse changes include irreversible steps. Test recovery on disposable hardware first. Advanced Tier A cannot be published as a supported hands-on module until the checklist in section 17 passes on the pinned physical board.
 
-**Implementation requirement.** Before production-style claims, close these upstream gaps: pin one exact Zephyr commit rather than a moving branch, confirm the unsigned ESP32 board default is overridden, reproduce the complete boot chain on physical ESP32-C6-DevKitC hardware, confirm flash encryption across every partition, test that old signed images are rejected under the intended threat model, decide whether software downgrade prevention is sufficient or an eFuse-backed counter is required, replace the core course's deliberately limited device-ID-derived secure-storage key provider with a provider based on a protected device secret, verify entropy while radios are off and during early boot, test Zephyr userspace and memory domains on the real board, test the recovery path after a failed and interrupted update, measure bootloader size with every enabled security feature, and validate both bootloader-signing-key and firmware-release-key rotation procedures.
+**Implementation requirement.** Before production-style claims, close these upstream gaps: pin one exact Zephyr commit rather than a moving branch, confirm the unsigned ESP32 board default is overridden, reproduce the complete boot chain on physical ESP32-C6-DevKitC-1 hardware, confirm flash encryption across every partition, test that old signed images are rejected under the intended threat model, decide whether software downgrade prevention is sufficient or an eFuse-backed counter is required, replace the core course's deliberately limited device-ID-derived secure-storage key provider with a provider based on a protected device secret, verify entropy while radios are off and during early boot, test Zephyr userspace and memory domains on the real board, test the recovery path after a failed and interrupted update, measure bootloader size with every enabled security feature, and validate both bootloader-signing-key and firmware-release-key rotation procedures.
 
 Full report: [`research/platform-security-support.md`](https://github.com/tkEmLogic/learning-cyber-security/blob/research/platform-security/research/platform-security-support.md) on branch `research/platform-security`.
 
@@ -375,7 +377,7 @@ A Learner starts this module only after completing the software-protected identi
 
 ### Required hardware and scaffold
 
-**Implementation requirement.** One ESP32-C6 development kit, one STSAFE-A120 board or module with documented wiring and power requirements, a pinned STSAFE-A120 middleware or library version and its license information, a pinned Zephyr-compatible driver layer for I2C transport, initialization, zones, key slots, and signing, a TLS private-key provider bridge that lets the selected TLS stack request signatures without receiving private-key bytes, provisioning and inspection tools that expose public metadata without printing secrets, and known-good certificates, service configuration, failure fixtures, and cleanup instructions.
+**Implementation requirement.** One ESP32-C6-DevKitC-1 development kit, one STSAFE-A120 board or module with documented wiring and power requirements, a pinned STSAFE-A120 middleware or library version and its license information, a pinned Zephyr-compatible driver layer for I2C transport, initialization, zones, key slots, and signing, a TLS private-key provider bridge that lets the selected TLS stack request signatures without receiving private-key bytes, provisioning and inspection tools that expose public metadata without printing secrets, and known-good certificates, service configuration, failure fixtures, and cleanup instructions.
 
 ### Hands-on learning sequence
 
@@ -464,7 +466,7 @@ Source: resolved decision ticket [#12](https://github.com/tkEmLogic/learning-cyb
 
 | Field | Detail |
 | --- | --- |
-| Prerequisites | Embedded C experience, basic Zephyr build and flash skills, ESP32-C6 development kit, local Wi-Fi. |
+| Prerequisites | Embedded C experience, basic Zephyr build and flash skills, an ESP32-C6-DevKitC-1 development kit, local Wi-Fi. |
 | Learning result | Establish a working baseline and identify that functional behavior is not secure behavior. |
 | Threat shown | Any local network actor can inspect traffic, impersonate the service, and provide arbitrary firmware. Any device can claim another device's identifier. |
 | Hands-on task | Build the status beacon, run a local HTTP OTA service, use unsigned MCUboot images, disable image-signature checks, release-manifest signatures, anti-rollback checks, TLS, server authentication, device authentication, secure credential storage, test-boot confirmation, and security event records. Use a mutable version record and a shared development identifier. Install an altered image supplied by the attack fixture. |
@@ -1011,7 +1013,7 @@ Source: synthesized from resolved decision tickets [#2](https://github.com/tkEmL
 
 | Component | Version | Role |
 | --- | --- | --- |
-| Board | ESP32-C6 development kit | Reference product target, `esp32c6_devkitc/esp32c6/hpcore`. |
+| Board | Espressif ESP32-C6-DevKitC-1 | Reference product target, `esp32c6_devkitc/esp32c6/hpcore`. |
 | Zephyr | 4.4.2 | Core and advanced course RTOS baseline. |
 | MCUboot | 2.4.0 | Core and advanced course bootloader baseline. |
 | ESP-IDF security docs | v6.1 | Advanced Tier A hardware security reference. |

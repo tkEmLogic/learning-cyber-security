@@ -67,6 +67,8 @@ The pinned toolchain is Zephyr 4.4.2, MCUboot 2.4.0, and Zephyr SDK 1.0.1. The c
 
 A physical ESP32-C6 is optional for the host work and required for flash, serial, LED, Wi-Fi, and altered-image execution evidence. A board needs a Linux machine.
 
+One note about the device output quoted in this module. Every serial line in it was recorded on the board the course used before, a nanoESP32-C6 1.0, and no tier has yet been run on the ESP32-C6-DevKitC-1 this course now targets. Treat the quoted lines as what to expect rather than as a result on your board, record what you actually see, and raise any difference with a Mentor instead of editing your observation to match the page.
+
 ## Weakness ledger before the work
 
 | Identifier | Weakness | Attack vector | Expected Tier 0 result | Planned tier |
@@ -178,7 +180,7 @@ Your byte count will be close to that rather than equal to it. The Wi-Fi network
 
 The build copies the finished image to `artifacts/generated/releases/tier-00-baseline.bin` and makes it the release the service assigns.
 
-The firmware models steady, fast-blink, and slow-blink states and reports the state on the serial console. The onboard LED of the validated board cannot be driven, so there is no LED output to observe.
+The firmware models steady, fast-blink, and slow-blink states and reports the state on the serial console. It also drives the onboard RGB LED of the ESP32-C6-DevKitC-1, on `GPIO8`, in a single color: lit for steady, and blinking at the state's own rate for the two error states. Nobody has yet watched that LED light, so the course claims nothing about it, and the serial console stays the record this tier collects.
 
 The firmware joins the Wi-Fi network, reports its status over plain HTTP, reads its update assignment, and installs any release the service names.
 
@@ -426,7 +428,7 @@ The service assigns the baseline release again. The device installs it on its ne
 
 Notice what the reset just proved. The device accepted an older release over a newer one without complaint, because Tier 0 has no anti-rollback policy. That is `T0-W-06`, and you demonstrated it by undoing your own attack.
 
-Record what you observed in the accepted-image record. Set `device_flash`, `device_boot`, and `serial_record` to your observation. Keep `led_behavior` pending, because the validated board cannot drive its onboard LED.
+Record what you observed in the accepted-image record. Set `device_flash`, `device_boot`, and `serial_record` to your observation. Set `led_behavior` to what the onboard LED did, and leave it pending if you did not watch it: the course has never seen this LED light, so there is no expected result here for you to match.
 
 ## Replay the original observation
 
@@ -492,7 +494,7 @@ The supported statement is limited to what you observed: the local service and f
 
 Without a board, the firmware build supports only a build claim for the pinned target. Physical flash, serial output, Wi-Fi behavior, and altered-image execution stay pending.
 
-With a board, you can record flash, serial output, Wi-Fi association, the HTTP exchange, the OTA download, and altered-image execution as observed. LED behavior stays pending, because the validated board cannot drive its onboard LED.
+With a board, you can record flash, serial output, Wi-Fi association, the HTTP exchange, the OTA download, and altered-image execution as observed. LED behavior is yours to record as well, from what the onboard LED did. The firmware drives that LED and the course has not yet watched it on hardware, so `course.yml` carries the row as not observed rather than as an expected result.
 
 Run `./course device status` to see which hardware results the course currently claims.
 
@@ -543,6 +545,7 @@ Learner Tier 0 evidence is complete and bound to the current revision and Course
 | A fixture stays blocked | Run `./course attack reset <fixture>` exactly as the fixture printed it |
 | The board never reaches the service | Confirm `./course setup --bind` used your machine's private address, not loopback |
 | No serial device exists | Keep hardware results pending |
+| The onboard LED stays dark | Record `led_behavior` as pending and write down what you saw. The course has not confirmed this LED on hardware, the serial console is the evidence this tier collects, and `CONFIG_COURSE_BEACON_LED=n` turns the LED off if you would rather not have it |
 | The container refuses to start | Attach the board before opening the editor, or remove the `--device` line |
 
 ## Informal Mentor conversation

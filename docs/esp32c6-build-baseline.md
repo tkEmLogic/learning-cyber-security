@@ -8,6 +8,22 @@ The build uses unsigned MCUboot because this is the Tier 0 baseline. It does not
 
 MCUboot runs in swap-using-offset mode, which is the mode the whole course uses. An update is swapped into the primary slot and the displaced image is kept in the secondary slot, so a way back exists on the flash. Tier 0 never uses it: the application asks for the swap to be permanent and runs no check afterwards, so there is still no test boot and no revert. Recoverable installation belongs to Tier 5.
 
+## The target board
+
+The course targets the Espressif ESP32-C6-DevKitC-1.
+
+The Zephyr board target stays `esp32c6_devkitc/esp32c6/hpcore`, because that is the upstream target for this kit. The course already used this target while it ran on a third-party ESP32-C6 board, so moving to the official kit changes no build or flash command.
+
+| Item | ESP32-C6-DevKitC-1 |
+| --- | --- |
+| Flash | 8 MiB on the module. The course keeps its 4 MiB partition contract, described under Flash map. |
+| Onboard LED | One addressable RGB LED on `GPIO8`. See LED hardware mapping. |
+| BOOT button | `GPIO9`, the ESP32-C6 strapping pin. Same pin as on the earlier board, so button behavior is unchanged. |
+| USB | Two USB Type-C ports. One is the chip's native USB-Serial/JTAG. The other is behind a separate USB-to-UART bridge chip. The course uses the native one. |
+| Headers | Two 16-pin rows, `J1` and `J3`. The course uses no header pins, so the footprint does not matter to it. |
+
+The course ran on a nanoESP32-C6 1.0 board (Muse Lab) before this. Every hardware result recorded further down was observed on that earlier board, and each one says so where it appears. Those results have not yet been repeated on the ESP32-C6-DevKitC-1.
+
 ## External workspace
 
 Keep the Zephyr workspace outside this Git repository because it contains large third-party source trees and toolchains.
@@ -80,7 +96,7 @@ The checked-in map is `firmware/reference-product-baseline/dts/esp32c6_4m_flash_
 
 The scratch partition stays reserved but is unused. Swap-using-offset needs no scratch area. Keeping the partition means the pinned flash map does not move, and the mode is selected explicitly rather than left to the default that follows from an absent scratch node.
 
-Zephyr 4.4.2 selects a 2 MiB esptool image header by default even though this board includes an 8 MiB module and the course uses a 4 MiB partition contract. The baseline explicitly selects the 4 MiB header for both MCUboot and the application.
+Zephyr 4.4.2 selects a 2 MiB esptool image header by default even though the ESP32-C6-DevKitC-1 module includes 8 MiB of flash and the course uses a 4 MiB partition contract. The baseline explicitly selects the 4 MiB header for both MCUboot and the application.
 
 ## Validated result
 
@@ -110,6 +126,8 @@ Connect one ESP32-C6 board and identify its serial device before flashing.
 
 Do not guess when several serial adapters are present. Use a stable path under `/dev/serial/by-id`.
 
+The ESP32-C6-DevKitC-1 has two USB Type-C ports, so one board can present two serial devices. The course uses the chip's native USB-Serial/JTAG port, whose `/dev/serial/by-id` name contains `usb-Espressif_USB_JTAG_serial_debug_unit`. The other port is behind a separate USB-to-UART bridge chip and carries a different name. Flashing, the serial console, and on-chip debugging all use the native port.
+
 Flash the combined sysbuild image with:
 
 ```bash
@@ -126,6 +144,10 @@ MCUboot, leaving stale or absent boot firmware on the device.
 Flashing this baseline writes normal flash only. Do not run any eFuse, secure boot, flash encryption, or debug-disable command.
 
 ### Validated on physical hardware
+
+This validation was run before the course moved to the ESP32-C6-DevKitC-1. It
+is kept exactly as it was observed. It has not been repeated on the
+ESP32-C6-DevKitC-1 yet.
 
 Validated using the repo's dev container (`.devcontainer/`, Podman) against a
 **nanoESP32-C6 1.0 board (Muse Lab)**, identified by esptool as an ESP32-C6
@@ -161,7 +183,7 @@ Beacon state: steady, toggle period: 0 ms
 
 **Console fix required.** The `esp32c6_devkitc/esp32c6/hpcore` board's
 default console is the physical `uart0` pins, which are not wired to the
-DevKitC's/nanoESP32's onboard USB connector, so the application's `printk`
+board's native USB-Serial/JTAG connector, so the application's `printk`
 output was not visible over it (only the ROM/MCUboot's own early boot
 messages appeared, since those print unconditionally over
 USB-Serial/JTAG). Fixed by adding a board overlay
@@ -170,6 +192,11 @@ that enables the chip's built-in `usb_serial` (USB-Serial/JTAG) UART node and
 routes `zephyr,console`/`zephyr,shell-uart` to it, so logs are visible on the
 same connector already used to build and flash. No extra USB-UART adapter is
 needed.
+
+The overlay keeps the console on the native USB-Serial/JTAG port on the
+ESP32-C6-DevKitC-1 as well. That kit's second USB Type-C port is behind a
+USB-to-UART bridge chip, and the course does not use it, so one connector
+still carries flashing, logs, and debugging.
 
 MCUboot needed the same treatment separately
 (`firmware/reference-product-baseline/sysbuild/mcuboot-console.overlay`,
@@ -193,7 +220,7 @@ OTA service bound to the host's private address on the same Wi-Fi network.
 | MCUboot installing the downloaded image | Observed |
 | Altered image running after the install | Observed |
 | Downgrade back to the baseline release | Observed |
-| Onboard LED | Not available on this board |
+| Onboard LED | Not available on the nanoESP32-C6 board used for this run |
 
 The device joined a 2.4 GHz WPA2 network. The ESP32-C6 radio does not support
 5 GHz. A network that publishes the same name on both bands works, because the
@@ -319,12 +346,22 @@ device syntax.
 ### LED hardware mapping
 
 Zephyr's `esp32c6_devkitc_hpcore` board devicetree defines no LED node at all
-(only a user button and a watchdog alias). The nanoESP32-C6 1.0 board has an
-onboard RGB LED, but on this board revision it is wired to the 3V3 rail
-instead of 5V, so **the onboard LED does not work on this hardware regardless
-of firmware**; this is a board wiring limitation, not something a Zephyr
-driver or devicetree overlay can fix. No LED implementation ticket is
-warranted against this board revision. A different ESP32-C6 board (or an
-external LED wired correctly) would be needed to validate the beacon LED
-behavior. The Reference product reports its simulated machine state on the
-serial console instead.
+(only a user button and a watchdog alias), so the beacon LED needs a
+devicetree overlay in this repository rather than an upstream alias.
+
+The ESP32-C6-DevKitC-1 has one addressable RGB LED on `GPIO8`. It is a
+WS2812-style device driven over a single data line, not a plain GPIO output,
+so the firmware drives it through an addressable LED driver instead of
+toggling a pin.
+
+The earlier nanoESP32-C6 1.0 board could not do this at all. Its onboard RGB
+LED is wired to the 3V3 rail instead of 5V on that board revision, so it did
+not light regardless of firmware, which is why the hardware run recorded above
+lists the onboard LED as not available. That was a board wiring limitation,
+not something a Zephyr driver or devicetree overlay could fix.
+
+The beacon LED behavior is therefore possible on the ESP32-C6-DevKitC-1, and
+the firmware for it is tracked separately. This document records no observed
+LED behavior until the LED has been seen working on the board. The Reference
+product reports its simulated machine state on the serial console, and that
+console output stays the primary record either way.

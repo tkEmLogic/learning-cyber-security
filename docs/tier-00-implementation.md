@@ -34,9 +34,11 @@ The firmware builds with Zephyr 4.4.2 and MCUboot 2.4.0 in unsigned swap-using-o
 
 The source models steady, fast-blink, and slow-blink states and names the prepared HTTP assignment and status endpoints.
 
-The selected development board has no checked-in LED alias, and no physical board is available.
+When Tier 0 was implemented, the selected development board had no checked-in LED alias and no physical board was available.
 
 The implementation therefore does not invent a GPIO or claim LED, Wi-Fi, flash, serial, update, or recovery behavior.
+
+The course now targets the Espressif ESP32-C6-DevKitC-1, which has an addressable RGB LED on `GPIO8`. The Zephyr board target is unchanged. The LED work is tracked separately, and this section records the boundary Tier 0 was written against. See `docs/esp32c6-build-baseline.md` for the board details and for what has been observed on physical hardware.
 
 ## Checkpoints
 

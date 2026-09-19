@@ -26,6 +26,10 @@ storage_partition 0x3b0000 0x030000
 scratch_partition 0x3e0000 0x01f000
 coredump_partition 0x3ff000 0x001000"
 
+# firmware/ only, on purpose. A copy under prototypes/ is outside the contract:
+# a prototype tree is thrown away when its tier lands, and trying a different
+# map is one of the things a prototype is for. Asserting it there would fail the
+# branch doing the exploring and would still prove nothing about what ships.
 mapfile -t maps < <(find firmware -name esp32c6_4m_flash_map.dtsi | sort)
 
 if [[ ${#maps[@]} -eq 0 ]]; then

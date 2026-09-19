@@ -332,13 +332,24 @@ verification:
     receipt: .course-state/receipts/tier-00.json
     revision_bound: true
     hardware:
+      # Board of record for every row in this block. Each row keeps the value
+      # that was observed: every validated row below was seen on the
+      # nanoESP32-C6 1.0 the course used before, and none has been repeated on
+      # the ESP32-C6-DevKitC-1 the course now targets. Relabeling a row to
+      # name the new board would claim a result nobody has seen.
+      results_observed_on_board: nanoESP32-C6 1.0
+      results_revalidated_on_target_board: awaiting
       flash: validated
       serial: validated
       wifi_association: validated
       http_exchange: validated
       ota_download: validated
       altered_image_execution: validated
-      led_behavior: unavailable_on_validated_board
+      # firmware/common drives the DevKitC-1's WS2812 on GPIO8 behind
+      # CONFIG_COURSE_BEACON_LED, and every tier builds with it. No one has
+      # yet seen it light, so the timing, the color order, the GPIO8 pinmux
+      # and the brightness are all unobserved. Implemented is not validated.
+      led_behavior: not_observed_firmware_drives_it
   tier_02:
     command: [./scripts/verify-tier-00.sh]
     receipt: .course-state/receipts/tier-02.json
@@ -348,6 +359,13 @@ verification:
     # The RNG-independent refusal and recovery rows are rebound by that rebuild;
     # a frozen generator could not affect them. See docs/rng-revalidation-tier-2-5.md.
     hardware:
+      # Board of record for every row in this block. Each row keeps the value
+      # that was observed: every validated row below was seen on the
+      # nanoESP32-C6 1.0 the course used before, and none has been repeated on
+      # the ESP32-C6-DevKitC-1 the course now targets. Relabeling a row to
+      # name the new board would claim a result nobody has seen.
+      results_observed_on_board: nanoESP32-C6 1.0
+      results_revalidated_on_target_board: awaiting
       tls_handshake_verified: validated
       untrusted_certificate_refused: validated
       wrong_name_certificate_refused: validated
@@ -374,6 +392,13 @@ verification:
     # The RNG-independent refusal and recovery rows are rebound by that rebuild;
     # a frozen generator could not affect them. See docs/rng-revalidation-tier-2-5.md.
     hardware:
+      # Board of record for every row in this block. Each row keeps the value
+      # that was observed: every validated row below was seen on the
+      # nanoESP32-C6 1.0 the course used before, and none has been repeated on
+      # the ESP32-C6-DevKitC-1 the course now targets. Relabeling a row to
+      # name the new board would claim a result nobody has seen.
+      results_observed_on_board: nanoESP32-C6 1.0
+      results_revalidated_on_target_board: awaiting
       # Every row below was observed through the real update path: published by
       # the genuine service, downloaded over the verified connection, written
       # to the secondary slot, and judged by the bootloader on the next boot.
@@ -397,6 +422,13 @@ verification:
     # The RNG-independent refusal and recovery rows are rebound by that rebuild;
     # a frozen generator could not affect them. See docs/rng-revalidation-tier-2-5.md.
     hardware:
+      # Board of record for every row in this block. Each row keeps the value
+      # that was observed: every validated row below was seen on the
+      # nanoESP32-C6 1.0 the course used before, and none has been repeated on
+      # the ESP32-C6-DevKitC-1 the course now targets. Relabeling a row to
+      # name the new board would claim a result nobody has seen.
+      results_observed_on_board: nanoESP32-C6 1.0
+      results_revalidated_on_target_board: awaiting
       # Every row below was observed on the nanoESP32-C6 through the real OTA
       # path: published by the genuine service over the verified connection,
       # judged by the application before the write, and judged by MCUboot on
@@ -440,6 +472,13 @@ verification:
     # The RNG-independent refusal and recovery rows are rebound by that rebuild;
     # a frozen generator could not affect them. See docs/rng-revalidation-tier-2-5.md.
     hardware:
+      # Board of record for every row in this block. Each row keeps the value
+      # that was observed: every validated row below was seen on the
+      # nanoESP32-C6 1.0 the course used before, and none has been repeated on
+      # the ESP32-C6-DevKitC-1 the course now targets. Relabeling a row to
+      # name the new board would claim a result nobody has seen.
+      results_observed_on_board: nanoESP32-C6 1.0
+      results_revalidated_on_target_board: awaiting
       # Every row below was seen on the physical nanoESP32-C6, over the real
       # OTA path, with releases signed by the Learner's own key.
       test_upgrade_requested_not_permanent: validated
@@ -498,6 +537,14 @@ verification:
     receipt: .course-state/receipts/tier-06.json
     revision_bound: true
     hardware:
+      # Board of record for every row in this block. Each row keeps the value
+      # that was observed: every validated device row below was seen on the
+      # nanoESP32-C6 1.0 the course used before, and none has been repeated on
+      # the ESP32-C6-DevKitC-1 the course now targets. Relabeling a row to
+      # name the new board would claim a result nobody has seen. The rows that
+      # are host-witnessed by design are named in the note under this one.
+      results_observed_on_board: nanoESP32-C6 1.0
+      results_revalidated_on_target_board: awaiting
       # Every row was observed on the physical nanoESP32-C6, MAC
       # 40:4c:ca:5e:a9:fc. Rows quoted from the #118 board run say so; the rest
       # were seen in the #124 board session. Nothing is claimed from a host

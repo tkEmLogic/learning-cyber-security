@@ -1,4 +1,5 @@
 #include "../dts/esp32c6_4m_flash_map.dtsi"
+#include <zephyr/dt-bindings/led/led.h>
 
 /*
  * The board's default console is the physical uart0 pins, which need a
@@ -15,5 +16,72 @@
 	chosen {
 		zephyr,console = &usb_serial;
 		zephyr,shell-uart = &usb_serial;
+	};
+};
+
+/*
+ * The onboard status LED.
+ *
+ * The ESP32-C6-DevKitC-1 carries one addressable RGB LED, a WS2812 on GPIO8.
+ * It is not a plain on/off pin: the colour is clocked in as a serial waveform
+ * whose pulse widths carry the bits, so it needs a driver and a peripheral
+ * that can produce that waveform. Zephyr 4.4 has no RMT-based WS2812 driver,
+ * so the waveform is produced by the I2S peripheral instead, which is the
+ * arrangement Espressif themselves use for this board in Zephyr's own
+ * samples/drivers/led/led_strip overlay.
+ *
+ * The board's default I2S pin group drives five pins for real audio. The
+ * beacon needs only the serial-data output, so group1 is replaced with the
+ * single pin the LED sits on. That leaves GPIO5, GPIO6, GPIO7, and GPIO23 free
+ * for anything else, and GPIO6 and GPIO7 are already claimed by i2c0 on this
+ * board.
+ */
+&i2s_default {
+	group1 {
+		pinmux = <I2S_O_SD_GPIO8>;
+	};
+};
+
+i2s_led: &i2s {
+	status = "okay";
+
+	/* Transmit only. The SoC node offers both directions; the LED is
+	 * write-only, and asking for a receive channel would reserve a second
+	 * DMA channel that nothing ever reads.
+	 */
+	dmas = <&dma 3>;
+	dma-names = "tx";
+
+	led_strip: ws2812@0 {
+		compatible = "worldsemi,ws2812-i2s";
+
+		reg = <0>;
+		chain-length = <1>;
+
+		/* WS2812 parts take their bytes green first, then red, then
+		 * blue. Getting this order wrong does not fail to build and
+		 * does not fail to light; it simply shows the wrong colour,
+		 * which is why the order is stated here rather than assumed.
+		 */
+		color-mapping = <LED_COLOR_ID_GREEN
+				 LED_COLOR_ID_RED
+				 LED_COLOR_ID_BLUE>;
+		reset-delay = <500>;
+	};
+};
+
+&dma {
+	status = "okay";
+};
+
+/*
+ * firmware/common drives the beacon through this alias rather than through the
+ * node label, so the shared code names no board-specific pin or peripheral. A
+ * board without this alias builds and runs with the beacon on the console
+ * only.
+ */
+/ {
+	aliases {
+		led-strip = &led_strip;
 	};
 };
