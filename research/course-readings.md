@@ -30,7 +30,7 @@ The course pins these versions. Keep readings aligned to them.
 
 | Component | Version | Note |
 | --- | --- | --- |
-| Board | ESP32-C6 | Reference product target. |
+| Board | Espressif ESP32-C6-DevKitC-1 | Reference product target. Zephyr board target `esp32c6_devkitc/esp32c6/hpcore`. |
 | Zephyr | 4.4.2 | Use the 4.4.2 documentation set. |
 | MCUboot | 2.4.0 | Use the 2.4.0 release notes and pinned docs. |
 | ESP-IDF security docs | v6.1 | Used for ESP32-C6 hardware security features in the advanced module. |

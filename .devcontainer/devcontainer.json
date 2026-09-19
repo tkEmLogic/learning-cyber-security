@@ -39,8 +39,11 @@
   // number), so it is never hard-coded here. Export ESP32_SERIAL_DEVICE in
   // your shell before launching VS Code, pointed at your board's stable
   // path under /dev/serial/by-id/ (see docs/esp32c6-build-baseline.md).
-  // Defaults to /dev/ttyACM0 when unset, which is fine when only one board
-  // is ever attached.
+  // Defaults to /dev/ttyACM0 when unset, which is fine when only one serial
+  // device is ever attached. The ESP32-C6-DevKitC-1 has two USB Type-C ports
+  // and can present two devices: use the native USB-Serial/JTAG one, whose
+  // by-id name contains usb-Espressif_USB_JTAG_serial_debug_unit, not the
+  // USB-to-UART bridge port.
   //
   // /dev/bus/usb is mounted whole because on-chip debugging talks to the
   // board's USB-Serial/JTAG interface through libusb, not through the serial

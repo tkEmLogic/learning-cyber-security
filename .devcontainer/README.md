@@ -81,7 +81,7 @@ repository.
 
 | Configuration | Open it when | What it cannot do |
 | --- | --- | --- |
-| `devcontainer.json`, "board attached" | You are on Linux with an ESP32-C6 plugged in | Nothing |
+| `devcontainer.json`, "board attached" | You are on Linux with an ESP32-C6-DevKitC-1 plugged in | Nothing |
 | `no-board/devcontainer.json`, "no board" | You are on macOS or Windows, or on Linux with no board plugged in | Flash a board, read serial output |
 
 Pick "no board" if you are unsure. It builds firmware, runs the local update
@@ -180,7 +180,7 @@ skips any step whose completion marker already exists on the volume.
 
 ## Flashing the physical board
 
-Plug the ESP32-C6-DevKitC in before you open or rebuild the container. The
+Plug the ESP32-C6-DevKitC-1 in before you open or rebuild the container. The
 board configuration passes it through with `--device`, resolved from the
 `ESP32_SERIAL_DEVICE` host environment variable, which defaults to
 `/dev/ttyACM0`. Set it to your board's stable path before launching VS Code:
@@ -189,6 +189,13 @@ board configuration passes it through with `--device`, resolved from the
 export ESP32_SERIAL_DEVICE=/dev/serial/by-id/usb-Espressif_USB_JTAG_serial_debug_unit_<your-serial>-if00
 code .
 ```
+
+The ESP32-C6-DevKitC-1 has two USB Type-C ports, so one board can show up as
+two devices under `/dev/serial/by-id`. Use the chip's native USB-Serial/JTAG
+port, the one whose name contains `usb-Espressif_USB_JTAG_serial_debug_unit`,
+as in the example above. The other port is behind a separate USB-to-UART
+bridge chip and has a different name. The course flashes, reads the console,
+and debugs over the native port only.
 
 Podman resolves `--device` when the container starts and refuses to start at
 all if the path does not exist. If no board is attached, open the "no board"
@@ -217,5 +224,8 @@ Pass the sysbuild top-level build directory, the one containing
 `domains.yaml`, not the nested per-domain directory. Passing the wrong one
 silently skips flashing MCUboot. See `docs/esp32c6-build-baseline.md` for the
 full flash map, the safety notes (unsigned MCUboot only; no eFuse, secure boot,
-or flash-encryption commands), and the board-specific findings from validating
-this setup end to end against a nanoESP32-C6 1.0 (Muse Lab) board.
+or flash-encryption commands), and the board-specific findings. Those findings
+come from validating this setup end to end on a nanoESP32-C6 1.0 (Muse Lab)
+board, which is the board the course used before it moved to the
+ESP32-C6-DevKitC-1. The container, the toolchain, and the Zephyr board target
+`esp32c6_devkitc/esp32c6/hpcore` are the same for both boards.
