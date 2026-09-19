@@ -89,7 +89,8 @@ static char nonce_text[CLAIM_NONCE_TEXT_MAX + 1];
  * SUBMIT and POLL look alike on the wire — #137 settled that the poll re-sends
  * the identical POST rather than opening with a POST and polling a GET — and
  * they are separate states here because they bound different things. SUBMIT
- * bounds a thing that either lands or does not, with three attempts. POLL is
+ * bounds a thing that either lands or does not, with four attempts on the 0,
+ * 2, 4 and 8 second cadence the operator half at the service shares. POLL is
  * the waiting state, and it retries at its own cadence for as long as the
  * window lives.
  */
@@ -575,11 +576,21 @@ static void exchange_failed(int err)
 
 	/*
 	 * Submitting is bounded, because it is a thing that either lands or
-	 * does not. Three attempts, doubling from two seconds; a fourth would
-	 * wait eight and the budget deliberately does not allow one. Then the
-	 * device closes its own window and says the button must be pressed
-	 * again, rather than holding a nonce open on a console indefinitely.
+	 * does not. Four attempts on one cadence: the delay belongs to the
+	 * attempt it precedes, so the first goes out at once and the three
+	 * after it wait two, four and eight seconds. The fourth failure closes
+	 * the device's own window and says the button must be pressed again,
+	 * rather than holding a nonce open on a console indefinitely.
+	 *
+	 * A table rather than a shift, because the operator half at the
+	 * service spells the same 0, 2, 4 and 8 seconds as a table, and the
+	 * two are meant to be read side by side without deriving either of
+	 * them. The shift that stood here also never reached eight: the budget
+	 * ran out one attempt before the exponent got there, so the sequence a
+	 * Learner saw was not the sequence the comment described.
 	 */
+	static const int backoff_seconds[] = { 0, 2, 4, 8 };
+
 	submit_attempts++;
 	printk("claim.submit attempt %d of %d failed err=%d\n", submit_attempts,
 	       CONFIG_COURSE_CLAIM_SUBMIT_ATTEMPTS, err);
@@ -587,7 +598,17 @@ static void exchange_failed(int err)
 		close_window("the request could not be submitted");
 		return;
 	}
-	int delay = 2 << (submit_attempts - 1);
+	/*
+	 * The budget is a Kconfig value and the table is not, so a budget
+	 * raised past four repeats the last delay instead of reading off the
+	 * end of the table.
+	 */
+	size_t slot = (size_t)submit_attempts;
+
+	if (slot >= ARRAY_SIZE(backoff_seconds)) {
+		slot = ARRAY_SIZE(backoff_seconds) - 1;
+	}
+	int delay = backoff_seconds[slot];
 
 	printk("claim.submit retrying in %d seconds\n", delay);
 	next_exchange_ms = k_uptime_get() + delay * 1000;

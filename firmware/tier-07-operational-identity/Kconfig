@@ -363,19 +363,25 @@ config COURSE_CLAIM_WINDOW_SECONDS
 
 config COURSE_CLAIM_SUBMIT_ATTEMPTS
 	int "Attempts at submitting the device half before the window closes"
-	default 3
+	default 4
 	range 1 10
 	depends on COURSE_CLAIM
 	help
 	  Submitting is a thing that either lands or does not, so it is bounded.
-	  The delay doubles from two seconds between attempts, and after the last
-	  one the device closes its own window and says the button must be
-	  pressed again.
+	  Four attempts on the cadence 0, 2, 4 and 8 seconds: the delay belongs
+	  to the attempt it precedes, so the first goes out at once and the three
+	  after it wait two, four and eight seconds. After the fourth failure the
+	  device closes its own window and says the button must be pressed again.
 
-	  This budget is not shared with the retrieval poll below, because the
-	  two bound different things: this bounds a submission, and the poll is
-	  the waiting state. The separate five-attempt budget on the *operator*
-	  half lives at the service, per #134.
+	  The two halves of the claim share that one cadence. The *operator*
+	  half's budget lives at the service, it is four attempts on the same 0,
+	  2, 4 and 8 seconds, and the sequence is what fixes the count in both
+	  places, so #134's five is superseded. A Learner reads one cadence in
+	  two files rather than two cadences that happen to both be bounded.
+
+	  This budget is still not shared with the retrieval poll below, because
+	  the two bound different things: this bounds a submission, and the poll
+	  is the waiting state.
 
 config COURSE_CLAIM_POLL_SECONDS
 	int "Seconds between retrieval polls while a window is open"
