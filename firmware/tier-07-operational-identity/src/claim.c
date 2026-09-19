@@ -66,6 +66,14 @@ static const char crockford[] = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
  * roughly three quarters of its own encoding and none of the fields around it.
  */
 #define CLAIM_CERT_MAX 1024
+/* The same certificate as it arrives: PEM armoured, and with every newline
+ * still spelled as a two-character JSON escape. Base64 is four characters for
+ * every three of DER, the armour is another fifty-two, and each of the line
+ * breaks costs two rather than one. Half again over the DER covers all of it
+ * with room left, and it has to: Zephyr refuses a JSON_TOK_STRING_BUF field
+ * whose escaped form does not fit rather than truncating it.
+ */
+#define CLAIM_CERT_PEM_MAX 1536
 
 static unsigned char csr_der[CLAIM_CSR_MAX];
 static size_t csr_der_len;
@@ -293,17 +301,31 @@ void course_claim_print_status(void)
  * certificate fields describe the certificate that arrived in the same body,
  * and identity.c reads them out of the certificate itself rather than out of
  * the sentence next to it.
+ *
+ * check and reason are JSON_TOK_STRING, which costs nothing: that token type
+ * hands back a pointer into the response buffer with the escapes left exactly
+ * as they arrived, and both fields are prose this device only ever prints.
+ *
+ * certificate is JSON_TOK_STRING_BUF, and the difference is the whole reason
+ * this device can be claimed at all. Zephyr unescapes only into a buffer:
+ * JSON_TOK_STRING null-terminates the raw token in place and never touches a
+ * backslash. A PEM block arrives with its newlines written as the two
+ * characters that spell one, base64_decode has no idea what a backslash is,
+ * and the certificate this device had just earned failed to decode with
+ * -EINVAL. The service was correct, every host test was correct, and the
+ * board threw the certificate away. Found on the board in #151, which is
+ * where it could be found.
  */
 struct claim_reply {
 	const char *check;
 	const char *reason;
-	const char *certificate;
+	char certificate[CLAIM_CERT_PEM_MAX];
 };
 
 static const struct json_obj_descr claim_reply_descr[] = {
 	JSON_OBJ_DESCR_PRIM(struct claim_reply, check, JSON_TOK_STRING),
 	JSON_OBJ_DESCR_PRIM(struct claim_reply, reason, JSON_TOK_STRING),
-	JSON_OBJ_DESCR_PRIM(struct claim_reply, certificate, JSON_TOK_STRING),
+	JSON_OBJ_DESCR_PRIM(struct claim_reply, certificate, JSON_TOK_STRING_BUF),
 };
 
 static int build_request(void)
@@ -437,8 +459,17 @@ static void wait_one_poll(void)
 
 static void handle_reply(int status_code, size_t body_len)
 {
-	struct claim_reply reply = {0};
+	/* Static, and cleared on the way in rather than initialized on the
+	 * stack: the certificate field carries a kilobyte and a half, and this
+	 * runs on the claim thread beside a TLS session. The claim state
+	 * machine is one thread doing one exchange at a time, which is what
+	 * makes one buffer enough, and every other buffer in this file is
+	 * static for the same reason.
+	 */
+	static struct claim_reply reply;
 	int err;
+
+	memset(&reply, 0, sizeof(reply));
 
 	/*
 	 * 400 is the one answer on this route that is not an authorization
@@ -508,7 +539,11 @@ static void handle_reply(int status_code, size_t body_len)
 		return;
 	}
 
-	if (reply.certificate != NULL) {
+	/* An array is never NULL, so presence is an empty first byte. The parse
+	 * cleared the whole struct above, so a body without the field leaves
+	 * this empty and the poll carries on.
+	 */
+	if (reply.certificate[0] != '\0') {
 		printk("claim.issued the operator half landed and the service issued a certificate\n");
 		accept_certificate(reply.certificate);
 		return;
