@@ -403,6 +403,14 @@ TLS is on. The device never holds it as a Trust anchor, because a device
 presents an Operational certificate and never verifies one.
 _Avoid_: Operational certificate authority, intermediate CA
 
+**Certificate-role inventory**:
+The single listing of every trust relationship the course has built: each
+authority and what it signs, each leaf role with its issuer and where it lives,
+and the signing keys that have no certificate at all. It is one part of Tier
+7's lab artifact. It is not the same listing as the signing keys on their own,
+which answer the narrower Tier 3 question of which key is which.
+_Avoid_: Key list, certificate list, PKI dump
+
 **Check**:
 The named property that had to hold, which a refusal reports. The provisioning
 station started this grammar in Tier 6, and the OTA service continues it in
