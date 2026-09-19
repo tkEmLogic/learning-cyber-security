@@ -68,7 +68,7 @@ func (a *app) imgtool() (string, string) {
 
 func (a *app) keys(args []string) error {
 	if len(args) == 0 {
-		return errors.New("keys requires create or list")
+		return errors.New("keys requires create, list or inventory")
 	}
 	switch args[0] {
 	case "create":
@@ -78,8 +78,10 @@ func (a *app) keys(args []string) error {
 		return a.keysCreate(args[1])
 	case "list":
 		return a.keysList()
+	case "inventory":
+		return a.keysInventory()
 	default:
-		return fmt.Errorf("unknown keys command %q; use create or list", args[0])
+		return fmt.Errorf("unknown keys command %q; use create, list or inventory", args[0])
 	}
 }
 
@@ -246,7 +248,32 @@ func publicFromPEM(block *pem.Block) (any, error) {
 // This is the command that makes CTL-06 visible rather than asserted. Two keys,
 // made by the same tool, equally valid, and the only thing telling them apart
 // is which name the Learner typed.
+//
+// It answers one question — which signing key is which — and Tier 3 quotes its
+// whole output. The wider question of who signs what in this course belongs to
+// ./course keys inventory, which Tier 7 quotes. They were one command briefly
+// and it put four authorities and seven leaf roles in front of a Tier 3
+// Learner who has met neither.
 func (a *app) keysList() error {
+	a.signingKeyRoster()
+	return nil
+}
+
+// keysInventory prints the certificate-role inventory: the signing keys, then
+// every authority and every leaf role in one place.
+//
+// It is a superset of keys list rather than the inventory alone, because the
+// closing sentence only lands if the two certificate-less signing keys are
+// printed above the four authorities it contrasts them with.
+func (a *app) keysInventory() error {
+	a.signingKeyRoster()
+	a.certificateRoleInventory()
+	return nil
+}
+
+// signingKeyRoster prints the signing keys and what the bootloader was built
+// against. Both ./course keys list and ./course keys inventory open with it.
+func (a *app) signingKeyRoster() {
 	roles := make([]string, 0, len(signingRoles))
 	for role := range signingRoles {
 		roles = append(roles, role)
@@ -269,6 +296,7 @@ func (a *app) keysList() error {
 	}
 	if found == 0 {
 		fmt.Fprintln(a.out, "No signing keys yet. Make one with ./course keys create release")
+		return
 	}
 	if _, err := os.Stat(a.publicKeyPath()); err == nil {
 		fmt.Fprintf(a.out, "\nThe bootloader is built against %s, and nothing else.\n", a.relative(a.publicKeyPath()))
@@ -277,20 +305,17 @@ func (a *app) keysList() error {
 		fmt.Fprintln(a.out, "\nBoth keys are ECDSA P-256 and both are equally valid.")
 		fmt.Fprintln(a.out, "Only the fingerprint compiled into the bootloader decides which one the device will run.")
 	}
-	a.certificateRoleInventory()
-	return nil
 }
 
 // certificateRoleInventory prints every authority and every leaf role in one
 // place.
 //
-// Until Tier 7 a Learner assembled this by hand from four scattered sources:
-// ./course tls show for the Course CA and the service certificate, the
-// one-time output of keys create device-ca, the one-time output of keys create
-// shared-identity, and this command for the signing keys. One command turns
-// the lab artifact from a screenshot a Learner is handed into a command they
-// run. Each authority still prints itself at creation; this is the place to
-// look back.
+// Until Tier 7 a Learner assembled this by hand from scattered sources: a
+// directory listing of .course-secrets/pki for the Course CA and the service
+// certificate, which no command prints, and the one-time output of keys create
+// device-ca, operational-ca and shared-identity. One command turns the lab
+// artifact from a screenshot a Learner is handed into a command they run. Each
+// authority still prints itself at creation; this is the place to look back.
 func (a *app) certificateRoleInventory() {
 	dir := a.pkiDir()
 	authorities := []struct {

@@ -282,6 +282,8 @@ attacker  0b581c41543488edd57d2f8330a5b136c30bd2c92613cc963b16efadb673daa9
 release   2f5fe5123abe8715ecde8cde2cac0e734969e5c0110d71eb839a15ceebd6c1e4
           .course-secrets/signing/release.pem
 
+The bootloader is built against artifacts/generated/signing/release.pub.pem, and nothing else.
+
 Both keys are ECDSA P-256 and both are equally valid.
 Only the fingerprint compiled into the bootloader decides which one the device will run.
 ```

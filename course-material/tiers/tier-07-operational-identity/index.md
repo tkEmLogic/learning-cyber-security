@@ -264,18 +264,32 @@ Result: operational device CA written to .course-secrets/pki
 
 `Subject` and `Issuer` are the same string, which is what a self-signed root looks like. That is a design decision worth a minute of your time. An intermediate signed by the manufacturer authority would have been easy, and it would have encoded the opposite of what this tier teaches: that operational trust descends from manufacturing trust. It does not. Your manufacturer signs a certificate saying which board this is, once, and after that the question "may this board download firmware today" belongs to a different authority with a different lifetime and a different owner.
 
-Now look at every role in one place. This inventory is the second part of the lab artifact and you should copy it into your evidence pack:
+Now look at every role in one place. This inventory is the second part of the lab artifact and you should copy it into your evidence pack. It is a different command from the `./course keys list` you have run since Tier 3: that one answers which signing key is which, and this one answers who signs what in the whole course.
 
 ```text
-./course keys list
+./course keys inventory
 ```
 
 ```text
+attacker  0b581c41543488edd57d2f8330a5b136c30bd2c92613cc963b16efadb673daa9
+          .course-secrets/signing/attacker.pem
+release   2f5fe5123abe8715ecde8cde2cac0e734969e5c0110d71eb839a15ceebd6c1e4
+          .course-secrets/signing/release.pem
+
+The bootloader is built against artifacts/generated/signing/release.pub.pem, and nothing else.
+
+Both keys are ECDSA P-256 and both are equally valid.
+Only the fingerprint compiled into the bootloader decides which one the device will run.
+
 Authorities
   course-ca.crt.pem        the update service's own server certificate
+                           .course-secrets/pki/course-ca.crt.pem
   device-ca.crt.pem        Factory identities: which board this is
+                           .course-secrets/pki/device-ca.crt.pem
   operational-ca.crt.pem   Operational identities: which board, whose, for ninety days
+                           .course-secrets/pki/operational-ca.crt.pem
   untrusted-ca.crt.pem     nothing this course trusts, on purpose
+                           .course-secrets/pki/untrusted-ca.crt.pem
 
 Leaf roles
   service certificate            Course CA                service.crt.pem
@@ -285,9 +299,15 @@ Leaf roles
   Factory identity               Manufacturer Device CA   on the board, key never a file
   Operational identity           Operational Device CA    on the board, key never a file
   foreign client certificate     Untrusted CA             minted by the fixture at run time
+
+The two signing keys above have no certificate at all, and that is the
+point of listing them beside four authorities: a trust root does not have
+to be a certificate authority. The bootloader anchors on a raw public key.
 ```
 
-Four authorities and seven leaf roles, and two of the leaves have no file at all because their private halves have never left a board. That is the separation section 8 of the specification asks for, made concrete. Notice that the only authority the device carries as a trust anchor is the first one, which signs the service's own certificate. The device never verifies an Operational certificate: it presents one. There is therefore no device-side trust anchor to rotate for this authority, which is one less thing to go wrong and one less thing you can claim.
+Your two Tier 3 signing keys come first, and the closing sentence says why a certificate inventory lists them at all. Read it, then ask the question it leaves open: if a raw public key has been a perfectly good trust root for four tiers, what does a certificate add? It adds a signed statement about **who** the key belongs to and **until when**. Tier 3 needed neither. This tier is built on both.
+
+The inventory then lists four authorities and seven leaf roles, and two of the leaves have no file at all because their private halves have never left a board. That is the separation section 8 of the specification asks for, made concrete. Notice that the only authority the device carries as a trust anchor is the first one, which signs the service's own certificate. The device never verifies an Operational certificate: it presents one. There is therefore no device-side trust anchor to rotate for this authority, which is one less thing to go wrong and one less thing you can claim.
 
 ### Mint your Owner credential
 
@@ -830,7 +850,7 @@ Every control tier so far has found something in the tier before it, and this on
 The lab artifact for this tier has five parts. Add each one:
 
 - **The claim sequence.** Both halves: the console output showing the window opening, the nonce and the request going out, and the operator approval with the certificate it returned. Note the times, so the window is visible in the evidence.
-- **The certificate-role inventory.** The output of `./course keys list`: four authorities, seven leaf roles, and the two leaves whose private halves have never been a file.
+- **The certificate-role inventory.** The output of `./course keys inventory`: two signing keys with no certificate, four authorities, seven leaf roles, and the two leaves whose private halves have never been a file.
 - **The mutual TLS evidence.** The device's own handshake line naming the certificate and key it presented, and the service's event record showing `accepted_from: client_certificate` with the certificate, path and accepted identifiers all agreeing.
 - **The authorization tests.** The fifteen-row table with your actual results, the evidence records the runners wrote under `artifacts/generated/attacks/tier-07/`, and the service's own trail in `events.jsonl`.
 - **The updated lifecycle model.** Your device's journey through `manufactured` and `claimed`, the records that mark each transition, and the states Tier 8 will add.
