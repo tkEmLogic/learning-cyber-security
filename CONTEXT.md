@@ -182,6 +182,12 @@ Not every piece of attack machinery is a fixture. A command that reads
 something the Learner already has, changes nothing and reaches no service is an
 ordinary `./course` command, because wrapping it in this apparatus would report
 a safety check that was guarding nothing.
+
+Nor is every fixture registered in `course.yml`. Tier 7's is one adversary
+under `./course service bypass`, driving thirteen rows, so it is bound by
+written rules in `docs/fixture-safety-contract.md` rather than by a manifest
+entry. It keeps every guarantee above: the disclosure, the marker match, the
+second naming of its own identifier, and the reset.
 _Avoid_: Exploit, payload, penetration test, security scanner
 
 **Course environment marker**:
@@ -397,3 +403,34 @@ change it. The course specification also uses the words "distinct reason codes"
 for the refusals the service must keep apart, and those refusals are named by a
 Check instead. Always say which of the two is meant.
 _Avoid_: Check, HTTP status
+
+**Synthetic device**:
+A device that exists only on the host: a key pair and a Factory certificate in
+a file, enrolled through the real provisioning station by an Attack fixture.
+It lands in the device lifecycle record as an ordinary entry, because the
+station genuinely cannot tell one from a board, and that inability is the
+lesson rather than a gap. The course names them `beacon-bypass-*` and
+`beacon-phantom-*`, and that convention is the only tell: the record carries
+no field saying which entries a fixture wrote, and anyone who can write the
+record can pick any name.
+_Avoid_: Fake device, virtual device, phantom device
+
+**Adversary owner**:
+The single Owner the Tier 7 fixture holds, slug `rival-labs`, minted into the
+Learner's own owner store and cleared by the fixture's reset. It is a fully
+legitimate account and that is the point: it passes every credential check, so
+each refusal it collects is an authorization decision rather than an
+authentication one. `./course setup` does not create it, because the Learner
+mints their own Owner as a lab step and the adversary's belongs with the rest
+of the adversary's material. There is exactly one, named in the manifest and
+never supplied on a command line.
+_Avoid_: Second owner, attacker account, rogue owner
+
+**Host, board required**:
+The witness value for a Tier 7 result that is read on the host but that only a
+board can make possible: the board opens the Claim window and prints the
+Claim nonce, and the refusal then arrives on the operator half. It is a third
+value beside `host` and `device`, and it narrows nothing. A host result still
+never stands in for a device result; this label only records that a device was
+needed for the result to exist at all.
+_Avoid_: Host, hybrid, partly device

@@ -255,6 +255,60 @@ fixtures:
     reset: ./course attack reset tier-06/clone-shared-identity
     hardware_required: false
 
+# The Tier 7 adversary is one actor rather than a set of fixtures, so it is
+# not a `fixtures:` entry: it is not registered, `./course attack list` does
+# not show it, and `./course attack run` never reaches it. It lives under
+# `./course service bypass e-7-NN`, a sibling of `./course service start`,
+# because a Learner who typed `provision bypass` to test a mutual-TLS refusal
+# would have been told the opposite of what this tier teaches.
+#
+# It still reads every mutable input from here. The allowlist rule does not
+# depend on which command runs the fixture: no device identifier, owner slug,
+# serial, endpoint, port or count is ever supplied on a command line. See
+# docs/fixture-safety-contract.md, "Tier 7 fixtures".
+bypass:
+  tier-07:
+    tier: "07"
+    # The plain target, for the marker handshake and nothing else. The marker
+    # is never fetched over a TLS port, and Tier 7 is the tier where that rule
+    # earns its keep: the adversary holds the Operational CA key, so a
+    # mutual-TLS marker fetch is a check it could satisfy with its own forged
+    # credential.
+    target: http://127.0.0.1:8080
+    interface: loopback
+    device_port: 8443
+    operator_port: 8444
+    service_name: ota.course.example
+    # Exactly one adversary owner, fixed here and minted idempotently by the
+    # first runner that needs it. It is a fully legitimate account in the real
+    # owner store, which is the point: every refusal it collects is an
+    # authorization decision and not an authentication one.
+    adversary_owner: rival-labs
+    # The bounded list. Names are never invented at run time, and an
+    # unbounded loop enrolling devices is not a demonstration of scale.
+    synthetic_ids:
+      - beacon-bypass-e7-03
+      - beacon-bypass-e7-04
+      - beacon-bypass-e7-05
+      - beacon-bypass-e7-06
+      - beacon-bypass-e7-07
+      - beacon-bypass-e7-08
+      - beacon-bypass-e7-08-donor
+      - beacon-bypass-e7-09
+      - beacon-bypass-e7-10
+      - beacon-bypass-e7-11
+      - beacon-bypass-e7-12
+      - beacon-bypass-e7-13
+      - beacon-bypass-e7-14
+    changes:
+      - .course-state/provisioning/records.jsonl
+      - .course-state/provisioning/owners.jsonl
+      - .course-state/provisioning/revoked.jsonl
+      - .course-state/ota/events.jsonl
+      - .course-state/bypass/tier-07
+      - artifacts/generated/attacks/tier-07
+    reset: ./course service bypass reset
+
 evidence:
   schema_version: 1
   tier_00:
