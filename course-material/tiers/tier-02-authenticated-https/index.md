@@ -52,6 +52,8 @@ You need your finished Tier 1 work. Tier 2 continues in the same Course workspac
 
 You need to have read the [cryptography primer](../../cryptography-primer.md), which takes about twenty minutes. This tier uses key pair, certificate, certificate authority, chain and trust anchor from its first page and does not stop to define them.
 
+This tier also uses four short names without expanding them. `TLS`, `ECDSA` and `SAN` are in the primer's [Names you will meet](../../cryptography-primer.md#names-you-will-meet) table, and `CA` is the short form of certificate authority, which the primer covers in [Certificate authorities, chains and trust anchors](../../cryptography-primer.md#certificate-authorities-chains-and-trust-anchors).
+
 You need the dev container. Tier 2 needs two things Tier 0 did not, so rebuild the container before you start: a published TLS port, and the `NET_RAW` capability that packet capture needs. Both are already in whichever dev container configuration you opened; you only have to rebuild.
 
 You need a Course environment with certificate material. Run setup again, from the repository root inside the container:

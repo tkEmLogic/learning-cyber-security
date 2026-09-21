@@ -232,6 +232,8 @@ flowchart TB
 
 Before, the service authenticated itself to the caller and the caller authenticated nothing. The identity in the record came from a field anyone could type. After, the device's identity comes from the certificate it presented during the handshake, and the identifier in the body is only ever compared against it. A body that disagrees is refused rather than believed.
 
+One phrase in that diagram is worth stating in words. A bearer token is a secret that grants whatever it authorizes to whoever presents it, so holding it is the whole proof and the service has nothing else to check.
+
 The second half of the diagram is the part with no cryptographic answer. A certificate can prove which board is calling. It cannot prove that the board is yours, because ownership is a fact about the world and not about the key. So a second party is needed: a person who authenticates with their own credential and says that this device, right now, is theirs. The device proves it is present by producing a nonce that only someone standing at it can read, and the person proves they are entitled by presenting an Owner credential. The service is the only place the two halves meet, and it issues the certificate only when they match.
 
 Three actors, three different things proved. The provisioning station proved which board this is, once, at manufacture. The device proves possession of its own key on every connection. The owner proves that they are the person entitled to authorize this device, on the one request that matters. None of the three can stand in for another, which is why this tier adds three kinds of credential rather than one.
@@ -582,6 +584,8 @@ A device with no trusted time source has three options. It can trust whatever ti
 This course takes the third option, consistently. Section 7 of the specification already states the rule: device time is evidence, not an authorization input. The device reports the time it thinks it is, the service records that alongside the time it actually received the report, and only the service decides that a certificate has expired.
 
 That has a consequence you should write into your ledger rather than admire. A device that is cut off from the service cannot know that it has lost its authorization. The expiry is real and enforced, and it is enforced in exactly one place. There is no certificate revocation list and no OCSP responder in this course either, for the same reason and one more: the service is both the issuer and the verifier here, so it finds out what it withdrew by reading its own record. Every genuinely hard problem in revocation begins on the day those two are different machines. That row is `T7-W-20`, and Tier 8 is where the lifecycle around it is built.
+
+`OCSP` in that paragraph is the Online Certificate Status Protocol, which a verifier can use to ask an issuer whether a certificate it has just been handed is still good.
 
 ## Replay the impersonation
 

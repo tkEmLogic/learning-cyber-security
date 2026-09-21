@@ -16,6 +16,8 @@ In this tier you will create your own signing key, sign a release with it, and b
 
 If signing, verifying and the two halves of a key pair are new words to you, read [Signing and verifying](../../cryptography-primer.md#signing-and-verifying) in the cryptography primer first.
 
+This tier also prints three short names, `ECDSA`, `P-256` and `PKCS#8`. The primer's [Names you will meet](../../cryptography-primer.md#names-you-will-meet) table says what each one is.
+
 At the end you will have a device that installs only firmware you published, four recorded refusals that each say something different, and a clear statement of the large things this still does not protect you from.
 
 Tier 3 ends at a required Mentor review gate. It is the first one after Tier 1, and it is here because this is where publisher trust first exists.

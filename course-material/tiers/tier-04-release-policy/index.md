@@ -199,6 +199,8 @@ The signature covers these exact bytes. Reformatting the file breaks it,
 which is why the device verifies the bytes before it parses them.
 ```
 
+A handful of short names appear in that output. `SHA-256`, `ECDSA`, `P-256`, `ASN.1` and `DER` are all in the primer's [Names you will meet](../../cryptography-primer.md#names-you-will-meet) table. `TLV` is not on that page, because it is not a cryptography name: it stands for tag, length, value, which is how MCUboot stores small labelled fields beside an image. The security counter is one of those fields.
+
 Three things in that output are the whole tier.
 
 **One key, two signatures, two different claims.** The same `release.pem` signs the image through `imgtool` and the manifest through a plain ECDSA operation. The image signature says who built this code. The manifest signature says who described this release. They are different sentences about different bytes, and the device checks them with two separate verifiers that never consult each other.
