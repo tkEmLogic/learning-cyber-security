@@ -218,7 +218,7 @@ What an unhealthy release demonstrates is not an attack at all. Nobody without t
 
 **The service may answer a firmware download badly, on request, following Tier 2's precedent.** `./course service start --range ignore` makes the genuine service answer `200` with the whole body to a request that asked for part of it, and `--range interrupt:<bytes>` makes it begin answering correctly and then drop the connection.
 
-Both are options on the real service, exactly as `--present untrusted` is, and both are bound by the same rules. The service says loudly on every affected request what it is doing. Starting it again without the option restores correct behaviour. Neither mode alters a stored image, a manifest or a signature, and neither touches key material: the bytes served are the Learner's own signed release either way, and what is wrong is the shape of the answer rather than its content.
+Both are options on the real service, exactly as `--present untrusted` is, and both are bound by the same rules. The service says loudly on every affected request what it is doing. Starting it again without the option restores correct behavior. Neither mode alters a stored image, a manifest or a signature, and neither touches key material: the bytes served are the Learner's own signed release either way, and what is wrong is the shape of the answer rather than its content.
 
 `--range ignore` exists because it is the failure most likely to be got wrong. It looks like success while restarting an image from byte zero underneath a device that believes it is appending, and a device that checks only whether bytes arrived will build a corrupt image out of two overlapping copies. A check that has never been observed firing has not been taught.
 
@@ -510,7 +510,7 @@ The owner credential travels only as an `Authorization: Bearer` header and never
 
 A module that shows what a nonce or a credential looks like uses an illustrative value that no Course environment issued, and says that is what it is. A transcript in a course page never carries a live value from a real run.
 
-The fixture is both ends of a synthetic device's claim, so it generates and consumes nonces itself. It holds them in memory for the length of one run and prints none of them. This is also the honest reason the claim-window rows are labelled `host, board required` rather than pure host rows: for a real device the nonce leaves through a person reading a console, and when the fixture is both ends that property is simply absent.
+The fixture is both ends of a synthetic device's claim, so it generates and consumes nonces itself. It holds them in memory for the length of one run and prints none of them. This is also the honest reason the claim-window rows are labeled `host, board required` rather than pure host rows: for a real device the nonce leaves through a person reading a console, and when the fixture is both ends that property is simply absent.
 
 ### It never targets anything the Learner does not own
 

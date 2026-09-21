@@ -2,7 +2,7 @@
 
 ## Scenario
 
-The update service you built in Tier 2 works. It presents a certificate your device checks, by chain and by name, and every beacon refuses anything else. Nobody in the canteen can read the traffic or impersonate the service any more.
+The update service you built in Tier 2 works. It presents a certificate your device checks, by chain and by name, and every beacon refuses anything else. Nobody in the cafeteria can read the traffic or impersonate the service any more.
 
 On a Tuesday morning, someone who is allowed to deploy releases pushes a firmware image that nobody reviewed.
 
@@ -10,9 +10,13 @@ They do not need to break anything. They do not forge a certificate, poison a na
 
 It does not matter for this story whether they are an attacker who stole a deploy credential, a contractor who was given more access than anyone remembers granting, or a tired engineer who ran the right command against the wrong directory. The device cannot tell those apart, because the device cannot tell anything about the bytes it is given. It checks who is speaking. It has never checked who wrote what they are saying.
 
-That is the gap this tier closes. Transport trust and publisher trust are different things, and Tier 2 bought only the first.
+That is the gap this tier closes. Transport trust and publisher trust are different things, and Tier 2 gave you only the first.
 
 In this tier you will create your own signing key, sign a release with it, and build a bootloader that carries the matching public key and refuses everything else. Then you will attack it from the strongest position an attacker can have: from inside your own update service, publishing hostile firmware through a service that passes every check Tier 2 added.
+
+If signing, verifying and the two halves of a key pair are new words to you, read [Signing and verifying](../../cryptography-primer.md#signing-and-verifying) in the cryptography primer first.
+
+This tier also prints three short names, `ECDSA`, `P-256` and `PKCS#8`. The primer's [Names you will meet](../../cryptography-primer.md#names-you-will-meet) table says what each one is.
 
 At the end you will have a device that installs only firmware you published, four recorded refusals that each say something different, and a clear statement of the large things this still does not protect you from.
 
@@ -36,7 +40,7 @@ Run this tier only against the disposable Course environment created by `./cours
 
 Both signing keys in this tier are generated on your machine for this lab and live in `.course-secrets/signing`. Git ignores that directory. Never commit either one, never copy them anywhere, and never reuse them outside this lab.
 
-One of the two keys is labelled `attacker`. It is a real, valid ECDSA P-256 key made by the same command as your own. Nothing about it is weaker or broken. Treat it with the same care as the other one.
+One of the two keys is labeled `attacker`. It is a real, valid ECDSA P-256 key made by the same command as your own. Nothing about it is weaker or broken. Treat it with the same care as the other one.
 
 The four hostile images are generated on your machine from your own good image, when you ask for them. None of them is shipped with this course, and none is committed. A firmware image built to fail is still a firmware image, so keep them inside `artifacts/generated/` where the course put them.
 
@@ -76,7 +80,7 @@ One thing to be clear about before you begin, because this tier is built on it. 
 
 ### Predict
 
-Before running anything, write down your answers. You will compare them at the end.
+Before running anything, write down your answers. The Reveal section, after Test bypass attempts, answers all three.
 
 1. Your update service is genuine, its certificate verifies, and the connection is encrypted. If someone publishes hostile firmware through it, what stops the device installing it?
 2. If you sign your firmware, what exactly does the signature prove? Write the sentence out.
@@ -119,7 +123,7 @@ MCUboot does not either, because the bootloader you have been running was built 
 
 So the boundary you are missing is not on the network. It is at the last moment before code runs, inside the bootloader, and it is the only place that can still say no after everything else has said yes.
 
-That is worth dwelling on. Every control in Tier 2 sits between two machines. This one sits between a set of bytes and the processor that would execute them, and it does not care how those bytes arrived.
+That is worth a moment of thought. Every control in Tier 2 sits between two machines. This one sits between a set of bytes and the processor that would execute them, and it does not care how those bytes arrived.
 
 ## Sign your releases and make the bootloader require it
 
@@ -146,7 +150,7 @@ Your fingerprint will differ from the one above. It is yours.
 
 Two details in that output are the whole custody lesson.
 
-The command prints the real `imgtool` invocation before running it. Nothing about this key is course magic: it is a 241 byte PKCS#8 file made by MCUboot's own tool, and you could have typed the command yourself.
+The command prints the real `imgtool` invocation before running it. Nothing about this key was invented for this course: it is a 241 byte PKCS#8 file made by MCUboot's own tool, and you could have typed the command yourself.
 
 The public half is extracted once, into a different directory. MCUboot's default is to point the bootloader build at the private key and let the build take the public half out for itself. That would put your signing key into a firmware build command, and a build server is exactly where a signing key should never be. So the course extracts it once and the build reads only the public file. You will see the consequence of that in a moment, because it is why this tier builds the bootloader and the application separately.
 
@@ -288,7 +292,7 @@ Both keys are ECDSA P-256 and both are equally valid.
 Only the fingerprint compiled into the bootloader decides which one the device will run.
 ```
 
-Sit with that for a moment. The attacker key is not weaker. It was made by the same command, by the same tool, to the same standard. The only thing that makes one of them yours is the name you typed and the fact that the other one is not the fingerprint in your bootloader.
+Stop and think about that for a moment. The attacker key is not weaker. It was made by the same command, by the same tool, to the same standard. The only thing that makes one of them yours is the name you typed and the fact that the other one is not the fingerprint in your bootloader.
 
 ### Publish one and watch the board
 
@@ -356,7 +360,7 @@ The last two rows are identical, and that is not a defect in the reporting.
 
 A modified image carries your signature, over your key, with everything named correctly. The only thing wrong with it is that the bytes no longer match what you signed, and finding that out means hashing the whole image, which is precisely the work MCUboot is about to do anyway. So the facts line says everything it can see, MCUboot does the expensive part, and the refusal you see is the combination: every fact correct, and refused regardless.
 
-That combination is the signature of a tampered image, and learning to read it is more useful than a fifth error string would be.
+That combination is how a tampered image shows itself, and learning to read it is more useful than a fifth error string would be.
 
 You still have one way to tell, on your own machine, which the device does not: the digest. Compare the one `./course release sign` printed with the one the fixture shows for the modified image. They differ, and you can see that because you have both files. The bootloader has only the one it was handed.
 
@@ -378,17 +382,29 @@ Anyone who can build and flash a bootloader can compile in whatever key they lik
 
 That is not a flaw in what you built. It is the boundary of it, and you need to be able to say where that boundary is. Standard Zephyr MCUboot on this board is a software chain: the bootloader checks the application, and nothing checks the bootloader. Anyone with physical access and a USB cable replaces the bootloader and the key together.
 
-The course does not fix that, and must not pretend to. Making the hardware refuse to start a bootloader it does not recognise needs ESP32-C6 Secure Boot v2 and burned eFuses, which is Advanced Tier A and is irreversible on real hardware. Until then, the honest sentence is: this device runs only firmware signed by the key its bootloader carries, and the bootloader is trusted because it is there.
+The course does not fix that, and must not pretend to. Making the hardware refuse to start a bootloader it does not recognize needs ESP32-C6 Secure Boot v2 and burned eFuses, which is Advanced Tier A and is irreversible on real hardware. Until then, the honest sentence is: this device runs only firmware signed by the key its bootloader carries, and the bootloader is trusted because it is there.
 
 ### The custody bypass, which needs no device at all
 
 There is a third way in and it does not involve the device.
 
-Your signing key is a file on the laptop that also builds the firmware, runs the update service, and browses the internet. The course keeps it in `.course-secrets/signing`, keeps it out of Git, and never sends it to the service. That is hygiene, and it is worth doing. It is not a boundary.
+Your signing key is a file on the laptop that also builds the firmware, runs the update service, and browses the internet. The course keeps it in `.course-secrets/signing`, keeps it out of Git, and never sends it to the service. That is good practice, and it is worth doing. It is not a boundary.
 
 On one laptop, "offline" is a convention you are choosing to respect. A real manufacturer does not rely on a convention: the signing key lives in a hardware security module or on a machine with no network, signing is a request that someone approves, and every signature is logged. None of that fits in a course on one computer, and pretending otherwise would teach you a habit rather than a control.
 
 What this tier can honestly claim is the thing you just watched: an operator with complete control of the update service, who can publish anything they like over a perfectly valid connection, still cannot make your device run their code. That is `REQ-06`, and it is demonstrable rather than assertable because you just did it yourself.
+
+## Reveal
+
+Compare these against what you predicted.
+
+1. Before this tier, nothing stops it. The hostile-image fixture publishes through your own genuine service and its last step says so: `Stop. Nothing here can refuse this image.` Every check Tier 2 added passed, and the application announced on the board that it was installing `without any check`. After this tier one thing stops it, and only one: the bootloader, at the last moment before the code would run.
+2. The signature proves that this image was produced by whoever holds the private half of the key the bootloader carries. It proves nothing else. It does not say that the bytes are the release you meant to ship, that the release is the current one, or that the service that delivered it is honest. The `modified` image is the proof: it prints `header=ok tlv=ok signature=present key=match`, the same line your good image prints, and it is refused anyway, because the bytes no longer match what was signed.
+3. Nothing about the keys themselves. `./course keys list` prints the answer in two lines: "Both keys are ECDSA P-256 and both are equally valid. Only the fingerprint compiled into the bootloader decides which one the device will run." Yours is the one whose fingerprint is compiled into your bootloader, and that is the whole difference. The attacker's key is refused with `key=other`, not because it is weaker, but because it is not that one.
+
+If you answered question 2 with something like "the image is safe" or "the image has not been tampered with", you are giving the answer most engineers give, and it is the one this tier is built to correct. Signing is not a property an image has. It is a relationship between an image and one specific key that one specific device was built to expect. That is why Bypass 2 defeats the control without touching the image at all: anyone who can flash a bootloader compiles in whatever key they like, and the device then runs firmware signed by that key. The honest sentence is the one in Bypass 2: this device runs only firmware signed by the key its bootloader carries, and the bootloader is trusted because it is there. That gap is `T3-W-10`, and it stays open.
+
+This section was added after Tier 3 was published. If you worked the tier before it existed, your three written answers are checkable now.
 
 ## Weakness ledger after the work
 
@@ -428,6 +444,12 @@ Four claims you must not make at the end of this tier:
 - That your signing key is safe because it is in `.course-secrets`. It is out of the way, which is not the same thing.
 
 Run `./course device status` to see which hardware results the course currently claims.
+
+## What this tier found in Tier 2
+
+This is the first tier that can find anything in the tier before it, so it is the tier that sets the count. Tier 2 found nothing in Tier 1, because Tier 1 produced a threat model rather than an implementation. The count in this course therefore runs over control tiers whose predecessor built something, and it starts here, at one out of one.
+
+**A buffer sized for the traffic you have seen fails on the traffic you have not.** Tier 2's HTTPS client could not receive a response larger than 2 KB, because `CONFIG_MBEDTLS_SSL_MAX_CONTENT_LEN` was 2048. Every response Tier 2 fetched was small JSON, so nothing ever noticed. But the peer decides how large a TLS record it sends, and a firmware image arrives in full sized ones, so this tier, the first to download an image over that connection, was refused before one byte reached the flash. The symptom points nowhere near the cause: the transfer fails with `err=-113`, a transport error, on the line after a handshake the same log reports as successful. Tier 2's published behavior was never wrong. Both tiers now set the option to 16384, so a Learner working in order never meets the limit.
 
 ## Update the Security evidence pack
 
@@ -470,7 +492,7 @@ Involve a Mentor when the board refuses an image you believe it should accept. B
 
 Tier 3 ends at a **required Mentor review gate**. It is here because this is the tier where publisher trust first exists, and where a Learner who misreads what they built will carry that misreading into four more tiers.
 
-It is a coaching conversation. There is no grade, no score, and no pass mark. The Mentor's job is to help you understand the boundary and leave accurate evidence, not to catch you out.
+It is a coaching conversation. There is no grade, no score, and no pass mark. The Mentor's job is to help you understand the boundary and leave accurate evidence, not to look for your mistakes.
 
 **Show.** Run the Reference product and demonstrate one good install. Then demonstrate **one** refusal, and let the Mentor choose which of the four. Bring the evidence records for the other three. The Mentor picks so that the demonstration is not one you rehearsed.
 
@@ -478,7 +500,7 @@ It is a coaching conversation. There is no grade, no score, and no pass mark. Th
 
 > An attacker owns your OTA service completely, TLS and all. Name three things they can still do to this device.
 
-If you cannot name any, you have overread the control. There are several good answers, and the ledger above contains most of them.
+If you cannot name any, you have read more into the control than it does. There are several good answers, and the ledger above contains most of them.
 
 **Diagnose.** The Mentor selects one prepared failure. Two are published for this tier:
 

@@ -12,7 +12,7 @@ This tier is unusual, and it is worth saying so plainly. Every hardening tier so
 
 You will give the fleet a single shared cryptographic credential, extract that credential out of an image you built, and use it to register devices that were never manufactured. Then you will replace it: generate a private key on the device itself, enroll a per-device Factory certificate against a one-use Bootstrap credential, and store the key through the limited Secure Storage the specification pins in section 8. Along the way you will read that key back out of a flash dump, because the honest version of this tier says exactly what the new storage does and does not do.
 
-At the end you will have a device whose private key was generated where it lives, a manufacturing record that never held a private key, and a clear-eyed account of the one boundary this design does not close.
+At the end you will have a device whose private key was generated where it lives, a manufacturing record that never held a private key, and an honest account of the one boundary this design does not close.
 
 ## Learning result
 
@@ -122,9 +122,13 @@ Found it at offset 0xa7f48. The next 121 bytes are the fleet's private key.
   certificate subject:     beacon-development-shared
 ```
 
+`SEC1` in that output is one of the two private-key file formats in the primer's [Names you will meet](../../cryptography-primer.md#names-you-will-meet) table.
+
 The command never prints the key, because it does not need to. The fingerprint proves the key is present, and the point is made: everything the fleet identity is made of travels in every image built the same way. Outside the lab, the image is on the update server, in the build pipeline, and on every device you can desolder a flash chip from. There is nothing to steal that has not already been handed out.
 
 This demonstrates `T0-W-02`: the identity is a value that anyone with an image holds.
+
+The same argument applies to a secret this course put in the image itself. Every image you build carries the passphrase of your own Wi-Fi network, because the course compiles that passphrase in as a build setting. Anyone who holds one of your images therefore holds your network passphrase. You do not need to print it to know it is there, and the safety boundary at the top of this tier keeps the flash dump away from that same secret for the same reason. It is recorded as `T6-W-27` in the Weakness ledger after the work, and no tier on this course closes it.
 
 ### Register devices that were never manufactured
 
@@ -179,13 +183,19 @@ Two controls replace the shared credential, and they are defeated separately, so
 
 The first control is a key that never existed anywhere but on the device. On the ESP32-C6 the firmware asks PSA to generate a P-256 key and mark it non-exportable at the course API boundary, and it stores that key through the exact Secure Storage configuration section 8 pins. Read what that storage does with care, because the honest account of it is half the value of this tier.
 
+`PSA` is the Platform Security Architecture API, the standard interface Zephyr offers for generating, using and storing keys. Zephyr's name for the storage part of it is Internal Trusted Storage, shortened to `ITS`, which is why `its` appears in the boot warning below and in the record names you read later in this tier.
+
 The Secure Storage configuration encrypts each stored record with AES-GCM and authenticates it with a sixteen byte tag, so the private key does not appear in flash as readable bytes. It detects any change to a stored record: a modified ciphertext, tag, nonce or flags byte makes the read fail, and the device refuses the record rather than returning altered data. It binds each record to its own entry identifier and to this one board, so a record moved to another entry, or copied onto a second ESP32-C6, fails to decrypt. It derives its encryption key at each use and never stores it. What it does is raise the cost of reading a key out of a flash dump from reading it directly to running a known derivation first.
 
-That last sentence is the whole boundary, and section 11 makes you prove it. The encryption key is `SHA-256` of the board's MAC and the record's entry identifier, and both of those are public: the MAC is printed by `esptool read-mac` on the same cable you dump the flash with, and the entry identifier is written in clear as the record's name in the same dump. This is Zephyr's own default configuration on this board, which Zephyr documents as functional support for the PSA Secure Storage API rather than a guarantee that data is secure at rest, and which prints `WARNING: Using a potentially insecure PSA ITS encryption key provider.` at every boot. The course leaves that warning switched on. A production design replaces this key provider with one rooted in protected device-specific hardware, which is what Advanced Tier B does with the STSAFE-A120.
+The cryptography primer defines two of the words in that paragraph. `AES-GCM` is in its [Names you will meet](../../cryptography-primer.md#names-you-will-meet) table, beside `AEAD`, the wider name this tier's readings use for it. Nonce is defined in [Freshness and the nonce](../../cryptography-primer.md#freshness-and-the-nonce).
+
+That last sentence is the whole boundary, and section 11 makes you prove it. The encryption key is `SHA-256` of the board's MAC and the record's entry identifier, and both of those are public. The MAC is printed by `esptool read-mac` on the same cable you dump the flash with. The entry identifier is written in clear as the record's name in the same dump. This is Zephyr's own default configuration on this board, which Zephyr documents as functional support for the PSA Secure Storage API rather than a guarantee that data is secure at rest, and which prints `WARNING: Using a potentially insecure PSA ITS encryption key provider.` at every boot. The course leaves that warning switched on. A production design replaces this key provider with one rooted in protected device-specific hardware, which is what Advanced Tier B does with the STSAFE-A120.
 
 The second control is a one-use Bootstrap credential and an append-only manufacturing record. Enrollment consumes the credential and records the certificate in a single write, before anything is sent to the device, so nothing ever leaves the station that the record does not already contain, and the record never holds a private key.
 
 Enroll the device. The station issues the credential, the device generates its key and returns a certification request that carries the credential inside its own signature, and the station returns the certificate it issued.
+
+A certification request, and why its own signature is what proves possession of the key, is defined in [Asking for a certificate](../../cryptography-primer.md#asking-for-a-certificate) in the cryptography primer.
 
 Your device needs a name of its own first, and the course builds one from the board in front of you: the word `beacon`, a hyphen, and your board's MAC in lower case with the colons removed. Read that MAC with `esptool read-mac` on the same cable you flash with, so a board with the MAC `aa:bb:cc:dd:ee:ff` is named `beacon-aabbccddeeff`. Substitute your own name for `beacon-aabbccddeeff` in all three commands below, because a name taken from this page would name somebody else's board.
 
@@ -234,7 +244,7 @@ Run each bypass and record the actual result. The table has two rows that are ex
 | E-6-06 | Sign firmware with the device identity key, and enroll with the Release signing key (`./course provision bypass e-6-06`) | Both refused. The identity key's signature fails the release trust anchor, and the Release key is refused at `credential-carried` | |
 | E-6-07 | Present the cloned shared credential to the hardened station (`./course provision bypass e-6-07`) | Refused at `credential-carried`. Possession of the fleet key buys nothing against a station that enrolls per-device credentials | |
 
-`E-6-04` and `E-6-05` are the pair to sit with. On the device:
+`E-6-04` and `E-6-05` are the pair to read together. On the device:
 
 ```text
 identity.export asked PSA for the private key
@@ -248,7 +258,7 @@ Then dump the storage partition and recover the same key from it:
 ./course device dump
 ```
 
-The dump reads only the `storage` partition, then resets the board off the ROM loader. The private key is in there, encrypted, in the record named `its/2/601`, which is clear text in the dump. Recovering it needs no secret: the AES-GCM key is `SHA-256(MAC || 0x0000 || uid)`, the MAC is on the cable, and the `uid` is the record's own identifier read straight out of that name, `0x00000601` with the caller bits set, packed little-endian as the four bytes `01 06 00 80`. Run that derivation and the record decrypts to the P-256 private key. On the board this was recorded on, the earlier nanoESP32-C6 1.0, the recovered key matched the public key in the certificate the device holds. That is the boundary, stated as an observation rather than a warning: the key the API would not export is readable to anyone who can dump the flash and knows a published recipe.
+The dump reads only the `storage` partition, then resets the board off the ROM loader. The private key is in there, encrypted, in the record named `its/2/601`, which is clear text in the dump. Recovering it needs no secret: the AES-GCM key is `SHA-256(MAC || 0x0000 || uid)`, the MAC is on the cable, and the `uid` is the record's own identifier read straight out of that name, `0x00000601` with the caller bits set, packed little-endian as the four bytes `01 06 00 80`. Run that derivation and the record decrypts to the P-256 private key. On the board this was recorded on, the earlier nanoESP32-C6 1.0, the recovered key matched the public key in the certificate the device holds. That is the boundary, stated as an observation rather than a warning: the key the API would not export is readable to anyone who can dump the flash and follows a published procedure.
 
 Record any unexpected actual result before you troubleshoot it, and do not mark the Security claim supported on the strength of a result you have not seen.
 
@@ -264,9 +274,9 @@ Take the second problem first, because that half is clean. Possession now means 
 
 The first problem splits in two, and the tier answers its halves differently. Where the key lives did change: it is generated on the board, it is in no image, and the manufacturing record never held it. Whether that place can be read did not. `E-6-04` refused to export the key through the API, and `E-6-05` recovered the same key out of a flash dump, by running `SHA-256` over a MAC address and a record name that are both public. The set of people who can read the key narrowed from anyone holding an image to anyone holding the board, which is worth having, and it is not the same as the key being unreadable. That gap is `T6-W-16`, it is open, and it is why `SC-06` reaches partly supported rather than supported.
 
-If you predicted that per-device keys fix both problems, that is the answer this tier is built to correct, and it is the one most engineers give. Generating a key on the device changes where the key came from. It does not change what a flash dump yields. What this tier bought is the blast radius of one recovered key, not the difficulty of recovering one.
+If you predicted that per-device keys fix both problems, that is the answer this tier is built to correct, and it is the one most engineers give. Generating a key on the device changes where the key came from. It does not change what a flash dump yields. What this tier reduced is how far one recovered key reaches, not how hard it is to recover one.
 
-This section was added after Tier 6 was published. The three questions were always here and nothing answered them, which meant a Learner was asked to commit to an answer and then left holding it. If you worked Tier 6 before this section existed, your three written answers are checkable now.
+This section was added after Tier 6 was published. If you worked the tier before it existed, your three written answers are checkable now.
 
 ## Weakness ledger after the work
 
@@ -279,11 +289,12 @@ This is the result you should expect to observe. Your own ledger lives in your w
 | T6-W-16 | New. The Secure Storage encryption key is `SHA-256` of the board's MAC and the record's UID, both public. Anyone who can read the flash can derive the key | Open | Residual risk with an owner. Demonstrated in `E-6-05`. Advanced Tier B, STSAFE-A120 |
 | T6-W-17 | New. Stored records carry no freshness, so writing back an older copy is accepted as authentic. NVS appends, so superseded copies are usually still in the same dump. A record's state before a revocation can be restored without deriving any key | Open | Recorded limit. Zephyr states it does not protect against replay. No tier on this course closes it |
 | T6-W-18 | New. The private key is protected at rest only. Privileged firmware, the application itself, and a debugger can all reach it. The non-exportable marking is enforced at the course API boundary and nowhere below it | Open | Residual risk with an owner. Advanced Tier B, STSAFE-A120 |
-| T6-W-19 | New. The AES-GCM nonce is randomised once per boot then incremented, while the record's key never changes, so a nonce drawn before the RF subsystem is up would weaken the guarantee | Open | Recorded limit. Confirm Wi-Fi is up before the first Secure Storage write. Recheck on any Zephyr upgrade |
+| T6-W-19 | New. The AES-GCM nonce is randomized once per boot then incremented, while the record's key never changes, so a nonce drawn before the RF subsystem is up would weaken the guarantee | Open | Recorded limit. Confirm Wi-Fi is up before the first Secure Storage write. Recheck on any Zephyr upgrade |
+| T6-W-27 | New. The Wi-Fi passphrase is compiled into every image this course builds, so anyone who holds an image holds the network credential. This tier proved exactly that about a private key. The passphrase has been there since Tier 0 and no tier removes it | Open | Recorded limit. The Reference product has the customer install the device on their own network; this course compiles the credential in instead. Tier 8 inherits it at decommissioning |
 
-One row in that table was added late, and it is marked as such rather than quietly slipped in. `T1-W-08` was recorded in Tier 1, carried by Tier 2, and then dropped: it appears in no tier from Tier 3 onwards. Tier 6 reduced it in substance and never wrote the row down. Tier 7 found the gap while moving the claim register and the row is restored here, because a ledger that loses a row while the work goes well is worth more as a lesson than as an embarrassment.
+One row in that table was added late, and it is marked as such rather than quietly slipped in. `T1-W-08` was recorded in Tier 1, carried by Tier 2, and then dropped: it appears in no tier from Tier 3 onward. Tier 6 reduced it in substance and never wrote the row down. Tier 7 found the gap while moving the claim register and the row is restored here, because a ledger that loses a row while the work goes well is worth more as a lesson than as an embarrassment.
 
-Four new rows, every one a limit. That is the expected shape of a control tier's ledger, and it is sharper here: this tier adds per-device identity and reduces `T0-W-02`, and the storage underneath that identity opens four rows at once. `T6-W-16` is the one the lab puts in front of you. `T6-W-17` is the one most likely to be skipped, because nothing in the lab fails when you exercise it, which is exactly why it is worth naming.
+Five new rows, every one a limit. That is the expected shape of a control tier's ledger, and it is sharper here: this tier adds per-device identity and reduces `T0-W-02`, and the storage underneath that identity opens four rows at once. `T6-W-16` is the one the lab puts in front of you. `T6-W-17` is the one most likely to be skipped, because nothing in the lab fails when you exercise it, which is exactly why it is worth naming. The fifth row, `T6-W-27`, comes from outside the storage work: it is the credential this course compiled into its own images.
 
 The manufacturing interface itself is residual attack surface: anyone with physical access and the BOOT button can reopen provisioning on an enrolled device. That is a deliberate trade for recoverability, named rather than hidden, and Advanced Tier A is where the debug and download paths around it are closed.
 
@@ -299,36 +310,39 @@ Three separately testable halves, which is why two controls support it rather th
 
 | ID | Requirement | Acceptance criterion | Supports |
 | --- | --- | --- | --- |
-| REQ-07 | Each device holds a private key that was generated on that device and never leaves it, and no credential enrols a second device in a device's name | The private key is present in no firmware image and in no other device's records, and a credential that has already enrolled one device is refused when it is presented for a second | SC-06 |
+| REQ-07 | Each device holds a private key that was generated on that device and never leaves it, and no credential enrolls a second device in a device's name | The private key is present in no firmware image and in no other device's records, and a credential that has already enrolled one device is refused when it is presented for a second | SC-06 |
 
 Add that row to your own requirement table before you record the controls under it.
 
 | Requirement | Control | What it does |
 | --- | --- | --- |
 | REQ-07 | CTL-08 | The device generates a non-exportable identity key and stores it through the limited Secure Storage configuration |
-| REQ-07 | CTL-09 | A unique one-use Bootstrap credential and an append-only manufacturing record, so no credential enrols a second device |
+| REQ-07 | CTL-09 | A unique one-use Bootstrap credential and an append-only manufacturing record, so no credential enrolls a second device |
 
 Supported: the key is generated on the device and is not present in any image, and a duplicate enrollment is refused at the station. Both were observed, the second on the host where the refusal is made.
 
-The gaps that keep it partly supported, and not supported: the key is recoverable from a flash dump by anyone with physical access and the published derivation, which is `T6-W-16`; a stored record can be replayed, which is `T6-W-17` and which no tier closes; and nothing at runtime yet requires the device to prove possession, which is `SC-04` and Tier 7. "Never leaves it" is true at the course API and network boundary and false at the flash boundary, and having the claim and its gap sit either side of that line is what makes the boundary visible.
+Three gaps keep it partly supported rather than supported. The key is recoverable from a flash dump by anyone with physical access and the published derivation, which is `T6-W-16`. A stored record can be replayed, which is `T6-W-17` and which no tier closes. And nothing at runtime yet requires the device to prove possession, which is `SC-04` and Tier 7. "Never leaves it" is true at the course API and network boundary and false at the flash boundary, and having the claim and its gap sit either side of that line is what makes the boundary visible.
 
 The claim you must not make is the one everybody reaches for first: that a device's identity cannot be copied to another device. The flash dump copies it, and you did exactly that in `E-6-05`. A claim whose headline verb is disproved by the tier's own bypass table teaches that claims are aspirations.
 
-**SC-04 stays unsupported, and it is worth a line why.** Nothing about status reports changed. The same forged report succeeds after this tier as before it, so calling it partial support would mean a status moved because work happened nearby. You have just watched a duplicate enrollment refused, which primes you to believe your status reports are now authentic. They are not, and `SC-04` sitting at unsupported in your own pack, straight after a tier that felt like a win, is the honest setup for Tier 7.
+**SC-04 stays unsupported, and it is worth a line why.** Nothing about status reports changed. The same forged report succeeds after this tier as before it, so calling it partial support would mean a status moved because work happened nearby. You have just watched a duplicate enrollment refused, which makes it easy to believe your status reports are now authentic. They are not, and `SC-04` sitting at unsupported in your own pack, straight after a tier that felt like a success, is the honest setup for Tier 7.
 
 One thing to explain rather than assume: `SC-06` was not in Tier 1's table. Tier 1 turned Tier 0 observations into claims, and at Tier 0 no credential existed to clone, so key uniqueness was not observable and no claim named it. `SC-04` came from the spoofing fixture because spoofing was observable. Adding a sixth claim now is not Tier 1 having made a mistake; it is a new observation producing a new claim, which is how the register is supposed to grow. `REQ-07` arrives the same way. A claim that did not exist in Tier 1 can have no requirement under it in Tier 1, so the requirement is stated here, in the tier that can show it being met.
 
 ## What this tier found in Tier 5
 
-A control tier is the first thing to exercise the previous tier's work in a new way, and five out of five have now found something.
+A control tier is the first thing to exercise the previous tier's work in a new way, and four out of four have now found something, counted the way [Tier 3 explains](../tier-03-signed-images/index.md#what-this-tier-found-in-tier-2).
 
-Tier 5 mounted its own NVS instance at the first byte of the `storage` partition, and explained at length why it used NVS directly. On its own that is correct, and it was validated on hardware as Tier 5, on the earlier nanoESP32-C6 1.0.
-
-Tier 6 is the first tier to also use that partition: it stores the Secure Storage key there, through the settings subsystem, whose own NVS instance takes its offset from the same first byte and cannot be moved. Both instances landed on the same bytes, and nothing detected it. `nvs_mount()` checks write block size, sector size and a minimum count, and nothing else, so both mounts returned zero and the damage did not even wait for a write. Tier 5 was the only user of the partition, so the fault could not exist until Tier 6 shared it. That is the instructive half: a correct, published, hardware-validated tier sat harmless until a later tier exercised the same resource in a new way, and this is exactly the mistake you will make for real when two subsystems quietly assume they own the same flash.
-
-It is fixed in Tier 6's own tree, in `recovery_state.c`, which stops mounting a second instance and writes through the one the settings subsystem already owns. Tier 5's published source is not changed, because a Learner following Tier 5 as written reaches no wrong conclusion. Validated on the earlier nanoESP32-C6 1.0: Tier 5's records coexist with Secure Storage in the one shared instance.
+**Two subsystems can own the same flash and both report success.** Tier 5 mounted its own NVS instance at the first byte of the `storage` partition. Tier 6 is the first tier to share that partition, because it stores the Secure Storage key there through the settings subsystem, whose NVS instance starts at the same byte and cannot be moved. Both instances landed on the same bytes and nothing detected it: `nvs_mount()` checks write block size, sector size and a minimum sector count and nothing else, so both mounts returned zero. A correct, published, hardware validated tier sat harmless until a later tier used the same resource. Tier 6 fixes it in its own tree, in `recovery_state.c`, which writes through the instance the settings subsystem already owns, and Tier 5's published source is not changed, because a Learner following Tier 5 as written reaches no wrong conclusion. Validated on the earlier nanoESP32-C6 1.0: Tier 5's records coexist with Secure Storage in the one shared instance.
 
 ## Update the Security evidence pack
+
+Create the Tier 6 evidence directory and copy the templates, from the repository root:
+
+```text
+mkdir -p evidence/learner/tier-06
+cp evidence/templates/tier-06/*.md evidence/learner/tier-06/
+```
 
 Add to your pack:
 
@@ -337,9 +351,11 @@ Add to your pack:
 - The proof-of-possession evidence: the certification request that carried the Bootstrap credential inside its signature.
 - The storage-boundary analysis: the `E-6-04` refusal, the `E-6-05` recovery, and the derivation that connects them.
 - The new `REQ-07` row in your requirement table, and your `control` records for `CTL-08` and `CTL-09`. Neither control was planned in Tier 1, because neither existed there, so both enter your records directly at `implemented` instead of moving from `planned`.
-- The four residual risks, `T6-W-16` to `T6-W-19`, each with its owner.
+- The five residual risks, `T6-W-16` to `T6-W-19` and `T6-W-27`, each with its owner.
 
 The provisioning record and the certificate fingerprint become `observed` once you have run enrollment on the board. Do not let the host clone result stand in for a device enrollment: they answer different questions.
+
+`E-6-04` is a device result and becomes `observed` only from your own board. `E-6-05` starts with a dump taken from your own board, so it becomes `observed` only when the key you recovered is your board's key. The clone and the station refusals are host results and they stay host results: they are evidence about the station, not about any device. Everything you did not run stays `pending`.
 
 ## Troubleshooting
 
@@ -358,7 +374,7 @@ If a refusal names a check you did not expect, stop and read the check before yo
 
 Tier 6 has no required Mentor review gate.
 
-You may still ask a Mentor to review the tier and one uncomfortable limitation. Show the clone working before hardening and the duplicate refused after. Explain which boundary moved, and name one thing an attacker who can dump the flash can still do. Then say plainly why `SC-04` is still unsupported after a tier that felt like a win. There is no grade.
+You may still ask a Mentor to review the tier and one uncomfortable limitation. Show the clone working before hardening and the duplicate refused after. Explain which boundary moved, and name one thing an attacker who can dump the flash can still do. Then say plainly why `SC-04` is still unsupported after a tier that felt like a success. There is no grade.
 
 ## Continue
 

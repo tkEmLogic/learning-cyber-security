@@ -12,9 +12,11 @@ It is correctly signed. It is your firmware, built by you, signed by your key, a
 
 The fleet went back to February. The hole is open again on every device you own.
 
-Nothing was forged. That is the part worth sitting with, because it means no signature check anywhere could have stopped it. Tier 3 asks who published an image. It has nothing to say about a release that is authentic and wrong.
+Nothing was forged. That is the part worth understanding, because it means no signature check anywhere could have stopped it. Tier 3 asks who published an image. It has nothing to say about a release that is authentic and wrong.
 
 This tier gives the device something to reason with. You will publish a Release manifest, signed with the same key, that says what a release actually is: which hardware it is for, which channel it belongs to, how big the image is, what its digest is, and a security counter that only ever moves forwards. Then you will make the application verify that manifest before it believes a single byte of it, and watch it refuse seven releases that Tier 3 would have installed without complaint.
+
+The cryptography primer defines the word that sentence leans on, in [Bytes, hashes and digests](../../cryptography-primer.md#bytes-hashes-and-digests).
 
 By the end you will have a device that refuses an authentic image, for six different stated reasons, and you will be able to say exactly which of those refusals is a security boundary and which is merely a convenience.
 
@@ -77,7 +79,7 @@ Note the last row before you begin. Everything this tier builds rests on that ke
 
 ### Predict
 
-Before running anything, write down your answers. You will compare them at the end.
+Before running anything, write down your answers. The Reveal section, after Test bypass attempts, answers all three.
 
 1. An attacker who owns your update service has no signing key. Name something damaging they can still do to a fleet of Tier 3 devices.
 2. Your device checks the signature on every image it installs. What does that signature tell it about whether the image is the right one to be running?
@@ -116,7 +118,7 @@ Step 2. Find an older release this environment actually produced.
      Its signature verifies. Nothing about this release is forged, edited, or expired,
 ```
 
-Sit with step 2. There is no attack in it. The release is yours, the signature verifies, the bytes are untouched, and every check Tier 3 added would pass. The only thing wrong with it is that it is older than the one the device is running, and on a Tier 3 device nothing anywhere knows that.
+Look closely at step 2. There is no attack in it. The release is yours, the signature verifies, the bytes are untouched, and every check Tier 3 added would pass. The only thing wrong with it is that it is older than the one the device is running, and on a Tier 3 device nothing anywhere knows that.
 
 That is `T0-W-06`, and it is why a signature is not a release policy.
 
@@ -197,6 +199,8 @@ The signature covers these exact bytes. Reformatting the file breaks it,
 which is why the device verifies the bytes before it parses them.
 ```
 
+A handful of short names appear in that output. `SHA-256`, `ECDSA`, `P-256`, `ASN.1` and `DER` are all in the primer's [Names you will meet](../../cryptography-primer.md#names-you-will-meet) table. `TLV` is not on that page, because it is not a cryptography name: it stands for tag, length, value, which is how MCUboot stores small labeled fields beside an image. The security counter is one of those fields.
+
 Three things in that output are the whole tier.
 
 **One key, two signatures, two different claims.** The same `release.pem` signs the image through `imgtool` and the manifest through a plain ECDSA operation. The image signature says who built this code. The manifest signature says who described this release. They are different sentences about different bytes, and the device checks them with two separate verifiers that never consult each other.
@@ -235,7 +239,7 @@ Tier 4 boot mode: signed MCUboot images, swap using offset, permanent upgrade
 Tier 4 downgrade prevention: by security counter, enforced by the bootloader
 ```
 
-Those two hardware lines are worth a minute. The silicon revision is real and readable: `efuse_hal_chip_revision()` asks the chip and it answers `v0.1`. The product hardware revision is not readable at all, on this part or any other, because nothing in the silicon knows which board it was soldered into. So it is asserted by the build and signed into the manifest.
+Those two hardware lines are worth a careful look. The silicon revision is real and readable: `efuse_hal_chip_revision()` asks the chip and it answers `v0.1`. The product hardware revision is not readable at all, on this part or any other, because nothing in the silicon knows which board it was soldered into. So it is asserted by the build and signed into the manifest.
 
 That is the general shape of product identity. It is something you assert and then protect, not something you read. A device that trusted a hardware revision it discovered at runtime would be trusting whatever could set it.
 
@@ -248,7 +252,7 @@ ota.assignment this device believes neither; they are the service's claims
 ota.assignment about itself. Only release_id is used, to know what to ask about.
 ```
 
-The record has not changed since Tier 0. It is still mutable, still writable by one unauthenticated request, and it still carries `"signed": true`, which Tier 3 pointed at and called the service's claim about itself. What changed is that the device stopped believing it. It reads one field, to know which release to go and ask about, and gets every fact from the signed manifest instead.
+The record has not changed since Tier 0. It is still mutable, still writable by one unauthenticated request, and it still carries a `signed` field that decides nothing: the service overwrites it with `false` whatever a publisher claims, and nothing verifies it either way. What changed is that the device stopped believing any of it. It reads one field, to know which release to go and ask about, and gets every fact from the signed manifest instead.
 
 ### Build the second release
 
@@ -285,7 +289,7 @@ I: course: slot=secondary header=ok tlv=ok signature=present key=match counter=2
 I: course: slot=primary   header=ok tlv=ok signature=present key=match counter=2
 ```
 
-Four lines in there are the tier in miniature.
+Four lines in there hold the whole of this tier.
 
 `release.verified nothing has parsed these bytes yet; that is the point` is the ordering the specification requires. The signature is checked against the bytes exactly as they arrived, before any field is read out of them. A device that parsed first and verified afterwards would already have acted on attacker-controlled structure.
 
@@ -464,6 +468,18 @@ Record the actual result yourself. If one surprises you, write down what you saw
 
 `E-4-07` needs no device at all. It is `T3-W-11`, unchanged by this tier.
 
+## Reveal
+
+Compare these against what you predicted.
+
+1. They can put an old release back. The replay fixture re-assigns a release you published yourself, and step 2 of its output is the answer: `tier-04-baseline, security_counter 1`, whose "signature verifies. Nothing about this release is forged, edited, or expired". On a Tier 3 device every check passes, because the only check is who signed the image, and a release you signed last year is still signed by you. That is `T0-W-06`, and a fleet sent back to a version whose defects are published is the damage.
+2. Nothing at all. The signature says who made the image. It says nothing about whether this is the release the device should be running now, for this hardware, on this channel, at this size. Before the work in this tier, "one comparison decides everything on that path, and it is a string comparison on an identifier the attacker chooses", and the bootloader "can answer exactly one question: was this signed by the key I hold". A signature is not a release policy.
+3. The device remembers nothing, and this tier gives it nowhere to remember. The security counter travels inside the signed image and inside the signed Release manifest, and the bootloader compares the candidate against the counter in the image that is in the primary slot right now. You watch it happen in the `counter-mismatch` run: `slot=secondary` reports `counter=1`, the bootloader prints `Image 0 in slot 1 erased due to downgrade prevention`, and `slot=primary` reports `counter=2`. The fixture states the same fact as its own precondition: "the counter is compared, never remembered, and the comparison lives in flash an attacker can rewrite."
+
+The wrong answer most engineers give is to question 3, and it is that the device keeps the highest counter it has ever seen, written to non-volatile storage after every successful install. It is the design most people have seen, and it is not this one, which is why the tier is built around watching the comparison rather than around a stored value. Two rows in the ledger only make sense once you stop expecting a stored value. `T4-W-12` exists because a device whose primary image carries no counter has nothing to compare against, so the first install after the transition is unprotected, which is `E-4-06`. `T4-W-13` exists because both copies of the number live in flash, so whoever can rewrite the primary slot chooses what the device thinks it is running. A remembered counter would have different weaknesses. This one has these.
+
+This section was added after Tier 4 was published. If you worked the tier before it existed, your three written answers are checkable now.
+
 ## Weakness ledger after the work
 
 This is the result you should expect to observe. If you observed something else, record that instead and work out why.
@@ -504,21 +520,34 @@ Four claims you must not make at the end of this tier:
 - That downgrade is impossible. It is refused. A physical attacker who can rewrite the primary slot chooses the reference the comparison uses.
 - That a signed manifest makes a release correct. It makes it authentic. Five of the seven releases you just refused were signed by your own key, and the device could not tell them from a leaked one.
 
+## What this tier found in Tier 3
+
+Two control tiers out of two have now found something in the tier before them, counted the way [Tier 3 explains](../tier-03-signed-images/index.md#what-this-tier-found-in-tier-2).
+
+**A published transcript can be evidence for something that never happened.** Tier 3's hostile release fixture narrated the record as claiming `"signed": true`, and said that nothing checks it. The update service never stored that claim. It overwrites the field with `false` on every publish, which is why the record you read in Tier 0 says `"signed": false`, so Tier 3 described a record no service would ever hold and a Learner could have shown that page wrong with a single request. Nothing broke, because nothing reads the field either way, which is exactly why it stood for a whole tier. Tier 3's fixture now narrates what actually happens, and this tier takes nothing from that record except `release_id`.
+
 ## Update the Security evidence pack
 
+Create the Tier 4 evidence directory and copy the templates, from the repository root:
+
 ```text
-./course evidence init --tier 04
+mkdir -p evidence/learner/tier-04
+cp evidence/templates/tier-04/*.md evidence/learner/tier-04/
 ```
 
 Record:
 
 - The seven refusal observations and the good install, each with the check that refused it. These become `observed` only when you watched them on the board.
-- Your version policy decision table, which is your own work. The companion page has one worked model to compare against, not a marking scheme.
+- Your version policy decision table, which is your own work. The companion page has one worked model to compare against, not a list of correct answers.
 - The `SC-02` claim record, moved from `unsupported` to `partly_supported`, with both gaps named.
 - Your `control` records for `CTL-02`, moved from `planned` to `implemented`.
 - The two new weaknesses, `T4-W-12` and `T4-W-13`, with owners.
 
-Every refusal row must come from a board you watched. A host result never stands in for a device result, and in this tier the distinction has teeth: the fixtures deliberately cannot tell you what the device did, and they say so.
+Which records become `observed`: the refusal rows and the good install, once you have watched each one on the board. Which stay `pending`: every row you did not run on hardware. `E-4-07` is the one row that is never `observed`, because it is a conclusion you can reach without running anything, and recording reasoning as an observation makes the record false.
+
+Your version policy decision table is reasoning rather than observation, so it is never `observed` either. It is still evidence, and the Mentor review gates ask for it.
+
+Every refusal row must come from a board you watched. A host result never stands in for a device result, and in this tier that distinction decides what you may write down: the fixtures deliberately cannot tell you what the device did, and they say so.
 
 ## Troubleshooting
 
@@ -529,7 +558,7 @@ Every refusal row must come from a board you watched. A host result never stands
 | The replay fixture refuses to run | It requires a signed Tier 4 release to be assigned and an older one with a strictly lower counter to exist. Build and sign the second variant |
 | `counter-mismatch: skipped` | Only one signed release exists, so there is no older image for it to point at. Sign the second variant |
 | A downgrade installs when you expected the bootloader to stop it | The image in the primary slot carries no security counter, so MCUboot allowed the swap. This is `T4-W-12` and it is expected before the first counter-carrying image is primary |
-| The board reports `ota.request failed err=-113` | The response was too large for the device's TLS buffer, whatever the handshake line above it says. `CONFIG_MBEDTLS_SSL_MAX_CONTENT_LEN` must be 16384 |
+| The board reports `ota.request failed err=-113` | In this tier that is usually not a transport fault. The device's own response callback refused the download, and the HTTP client aborts the connection and reports the abort, so the refusal arrives as `-113`. Read the `release.refused check=...` line printed just before it, which names what refused |
 
 Involve a Mentor when a refusal names a check you did not expect. Bring the board's serial record and the manifest the service served, because the two together usually answer it in a minute.
 
@@ -539,11 +568,11 @@ Tier 4 has no required Mentor review gate. Section 13 of the specification names
 
 If you want one, the most useful thing to show is `counter-mismatch`: the application accepting a release and the bootloader refusing the same release. Then explain, in your own words, which of the two is the security boundary and what would still be true if you deleted the other.
 
-The question worth being asked is the same one every control tier should ask. Name three things an attacker who completely owns your update service can still do to your fleet. A Learner who cannot name one has overread the control.
+The question worth being asked is the same one every control tier should ask. Name three things an attacker who completely owns your update service can still do to your fleet. A Learner who cannot name one has read more into the control than it does.
 
 ## Continue
 
-Next: **Tier 5: Make installation recoverable**.
+Next: **[Tier 5: Make installation recoverable](../tier-05-recovery/index.md)**.
 
 Your device now refuses the wrong release. It still has no way back from a bad one. Every install in this tier is permanent, requested as `BOOT_UPGRADE_PERMANENT` on purpose, and an image that verifies perfectly and then fails to work leaves the device with nothing to fall back to.
 

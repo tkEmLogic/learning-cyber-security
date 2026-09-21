@@ -93,6 +93,8 @@ Before you run anything, write down:
 2. Which component decides whether downloaded firmware may run?
 3. Which observation cannot be made without a physical device?
 
+Each answer arrives in this tier's own output. Question 1 is answered by the `Expected insecure effect` and `Weaknesses this demonstrates` lines that every fixture prints in its dry run below. Question 2 is answered in the Tier 0 path under Investigate the missing boundaries, where unsigned MCUboot runs whatever arrives. Question 3 is answered in Watch the device accept the altered image, which is the one step that needs a physical ESP32-C6.
+
 ### Look before you act
 
 Every attack is a dry run until you add `--execute`. Always look first:
@@ -156,7 +158,7 @@ No authenticated trust boundary exists anywhere in this path.
 
 The Reference product joins one Wi-Fi network and talks to one service address. You supplied both to `./course setup` on the landing page.
 
-Both values are compiled into the firmware image. Tier 0 has no way to change them on the device. That is itself a limitation worth noticing: a device that cannot be reconfigured also cannot be recovered by reconfiguring it.
+Both values are compiled into the firmware image. Tier 0 has no way to change them on the device. That is itself a limitation worth noticing: a device that cannot be reconfigured also cannot be recovered by reconfiguring it. The passphrase for that network is compiled in with the address, so every image you build holds it, and [Tier 6](../tier-06-factory-identity/index.md) returns to what that means.
 
 If you gave a loopback address, a physical board cannot reach the service. Run setup again with your machine's private address before you build.
 
@@ -196,7 +198,7 @@ Attach one board, then run:
 ./course device flash
 ```
 
-The command refuses to continue when no board is attached, or when more than one Espressif board is attached. It writes normal flash only. It runs no eFuse, secure boot, or flash encryption command.
+The command refuses to continue when no board is attached, or when more than one Espressif board is attached. It writes normal flash only. It runs no eFuse, secure boot, or flash encryption command. An eFuse is a bit inside the chip that can be written only once, so nothing in the core course blows one.
 
 Watch the device:
 
@@ -263,6 +265,8 @@ Step 1. Ask the service which firmware release it is handing out.
 Then it downloads the image itself and prints the first bytes.
 
 Look at what you just learned about a product you did not write: its version, its board, the exact size and digest of its firmware, and the fact that `signed` is `false`. An attacker learns the same things, in one request, without touching the device.
+
+Digest is the first cryptography word this course uses, and the [cryptography primer](../../cryptography-primer.md#bytes-hashes-and-digests) defines it. Read that one section now if the word is new to you. The rest of the primer is required reading before Tier 2, and you do not need it yet.
 
 This is `T0-W-01`. Tier 2 closes it with HTTPS.
 

@@ -78,7 +78,11 @@ a control tier. Do not ask it a third time.
 
 ## Section order
 
-Every section is required in every variant.
+Every section is required in every variant, except section 11a, `## Reveal`,
+which a tier carries only when its Predict owes one. Its heading and its slot
+are fixed when it is there. "Where Predict goes" below says when a tier owes
+one. It is numbered 11a rather than 12 so that every other number in this list,
+and every reference to one elsewhere, keeps its meaning.
 
 The list binds in two different strengths, and the difference is the one thing
 to understand before writing a module.
@@ -120,6 +124,7 @@ two numbering schemes collide and both are in use here.
 | 9 | `## <name the work this tier performs>` | Tier-named |
 | 10 | `## Replay the <attack or observation>` | Tier-named |
 | 11 | `## Test bypass attempts` or `## Test safety and failure behavior` | Tier-named |
+| 11a | `## Reveal` | Fixed, and optional |
 | 12 | `## Weakness ledger after the work` | Fixed |
 | 13 | `## Security claim and evidence status` | Fixed |
 | 14 | `## What this tier found in <the earlier tier or tiers>` | Tier-named |
@@ -150,11 +155,45 @@ The reason section 7 is the default home is that a control tier's answers arrive
 as real output rather than as a page to compare against, which holds while the
 questions are about the attack and stops holding when they are about the tier.
 
-A lifted Predict must be paired with a closing section that answers every
-question it opened. Tier 5 does this: `## Predict` near the top and `## Reveal`
-near the end, four questions asked and four answered. A lifted Predict with no
-close leaves the Learner holding written answers that nothing ever checks, which
-is worse than not asking.
+**A written commitment creates the debt, not the sentence that promises to
+settle it.** Asking a Learner to write an answer down is itself the promise.
+"You will compare them at the end" and a bare "write down your answers" owe the
+same thing, so deleting the promise sentence is not a repair. A Learner who
+wrote four answers down does not care which verb the page used.
+
+**The span of the question decides where the debt is discharged, and there are
+two places.**
+
+A question that the command the Learner is about to run answers **closes itself
+where the output lands**. The Predict says so in one sentence, naming the
+section whose output carries each answer. There is no closing section, because
+one would restate output a screen above it. Tier 0 and Tier 2 work this way.
+
+A question about the tier as a whole owes **`## Reveal`**, placed after section
+11 and before section 12. Tier 5 and Tier 6 both chose that heading and that
+slot independently, and Tiers 3, 4 and 7 were brought to it. A tier that
+publishes a companion answers page may discharge there instead, in a section of
+its own before the exercises, which is what Tier 1 does.
+
+**A Reveal answers, then corrects.** One or two lines per question, each answer
+read out of the module's own quoted output and evidence identifiers rather than
+written from memory. Then one paragraph naming the wrong answer most engineers
+give and why the tier is built to correct it. Roughly 150 to 250 words. This
+does not break the one-fact-one-place check below, because a Reveal is not
+restating the demonstration, it is scoring a commitment. A Reveal that only
+points at section numbers is an index, and it gives a Learner who got it wrong
+nothing.
+
+**Position and closure are independent.** Whether Predict is lifted to a
+level-2 section is decided by span alone. Whether it owes a close is decided by
+the commitment. The two rules do not interact, and a `### Predict` inside
+section 7 may be closed by a level-2 `## Reveal` near the end, as long as the
+Predict names it.
+
+**A repaired tier admits the repair in one line.** A published tier must not
+change under a Learner, and someone who worked that tier last month wrote
+answers down. One line at the end of the Reveal tells them the answers exist
+now. One line is enough for a fact that ages out.
 
 ## Show the mechanism, not the verdict
 
@@ -216,6 +255,16 @@ near its neighbours. Check the highest number in use across all modules before
 adding a row. Sorting the identifiers by prefix hides a collision, because two
 rows from different tiers can share a number; sort by the number instead.
 
+**A row is admitted cause-blind.** A weakness earns a row when a risk is still
+present in the product the Learner carries forward and can be stated as an
+attack vector plus an expected result. Whether the cause was a security defect
+or an ordinary engineering choice is irrelevant, because the ledger records what
+remains true, not how it got there. A fixed bug is not a weakness, however much
+it cost to find. This is the test that admits `T5-W-26`, a row produced entirely
+by a non-security defect, and `T5-W-15`, a Zephyr watchdog driver quirk, without
+special pleading for either. The reasoning is in
+[`docs/adr/0002-findings-in-learner-facing-material.md`](../adr/0002-findings-in-learner-facing-material.md).
+
 **7. Reproduce the attack or observation.** Opens with `### Predict` and a
 numbered list of questions the Learner answers before running anything. Then a
 `### Look before you act` subsection showing a dry run. Then **one subsection
@@ -264,22 +313,61 @@ the Learner should expect to observe. Label it that way, so a Learner who
 observes something else knows they went wrong. The Learner's own ledger lives
 in their workspace under `evidence/learner/`, never in the wiki.
 
+New rows are admitted by the cause-blind test in section 6. **Prose under the
+table is held to a narrower test.** It earns its place only when the choice is
+counter-intuitive: when the honest engineering looks worse than the broken
+version, and a Learner would otherwise read the row as a bug nobody fixed.
+Otherwise the row stands alone. Tier 5 has one passage that passes this test,
+under `T5-W-26`, and it is the clearest statement in that tier that a message
+repeated until it is wrong is not more reliable than a message sent once.
+
 **13. Security claim and evidence status.** The claim in bold with its
 identifier, then the conditions for supported, partly supported, and
 unsupported. State any claim the Learner must not make, and why.
 
 **14. What this tier found in the earlier tiers.** What exercising the previous
-tier's work in a new way turned up, one bold lead sentence per finding and a
-short paragraph under it. Say for each one whether this tier fixed it, named it
-as a limit, or handed it to a later tier, and name that tier. A finding that
-belongs to an earlier tier's code says so, so a Learner who meets the symptom
-knows where it lives.
+tier's work in a new way turned up, one bold lead sentence per finding and one
+short paragraph under it, roughly 100 words. The lead sentence states the
+transferable lesson, not the symptom. Say for each finding whether this tier
+fixed it, named it as a limit, or handed it to a later tier, and name that tier.
+A finding that belongs to an earlier tier's code says so, so a Learner who meets
+the symptom knows where it lives.
 
-This section exists because "Expect to find a bug in the previous tier" below
-turned out to be true in every control tier so far, and three modules invented
-the same heading in the same place before it was written down here. Omit it only
-when the tier genuinely found nothing, and say that in one line rather than
-leaving the section out silently.
+**Most of what a tier finds does not belong here.** A finding is admitted only
+when both halves hold: it changes what a Learner believes about a trust
+boundary, a control's reach or the trustworthiness of evidence, **and** it was
+silent while that belief was false. A defect that fails loudly the first time it
+is exercised teaches debugging, not security, however many days it cost. Expect
+this section to be short, and expect most of a tier's debugging to appear
+nowhere a Learner can see. That is the intended outcome, not an omission.
+[`docs/adr/0002-findings-in-learner-facing-material.md`](../adr/0002-findings-in-learner-facing-material.md)
+records the decision and works through the examples.
+
+**No finding is written twice.** Where a Weakness ledger row, an earlier tier's
+body or another tier's section 14 already carries a finding, name it in one line
+and link to it rather than retelling it. Telling the same story a third time is
+duplication, not emphasis.
+
+**A defect the Learner cannot reproduce has no learner-facing home.** The
+Learner does not write the firmware, they build the tree they are given, so a
+defect already fixed in that tree is one they can never meet. If the symptom is
+still reachable, it earns one Troubleshooting row in the tier where it appears,
+and nothing more. If it is not, the commit and the tracker issue are the record.
+A one-line mention here is not a compromise: it reintroduces the bug diary at
+lower resolution and still spends the Learner's attention on a bug they cannot
+hit.
+
+**The section is never omitted from a tier that has something to exercise.** A
+tier that found nothing says so in one line, and says why. Tier 2 is the worked
+example, because Tier 1 handed it a threat model rather than an implementation,
+so there was nothing in it to break. The duty begins at Tier 2 for the same
+reason the counting rule does: a Baseline tier has no earlier tier at all, and
+an Analysis tier runs nothing, so neither can exercise a predecessor's work in a
+new way. Tier 0 and Tier 1 carry no section 14 and are not departures. Every
+Control tier carries one. The
+section exists because three modules invented the same heading in the same place
+before it was written down here, and because leaving it out silently is what let
+Tiers 2, 3 and 4 read as if they had found nothing at all.
 
 **15. Update the Security evidence pack.** The commands that create the Learner
 evidence directory and copy templates, then a bullet list of what to record.
@@ -324,9 +412,10 @@ the Learner has just spent the tier running it.
 is the failure mode of every control tier, not just one of them, and the
 specification names it as the stated failure criterion for several. Tier 3 asks
 the Learner to name three things an attacker who owns the update service
-completely can still do. A Learner who cannot name one has overread the control,
-and the question finds that out in seconds without anyone feeling caught out,
-which section 13 of `docs/course-specification.md` explicitly asks for.
+completely can still do. A Learner who cannot name one has read more into the
+control than it does, and the question finds that out in seconds without anyone
+feeling tested, which section 13 of `docs/course-specification.md` explicitly
+asks for.
 
 Section 13 of `docs/course-specification.md` already fixes the rest: the three
 outcomes, that only safety and dependency prerequisites may block progress, and
@@ -440,7 +529,7 @@ shipped without that exercise existing.
 
 Tier 3 found that Tier 2's HTTPS client cannot receive a response larger than
 2 KB. Every response Tier 2 ever fetched was small JSON, so nothing noticed, and
-a firmware image arrives in 16 KiB TLS records. Tier 2's published behaviour was
+a firmware image arrives in 16 KiB TLS records. Tier 2's published behavior was
 never wrong, and a Learner who went looking would have hit it with a symptom
 pointing nowhere near the cause.
 
@@ -448,16 +537,21 @@ Budget time for this, and when it happens, decide deliberately whether to fix
 the published tier or to name the limit. Do not fix it silently: a published
 tier changing underneath a Learner is its own problem.
 
-Five out of five have now found something, which is why this has a section of
-its own. Write what you found in section 14, not in a paragraph buried in
-section 12.
+Count only control tiers whose predecessor built something. Tier 2 could find
+nothing in Tier 1, which produced a threat model rather than an implementation,
+so the count starts at Tier 3. On that count, five control tiers out of five
+have found something, which is why this has a section of its own. State the
+counting rule in one tier only: Tier 3 states it, and later tiers give the
+number and link back. Write what you found in section 14, not in a paragraph
+buried in section 12, and admit it there by the test section 14 sets out.
 
-**Predict and reveal did not carry over, and that is fine.** Unchanged from
-Tier 2. A control tier's work is running and reading, and its answers arrive as
-real output rather than as a page to compare against. Tier 3 opens section 7
-with `### Predict`, as the template requires, and publishes no answers page. Do
-not add one to a control tier unless the tier asks the Learner to design
-something.
+**A control tier publishes no companion answers page.** Unchanged from Tier 2.
+A control tier's work is running and reading, and its answers arrive as real
+output rather than as a page to compare against. Tier 3 opens section 7 with
+`### Predict`, as the template requires, and publishes no second page. Do not
+add one to a control tier unless the tier asks the Learner to design something.
+This says nothing about whether the Predict is closed. Every Predict is closed,
+and "Where Predict goes" above says where.
 
 ## Companion answers page
 
@@ -472,10 +566,11 @@ Rules for an answers page:
   exercise, in the order the tier asks them.
 - The module links to it, and it links back to the module.
 - Every answer shows the wrong version beside the right one. The wrong versions
-  are the answers engineers actually write, not strawmen, and each one carries
-  the reason it fails.
-- The page states that it is one worked model and not a marking scheme, and
-  tells the Learner to record the differences rather than copy the answer.
+  are the answers engineers actually write, not weak answers invented to be
+  easy to reject, and each one carries the reason it fails.
+- The page states that it is one worked model and not a list of correct
+  answers, and tells the Learner to record the differences rather than copy the
+  answer.
 
 ## Skeleton
 

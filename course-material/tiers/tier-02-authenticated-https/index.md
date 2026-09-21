@@ -2,7 +2,7 @@
 
 ## Scenario
 
-A maintenance engineer sits down in the factory canteen, joins the same Wi-Fi network as the beacons, and runs one command.
+A maintenance engineer sits down in the factory cafeteria, joins the same Wi-Fi network as the beacons, and runs one command.
 
 In ninety seconds she has the exact firmware version every beacon is running, the size and digest of the image, and the fact that nothing is signed. She did not attack anything. She asked, and the service answered, because in Tier 0 the service answers anyone.
 
@@ -10,9 +10,9 @@ Then she does the second thing. She starts her own service on her laptop, at the
 
 Neither of those needed a password, an exploit, or any unusual skill. Both worked because nothing in the conversation between a beacon and the update service proves who is speaking.
 
-This tier fixes exactly that, and nothing else. The device will check who answered before it believes anything, and the conversation will be encrypted so that nobody in the canteen can read it.
+This tier fixes exactly that, and nothing else. The device will check who answered before it believes anything, and the conversation will be encrypted so that nobody in the cafeteria can read it.
 
-Be clear about what that does not do. After this tier the update service is authenticated, and a firmware image is still just bytes the service happened to send. If someone takes over the real service, it will hand out hostile firmware over a perfectly valid, fully encrypted, correctly verified connection, and the device will install it. Transport trust and publisher trust are different things, and this tier buys only the first one. Tier 3 buys the second.
+Be clear about what that does not do. After this tier the update service is authenticated, and a firmware image is still just bytes the service happened to send. If someone takes over the real service, it will hand out hostile firmware over a perfectly valid, fully encrypted, correctly verified connection, and the device will install it. Transport trust and publisher trust are different things. This tier gives you the first one only, and Tier 3 gives you the second.
 
 In this tier you will:
 
@@ -49,6 +49,10 @@ The packet capture in this tier is bounded: one interface, only the two course s
 ## Starting state
 
 You need your finished Tier 1 work. Tier 2 continues in the same Course workspace, on the same branch.
+
+You need to have read the [cryptography primer](../../cryptography-primer.md), which takes about twenty minutes. This tier uses key pair, certificate, certificate authority, chain and trust anchor from its first page and does not stop to define them.
+
+This tier also uses four short names without expanding them. `TLS`, `ECDSA` and `SAN` are in the primer's [Names you will meet](../../cryptography-primer.md#names-you-will-meet) table, and `CA` is the short form of certificate authority, which the primer covers in [Certificate authorities, chains and trust anchors](../../cryptography-primer.md#certificate-authorities-chains-and-trust-anchors).
 
 You need the dev container. Tier 2 needs two things Tier 0 did not, so rebuild the container before you start: a published TLS port, and the `NET_RAW` capability that packet capture needs. Both are already in whichever dev container configuration you opened; you only have to rebuild.
 
@@ -98,7 +102,7 @@ Before you run anything, write down:
 3. If the connection were encrypted but nobody checked who answered, which of the two attacks would still work?
 4. If the device checked who answered but the connection were readable, which would still work?
 
-Questions 3 and 4 are the point of this tier. Encryption and authentication are two different properties, they fail separately, and a control that provides one is regularly described as if it provided both.
+Questions 3 and 4 are the point of this tier. Encryption and authentication are two different properties, they fail separately, and a control that provides one is regularly described as if it provided both. Each pair of answers closes where its output lands. Questions 1 and 2 close in the Look before you act run below, where both Tier 0 attacks succeed again. Questions 3 and 4 close in Replay the attacks against the control, where the same two attacks fail at two different checks.
 
 ### Look before you act
 
@@ -187,13 +191,13 @@ Two details in that block decide how the rest of this tier behaves.
 
 The name is `ota.course.example`. The `.example` domain is reserved and can never resolve anywhere on the internet, which is deliberate: this name exists to be compared, not to be looked up. Your device has no DNS resolver, and this tier does not give it one. It connects to a literal address, exactly as it did in Tier 0, and then requires the certificate presented there to carry this name.
 
-The IP address list is empty, and that is also deliberate. A certificate can name addresses as well as names, and this one does not. So a client that connects by address and never states the name it expects has nothing to match, and fails. That failure is not friction to work around. It is the mistake this tier is about, and you will watch it happen on purpose.
+The IP address list is empty, and that is also deliberate. A certificate can name addresses as well as names, and this one does not. So a client that connects by address and never states the name it expects has nothing to match, and fails. That failure is not an obstacle to work around. It is the mistake this tier is about, and you will watch it happen on purpose.
 
 ### The one thing you must never do with this material
 
 Every private key lives in `.course-secrets/pki`. The directory is ignored by Git and the repository checks for committed secrets on every run.
 
-The authority you just made can issue a certificate for any name at all. In this lab that is harmless, because exactly one device trusts it. The habit of knowing where a signing key lives, and who could use it, is the habit Tier 3 will hold you to when the key in question decides what code runs.
+The authority you just made can issue a certificate for any name at all. In this lab that is harmless, because exactly one device trusts it. The habit of knowing where a signing key lives, and who could use it, is the habit Tier 3 will expect from you when the key in question decides what code runs.
 
 ## Add the check to the device
 
@@ -222,9 +226,9 @@ Zephyr already requires verification for clients, and sets an empty hostname whe
 
 Third, the trust anchor. `tls_credential_add` registers the Course certificate authority under a tag, and the socket options above point at that tag. The authority is compiled into the image, in the same way the Wi-Fi passphrase already is, by `./course build firmware`.
 
-Note what the credential store does, because it catches people: it keeps a pointer to your certificate rather than a copy, so the array has to have static storage. If you moved it onto a stack, the handshake would read freed memory.
+Note what the credential store does, because it is easy to get wrong: it keeps a pointer to your certificate rather than a copy, so the array has to have static storage. If you moved it onto a stack, the handshake would read freed memory.
 
-One option in `prj.conf` is worth a moment, because it is not obvious and it has already cost an afternoon. `CONFIG_MBEDTLS_SSL_MAX_CONTENT_LEN` is set to 16384, which is the largest a TLS record is allowed to be. Every response this tier fetches is small JSON, so 2048 fits all of them, and 2048 is what this file said at first. But the peer decides how large a record it sends, and a firmware image arrives in full sized ones. Tier 3 is the first tier to download an image over this connection, and it found the limit the hard way: the transfer is refused before a single byte reaches the flash, and the failure reads `err=-113` on the line after a handshake the same log says succeeded. Sizing a buffer for the traffic you have seen so far is a reasonable thing to do and a miserable thing to debug afterwards.
+One option in `prj.conf` is worth naming: `CONFIG_MBEDTLS_SSL_MAX_CONTENT_LEN` is set to 16384, the largest size a TLS record may have, because the peer decides how large a record it sends and [Tier 3 found what happens when this buffer is smaller](../tier-03-signed-images/index.md#what-this-tier-found-in-tier-2).
 
 Build the image:
 
@@ -368,7 +372,7 @@ It holds a certificate for the right name. The device configuration is pointed a
      The name was right. The address was right. Neither was enough, and that is the whole point.
 ```
 
-In Tier 0 this attack needed nothing but an address. Now it needs a private key that does not exist outside `.course-secrets/pki`, and an attacker who has that has already won a different game.
+In Tier 0 this attack needed nothing but an address. Now it needs a private key that does not exist outside `.course-secrets/pki`, and an attacker who holds that key has already broken something larger than this control.
 
 `T0-W-03` is closed.
 
@@ -456,7 +460,7 @@ ota.tls  compared: the certificate names against ota.course.example
 ota.tls no release data was read, and the running image is unchanged
 ```
 
-Compare the two flag values. `0x08` is the chain check failing and `0x04` is the name check failing. They are different bits because they are different checks, and the device tells you which one ran out of patience with you.
+Compare the two flag values. `0x08` is the chain check failing and `0x04` is the name check failing. They are different bits because they are different checks, and the device tells you which one refused you.
 
 Read the last line of each block. The device refused, read nothing, and kept running the image it already had. A device that fails an update check and keeps working is behaving correctly. One that stops is a different bug.
 
@@ -467,7 +471,7 @@ Now put the real certificate back and watch it recover:
 ./course service start --https
 ```
 
-The board returns to `ota.tls verified` on its next poll. The refusal was not a state the device got stuck in, and that matters: a control that cannot recover from a bad day in the field is an availability problem wearing a security badge.
+The board returns to `ota.tls verified` on its next poll. The refusal was not a state the device got stuck in, and that matters: a control that cannot recover from a temporary failure in the field has stopped being a security control and become an availability problem.
 
 Record your results:
 
@@ -515,6 +519,10 @@ Three claims you must not make at the end of this tier:
 
 Run `./course device status` to see which hardware results the course currently claims.
 
+## What this tier found in Tier 1
+
+Nothing, and the reason is worth a line. Tier 1 produced a threat model rather than an implementation, so this tier had nothing in it to break. A reasoning tier hands you a plan to check your own work against, and a plan has no code in it that a later tier can exercise and find wrong.
+
 ## Update the Security evidence pack
 
 Create the Tier 2 evidence directory and copy the templates:
@@ -557,7 +565,7 @@ Tier 2 has no required Mentor review gate. The next one is after Tier 3.
 
 If you do ask for a conversation, show the board refusing both bypass certificates and explain which check refused each one.
 
-Then explain the thing this tier is most often got wrong: why an authenticated connection says nothing about whether the firmware on it is genuine. If you can explain that clearly, you are ready for Tier 3. If you cannot, Tier 3 will be a list of steps rather than a lesson.
+Then explain the thing engineers most often get wrong about this tier: why an authenticated connection says nothing about whether the firmware on it is genuine. If you can explain that clearly, you are ready for Tier 3. If you cannot, Tier 3 will be a list of steps rather than a lesson.
 
 One prepared failure worth working through together: a device that verifies the certificate chain but never sets a hostname. Ask what it would accept, and how you would notice.
 

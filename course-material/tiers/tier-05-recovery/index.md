@@ -12,7 +12,7 @@ Nothing was forged, nothing was replayed, and every control you have built worke
 
 `T0-W-07` has been open since Tier 0 saying precisely this. The fallback path physically exists: the course has used MCUboot's swap-using-offset mode in every tier, so the displaced image is written into the secondary slot on every install. No tier has ever taken that path. Tier 0 said a path you never take is not a recovery mechanism, and four tiers later it still is not one.
 
-This tier makes the device sceptical about its own success. It will install on trial rather than permanently, judge itself for sixty seconds, and put the old image back on its own if it cannot prove it works. It will also learn to survive being interrupted: a download that stops halfway will resume rather than start again, which matters because the thing most likely to interrupt an update is not an attacker.
+This tier makes the device skeptical about its own success. It will install on trial rather than permanently, judge itself for sixty seconds, and put the old image back on its own if it cannot prove it works. It will also learn to survive being interrupted: a download that stops halfway will resume rather than start again, which matters because the thing most likely to interrupt an update is not an attacker.
 
 By the end you will have reverted a device four different ways, and you will be able to say which of those four the device could explain and which it could not.
 
@@ -91,7 +91,7 @@ Your Tier 4 device will take it. Every check passes, because there is nothing wr
 
 Watch it install and watch what you are left with. The device swaps the broken image into the primary slot, reboots, and faults. The image that worked is gone, because the swap was permanent.
 
-This is `T0-W-07`, and it is worth sitting with for a moment. You did not make a mistake here that any of your existing controls could have caught. Tier 3 asks who signed it. Tier 4 asks whether it is the right release. Neither has an opinion about whether it works, and neither should: that is not a question a signature can answer.
+This is `T0-W-07`, and it is worth understanding fully. You did not make a mistake here that any of your existing controls could have caught. Tier 3 asks who signed it. Tier 4 asks whether it is the right release. Neither has an opinion about whether it works, and neither should: that is not a question a signature can answer.
 
 Reflash a working image before you continue.
 
@@ -132,7 +132,7 @@ Read `firmware/tier-05-recovery/src/main.c` and `health_gate.c` before you run a
 
 **The watchdog is fed by the thread it vouches for, and nothing else.** The beacon reports that it is alive; `main` feeds the watchdog. Feeding from a timer would have been easier and would have guarded nothing, because a timer keeps running in interrupt context while the thread it describes is dead.
 
-**The progress record is written after the bytes it describes.** The record may lag the flash. It may never lead it. There is one rule underneath the whole download path and it is worth memorising: *the record may never describe more than the flash holds.*
+**The progress record is written after the bytes it describes.** The record may lag the flash. It may never lead it. There is one rule underneath the whole download path and it is worth memorizing: *the record may never describe more than the flash holds.*
 
 Now install a release that works, onto a device running something else.
 
@@ -155,7 +155,7 @@ health.gate passed
 trial.confirm this image is now the one the device falls back to
 ```
 
-Every check runs and every result prints, even when the first one fails. That is the same choice Tier 4 made with its eight refusal reasons, for the same reason: you cannot diagnose a failure whose siblings you cannot see.
+Every check runs and every result prints, even when the first one fails. That is the same choice Tier 4 made with its eight refusal reasons, for the same reason: you cannot diagnose a failure when you cannot see the checks beside it.
 
 ## Watch it revert, four different ways
 
@@ -228,15 +228,9 @@ boot.state and MCUboot has put this image back. That is a revert.
 
 ## Prove the revert is not blocked by the counter
 
-Section 6 says a failed trial can revert to the previously confirmed image
-without a newer counter making that image ineligible. That is a claim worth
-testing rather than believing, because Tier 4 spent a whole tier teaching the
-bootloader to refuse an image whose counter went backwards, and a revert is an
-image whose counter goes backwards.
+Section 6 says a failed trial can revert to the previously confirmed image without a newer counter making that image ineligible. That is a claim worth testing rather than believing, because Tier 4 spent a whole tier teaching the bootloader to refuse an image whose counter went backwards, and a revert is an image whose counter goes backwards.
 
-The `crash` release is the one that raises the security counter, and it is the
-only one of the five that does. Every other release carries the same counter so
-that the trial path is what is being tested. This one is deliberately different:
+The `crash` release is the one that raises the security counter, and it is the only one of the five that does. Every other release carries the same counter so that the trial path is what is being tested. This one is deliberately different:
 
 ```text
 release.admitted release_id=tier-05-crash version=0.5.1-crash counter=4 channel=stable
@@ -256,17 +250,9 @@ Security counter of the running image: 3
 
 No refusal, and no `Image 0 in slot 1 erased due to downgrade prevention`.
 
-Why this needed a counter of 4 to mean anything is worth understanding.
-MCUboot's `check_downgrade_prevention()` refuses when the primary slot's
-counter is **strictly greater** than the candidate's. With every release at the
-same counter, the check would not fire even if a revert did pass through it, so
-a revert between equal counters proves nothing at all. Only a revert that would
-otherwise be refused can demonstrate the exemption.
+Why this needed a counter of 4 to mean anything is worth understanding. MCUboot's `check_downgrade_prevention()` refuses when the primary slot's counter is **strictly greater** than the candidate's. With every release at the same counter, the check would not fire even if a revert did pass through it, so a revert between equal counters proves nothing at all. Only a revert that would otherwise be refused can demonstrate the exemption.
 
-The exemption is structural rather than lucky. In `loader.c`,
-`check_downgrade_prevention()` is called under `case BOOT_SWAP_TYPE_TEST` and
-`case BOOT_SWAP_TYPE_PERM` only, and `BOOT_SWAP_TYPE_REVERT` is a separate case
-reached after both of those break out.
+The exemption is structural rather than lucky. In `loader.c`, `check_downgrade_prevention()` is called under `case BOOT_SWAP_TYPE_TEST` and `case BOOT_SWAP_TYPE_PERM` only, and `BOOT_SWAP_TYPE_REVERT` is a separate case reached after both of those break out.
 
 ## What the device cannot tell you
 
@@ -314,7 +300,7 @@ ota.resume was allowed to matter. The record says where to resume, never what to
 ota.resume requesting Range: bytes=196608-
 ```
 
-Two details in that output repay attention.
+Two details in that output are worth a closer look.
 
 **It resumed from 196608, not 200000.** The record is written after the bytes it describes, at 64 KiB checkpoints, so it lagged the flash by 3392 bytes and those bytes were downloaded twice. That is the safe direction. A record that led the flash would have resumed into a gap and built an image that only the digest would catch.
 
@@ -338,7 +324,7 @@ Three things can be defeated separately here, so there are three attempts.
 ./course service start --https --range ignore
 ```
 
-A server that ignores `Range` and answers `200` with the whole body is the failure most likely to be got wrong, because it looks like success while restarting the image from byte zero underneath a device that believes it is appending.
+A server that ignores `Range` and answers `200` with the whole body is the failure most likely to be handled wrongly, because it looks like success while restarting the image from byte zero underneath a device that believes it is appending.
 
 ```text
 ota.resume requesting Range: bytes=393216-
@@ -347,7 +333,7 @@ ota.discard the response was refused before any write
 ota.discard the progress record was cleared before the slot was erased
 ```
 
-Note the discard order: record first, then slot. That is the mirror of the write order, and for the same reason. Writing lags so the record can only under-claim; discarding leads so a power cut in the middle leaves no record rather than one pointing into an erased slot.
+Note the discard order: record first, then slot. That is the reverse of the write order, and for the same reason. Writing lags so the record can only under-claim; discarding leads so a power cut in the middle leaves no record rather than one pointing into an erased slot.
 
 **Change the release underneath a partial download.** Assign a different release while one is half-downloaded. The device discards rather than splicing two images together.
 
@@ -393,7 +379,7 @@ So the device writes the event down and sends it when there is a link:
 event.queued update.reverted release_id=tier-05-healthy detail=tier-05-fail-health update-client-ready
 ```
 
-Three things about that line repay attention.
+Three things about that line are worth a closer look.
 
 **The reporting image is not the image that failed.** A failed trial reboots, so the image that reports the revert is the one that came back. It reads the reason out of flash, which is why the reason had to be written before the reboot rather than sent over a network that was not up.
 
@@ -412,7 +398,7 @@ Compare against what you predicted.
 3. It confirms. No health check asks whether the service is reachable.
 4. Three trials, three reverts, and then it stops accepting that release and carries on beaconing.
 
-If you predicted that the network loss would fail the gate, you are in good company: it is the intuitive answer and it is the one the specification forbids.
+If you predicted that the network loss would fail the gate, that is the answer most engineers give: it is the intuitive answer and it is the one the specification forbids.
 
 ## Weakness ledger after the work
 
@@ -449,8 +435,7 @@ It becomes **partly supported**.
 
 Supported against the failures this tier can demonstrate: a release that crashes, hangs, fails a health check or stalls during the window is reverted to the last confirmed image, and a download interrupted by a dropped connection or a reset resumes and completes. All of this was observed on the board the course used before, a nanoESP32-C6 1.0, and none of it has been repeated yet on the ESP32-C6-DevKitC-1 this course now targets.
 
-The revert path itself is not blocked by the anti-rollback control, observed
-with a trial image at counter 4 reverting to a confirmed image at counter 3.
+The revert path itself is not blocked by the anti-rollback control, observed with a trial image at counter 4 reverting to a confirmed image at counter 3.
 
 Not supported against a power cut at every transition. Three of section 6's transitions were not reached during validation: the trailer update, the confirmation write, and the first reboot after confirmation. Each is a window of a few milliseconds. They are recorded as `not_reached` in `course.yml` rather than as passes, because a skipped check never supports a claim.
 
@@ -466,15 +451,22 @@ One control supports it. Unlike `SC-01` and `SC-02`, this claim needs no second 
 
 ## What this tier found in Tier 4
 
-A control tier is the first thing to exercise the previous tier's work in a new way, and four out of four have now found something.
+A control tier is the first thing to exercise the previous tier's work in a new way, and three out of three have now found something, counted the way [Tier 3 explains](../tier-03-signed-images/index.md#what-this-tier-found-in-tier-2).
 
-Tier 4 returns the transport's error before it looks at the refusal that caused it. When a response callback refuses, the HTTP client aborts the connection and reports the abort, so a size refusal comes back as `-113`, which is what a dropped connection looks like.
+**An error code can name the transport and hide the check that refused.** Tier 4 returns the transport's error before it looks at the refusal that caused it. When a response callback refuses, the HTTP client aborts the connection and reports the abort, so a size refusal comes back as `-113`, which is what a dropped connection looks like.
 
 In Tier 4 this is harmless: nothing branches on that value, the refusal is printed where it is decided, and you still read `check=image-size`. In Tier 5 it was not harmless, because Tier 5 decides whether to discard a partial download based on that value, and a refused range response kept its bytes.
 
-Tier 4 is not being changed. Every behaviour its module describes is correct and its validated outcomes stand, and a published tier changing underneath a Learner is its own problem. The finding is recorded here instead.
+Tier 4 is not being changed. Every behavior its module describes is correct and its validated outcomes stand, and a published tier changing underneath a Learner is its own problem. The finding is recorded here instead.
 
 ## Update the Security evidence pack
+
+Create the Tier 5 evidence directory and copy the templates, from the repository root:
+
+```text
+mkdir -p evidence/learner/tier-05
+cp evidence/templates/tier-05/*.md evidence/learner/tier-05/
+```
 
 Add to your pack:
 
@@ -484,6 +476,12 @@ Add to your pack:
 - A recovery record: how you would restore a device whose primary image no longer works, using the serial recovery procedure below.
 - Your `control` records for `CTL-05`, moved from `planned` to `implemented`.
 - Residual availability risks, which for this tier are `T5-W-14` and `T5-W-15`.
+
+Which records become `observed`: the trial, the confirmation and the four reverts, once you have watched each one on the board. Which stay `pending`: every row you did not run on hardware, including a recovery procedure you wrote and never performed.
+
+Record the three transitions that were not reached as `not_reached` rather than as passes. A skipped check never supports a claim, and a blank field reads like an oversight while `not_reached` reads like a fact.
+
+Every row in this tier is a device result. Nothing on your machine can put an image on trial or revert one, so there is no host result that could stand in for one even if you wanted it to.
 
 ## Serial recovery
 
@@ -526,7 +524,16 @@ Start it from a device running a confirmed image.
 
 ## Primary references
 
-- Specification sections 6, 7, 11, 13 and 18.
-- MCUboot: `boot_request_upgrade()`, `boot_write_img_confirmed()`, `boot_is_img_confirmed()`.
-- Zephyr: `stream_flash`, NVS, and the watchdog API.
-- `docs/fixture-safety-contract.md`, Tier 5 section.
+| Reading | Level | Type | Learning question | Where to read |
+| --- | --- | --- | --- | --- |
+| [MCUboot design, swap and revert](https://docs.mcuboot.com/design.html) | Required | Explanatory | How do a test boot, a confirmation, and an automatic revert work together, and which one does the bootloader choose on the next start | The high-level operation and swap sections |
+| [MCUboot serial recovery](https://github.com/mcu-tools/mcuboot/blob/v2.4.0/docs/serial_recovery.md) | Required | Explanatory | How can a device recover when no image left on it can be confirmed | The whole document, pinned to v2.4.0 |
+| [Zephyr device management, mcumgr](https://docs.zephyrproject.org/4.4.2/services/device_mgmt/mcumgr.html) | Optional | Reference | How does a device receive and manage images over the SMP protocol, which this course replaces with its own HTTPS path | The image management and transport sections |
+| MCUboot trial and confirmation calls | Required | Source | Which call asks for a trial rather than a permanent install, and which call confirms the running image | `boot_request_upgrade()`, `boot_write_img_confirmed()`, `boot_is_img_confirmed()` |
+| Zephyr `stream_flash`, NVS (non-volatile storage), and the watchdog API | Required | Reference | How is a partial download written and resumed, and how is a hung trial image reset | The `stream_flash`, NVS, and watchdog pages of the Zephyr 4.4.2 documentation |
+| Section 6, Boot and firmware trust model | Required | Specification | What the course fixes about the flash map, the trial boot, and confirmation | `docs/course-specification.md` |
+| Section 7, OTA architecture | Required | Specification | Where download progress may be kept, and what the OTA service is never allowed to decide | `docs/course-specification.md` |
+| Section 11, Hardening tier progression | Required | Specification | What this tier must demonstrate, and what counts as a failure | `docs/course-specification.md` |
+| Section 13, Mentor review gates | Required | Specification | What the update-recovery gate asks of you | `docs/course-specification.md` |
+| Section 18, Continuous integration | Optional | Specification | Which recovery transitions the core boot matrix verifies, and which row this tier does not satisfy | `docs/course-specification.md` |
+| Tier 5 fixtures | Required | Contract | Why this tier has no attack fixture, and what the prepared releases are allowed to do | `docs/fixture-safety-contract.md`, Tier 5 section |

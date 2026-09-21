@@ -32,25 +32,29 @@ A Security claim is only as good as its evidence. When you did not observe somet
 
 ## The tiers
 
-The core course is eleven tiers and about 43 hours of work. Two advanced tiers follow it for teams with disposable hardware.
+The core course is eleven tiers and about 47 hours of work. Two advanced tiers follow it for teams with disposable hardware.
 
 **The linked tiers are written and ready to work through. The rest is the course plan**, here so you can see where the work goes rather than because you can start it yet.
+
+Three short names run through the table below and through the whole course. TLS is short for Transport Layer Security, the protocol that authenticates and encrypts a connection. HTTPS is ordinary HTTP carried over TLS. OTA is short for over the air, which is how a software update reaches a device across a network. The [cryptography primer](cryptography-primer.md#names-you-will-meet) lists these beside the other short names you will meet.
 
 | Tier | What you add | The attack it answers | Time |
 | --- | --- | --- | --- |
 | [Tier 0: Build the unsecured reference product](tiers/tier-00-unsecured/index.md) | Nothing. This is the baseline with no security at all | Any local actor can read the traffic, imitate the service, and supply any firmware | 3 hours |
 | [Tier 1: Model the product and its risks](tiers/tier-01-threat-model/index.md) | Analysis only. Assets, actors, trust boundaries, and a risk register | Teams add controls without agreeing what they protect or who they defend against | 3 hours |
-| [Tier 2: Authenticate and encrypt the server connection](tiers/tier-02-authenticated-https/index.md) | HTTPS, a course-local service CA, certificate and hostname validation | Local eavesdropping, network modification, and service impersonation | 3 hours |
+| [Tier 2: Authenticate and encrypt the server connection](tiers/tier-02-authenticated-https/index.md) | HTTPS, a course-local service certificate authority, certificate and hostname validation | Local eavesdropping, network modification, and service impersonation | 3 hours |
 | [Tier 3: Require authentic firmware images](tiers/tier-03-signed-images/index.md) | An offline release-signing key and real MCUboot signature checking | A trusted but compromised OTA service supplies an altered or unsigned image | 4 hours |
 | [Tier 4: Protect release metadata and block downgrade](tiers/tier-04-release-policy/index.md) | Signed release metadata and a security counter | Replay of an old signed image, and mutable metadata | 4 hours |
 | [Tier 5: Make installation recoverable](tiers/tier-05-recovery/index.md) | Test boot, confirmation, and rollback | Power loss, a corrupted download, or a release that crashes on boot | 4 hours |
 | [Tier 6: Replace shared identity with per-device factory identity](tiers/tier-06-factory-identity/index.md) | On-device key generation and a per-device Factory identity | One extracted shared credential impersonates every device | 4 hours |
-| [Tier 7: Add owner-scoped operational identity and mutual TLS](tiers/tier-07-operational-identity/index.md) | A rotatable Operational identity and mutual TLS | Factory credentials overused for daily access, or an unclaimed device joining | 4 hours |
+| [Tier 7: Add owner-scoped operational identity and mutual TLS](tiers/tier-07-operational-identity/index.md) | A rotatable Operational identity and mutual TLS | Factory credentials overused for daily access, or an unclaimed device joining | 8 hours |
 | Tier 8: Operate the credential lifecycle | Rotation, renewal, revocation, ownership transfer, decommissioning | Expired, stolen, copied, or old-owner credentials that still work | 4 hours |
-| Tier 9: Manage dependencies, vulnerabilities, and support | An SBOM, vulnerability handling, disclosure, and reporting exercises | Unknown components, unreviewed vulnerabilities, and late reporting | 5 hours |
+| Tier 9: Manage dependencies, vulnerabilities, and support | A software bill of materials, or SBOM, with vulnerability handling, disclosure, and reporting exercises | Unknown components, unreviewed vulnerabilities, and late reporting | 5 hours |
 | Tier 10: Defend the integrated reference product | No new control. Diagnose and repair the whole product under attack | A mixed campaign combining impersonation, replay, and interruption | 5 hours |
 | Advanced Tier A: Add a hardware-rooted boot chain and confidentiality | ESP32-C6 Secure Boot v2 and flash encryption | A physical attacker replaces the bootloader or reads flash | 6 to 8 hours |
 | Advanced Tier B: Isolate operational identity in STSAFE-A120 | A secure element that never exports its private keys | Key extraction from MCU storage, and misuse by compromised application code | 6 to 8 hours |
+
+Tier 7 is the longest tier in the course. It is about twice the size of any other tier, so plan two sessions for it rather than one.
 
 The two advanced tiers make irreversible hardware changes. They require disposable boards and a Mentor before and after the change.
 
@@ -77,6 +81,8 @@ Completing the core course is an in-house learning milestone. It is not proof th
 
 The course uses these words in one fixed meaning. Every tier uses them the same way.
 
+This table holds the course's own roles and records. The security words themselves, such as key pair, signature, digest, certificate, certificate authority and nonce, are defined in the [cryptography primer](cryptography-primer.md).
+
 | Word | Meaning |
 | --- | --- |
 | Learner | You. An embedded engineer new to applying security |
@@ -93,9 +99,15 @@ The course uses these words in one fixed meaning. Every tier uses them the same 
 | Tier checkpoint | A fixed Git tag marking a tested runnable state at the start or end of a tier |
 | Course environment marker | A disposable identifier shared by the local service and the attack fixtures. A fixture refuses to run unless it matches |
 | OTA service | The local service that hands out update assignments, release metadata, and firmware images |
+| Update assignment | The OTA service's choice of which release, if any, a specific device should install. It refers to a Release manifest and does not change the signed release |
 | Release manifest | Metadata describing one firmware release: its hardware, version, size, and digest |
 | Factory identity | A permanent, manufacturer-issued identity for one physical device |
 | Operational identity | A rotatable per-device identity used for normal service access |
+| Bootstrap credential | A unique, short-lived or one-time credential that permits only initial enrollment. It cannot authorize normal device operation or firmware download |
+| Owner credential | A credential that authorizes a person rather than a device. The holder presents it on every operator request, and it is never a device identity |
+| Claim window | A ten-minute period opened by a physical action, a ten-second hold of the BOOT button, during which a device may be assigned to a new owner and receive a new operational identity |
+| Claim nonce | A one-use secret that the device generates when its Claim window opens and prints on its console. Giving it to the service is how a claim proves that someone is physically at that device |
+| Secure element | A separate security component that generates or stores private keys and performs cryptographic operations without exporting those private keys |
 
 ## Safety
 
@@ -275,6 +287,8 @@ Open **[Tier 0: Build the unsecured reference product](tiers/tier-00-unsecured/i
 When you finish it, you will have a working, deliberately insecure device, four demonstrated attacks, and the first entries in your Weakness ledger and Security evidence pack.
 
 Then **[Tier 1: Model the product and its risks](tiers/tier-01-threat-model/index.md)**, which adds no control and changes no code. It turns what you observed in Tier 0 into a model of the product, its assets, its actors, and its risks, and it ends at the first Mentor review gate.
+
+Before Tier 2, read the **[cryptography primer](cryptography-primer.md)**. It takes about twenty minutes and it defines the words every tier from Tier 2 onward uses without stopping to explain them: key pair, signature, certificate, certificate authority, chain, trust anchor, certification request and nonce.
 
 Then **[Tier 2: Authenticate and encrypt the server connection](tiers/tier-02-authenticated-https/index.md)**, the first tier that stops an attack. The device learns to check who answered before it believes anything.
 
