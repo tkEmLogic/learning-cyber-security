@@ -14,6 +14,8 @@ That is the gap this tier closes. Transport trust and publisher trust are differ
 
 In this tier you will create your own signing key, sign a release with it, and build a bootloader that carries the matching public key and refuses everything else. Then you will attack it from the strongest position an attacker can have: from inside your own update service, publishing hostile firmware through a service that passes every check Tier 2 added.
 
+If signing, verifying and the two halves of a key pair are new words to you, read [Signing and verifying](../../cryptography-primer.md#signing-and-verifying) in the cryptography primer first.
+
 At the end you will have a device that installs only firmware you published, four recorded refusals that each say something different, and a clear statement of the large things this still does not protect you from.
 
 Tier 3 ends at a required Mentor review gate. It is the first one after Tier 1, and it is here because this is where publisher trust first exists.

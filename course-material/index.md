@@ -79,6 +79,8 @@ Completing the core course is an in-house learning milestone. It is not proof th
 
 The course uses these words in one fixed meaning. Every tier uses them the same way.
 
+This table holds the course's own roles and records. The security words themselves, such as key pair, signature, certificate, certificate authority and nonce, are defined in the [cryptography primer](cryptography-primer.md).
+
 | Word | Meaning |
 | --- | --- |
 | Learner | You. An embedded engineer new to applying security |
@@ -277,6 +279,8 @@ Open **[Tier 0: Build the unsecured reference product](tiers/tier-00-unsecured/i
 When you finish it, you will have a working, deliberately insecure device, four demonstrated attacks, and the first entries in your Weakness ledger and Security evidence pack.
 
 Then **[Tier 1: Model the product and its risks](tiers/tier-01-threat-model/index.md)**, which adds no control and changes no code. It turns what you observed in Tier 0 into a model of the product, its assets, its actors, and its risks, and it ends at the first Mentor review gate.
+
+Before Tier 2, read the **[cryptography primer](cryptography-primer.md)**. It takes about twenty minutes and it defines the words every tier from Tier 2 onward uses without stopping to explain them: key pair, signature, certificate, certificate authority, chain, trust anchor, certification request and nonce.
 
 Then **[Tier 2: Authenticate and encrypt the server connection](tiers/tier-02-authenticated-https/index.md)**, the first tier that stops an attack. The device learns to check who answered before it believes anything.
 

@@ -50,6 +50,8 @@ The packet capture in this tier is bounded: one interface, only the two course s
 
 You need your finished Tier 1 work. Tier 2 continues in the same Course workspace, on the same branch.
 
+You need to have read the [cryptography primer](../../cryptography-primer.md), which takes about twenty minutes. This tier uses key pair, certificate, certificate authority, chain and trust anchor from its first page and does not stop to define them.
+
 You need the dev container. Tier 2 needs two things Tier 0 did not, so rebuild the container before you start: a published TLS port, and the `NET_RAW` capability that packet capture needs. Both are already in whichever dev container configuration you opened; you only have to rebuild.
 
 You need a Course environment with certificate material. Run setup again, from the repository root inside the container:
