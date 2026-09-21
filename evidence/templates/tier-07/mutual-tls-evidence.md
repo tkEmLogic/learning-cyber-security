@@ -63,8 +63,8 @@ One closure in this tier rests on a pair rather than on a single row, and this r
 | Why the host half cannot be produced on a board |  |
 | What the pair closes |  |
 
-The refusal is observed on the host and the replacement behaviour is observed on the board. Neither half alone closes the row, so record both or record neither.
+The refusal is observed on the host and the replacement behavior is observed on the board. Neither half alone closes the row, so record both or record neither.
 
 ## What this does not prove
 
-Write in your own words the sentence this tier asks you to memorise: what the service can no longer be told, and what it can still be shown.
+Write in your own words the sentence this tier asks you to memorize: what the service can no longer be told, and what it can still be shown.

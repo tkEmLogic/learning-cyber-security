@@ -1,6 +1,6 @@
 # Tier 4 answers: the version policy decision table
 
-This page holds one worked model of the decision table from [Tier 4](index.md). It is not a marking scheme.
+This page holds one worked model of the decision table from [Tier 4](index.md). It is not a list of correct answers.
 
 Fill in your own table before you read it. Then record the differences and the reasoning behind them, rather than copying this one. The value of the exercise is in the case where two careful engineers disagree, and you will not find that by agreeing with a page.
 
@@ -41,7 +41,7 @@ Two of six. That ratio is the lesson.
 | 5 | `0.5.3` | 6 |
 | 6 | `0.5.4` | 7 |
 
-This is the table a careful engineer writes on a Friday, and it is the opposite of careful.
+This is the table that looks like the careful choice, and it is the opposite of careful.
 
 Every release permanently destroys the ability to install every release before it. Six months later a device fails in the field, and the one diagnostic step that would answer it, putting the previous image back to see whether the fault follows, is now impossible on every device you own. The counter has been spent on a spelling fix.
 
@@ -51,9 +51,9 @@ It also empties the field of meaning. A counter that increments on everything re
 
 `security_counter = minor version`, so scenario 2 takes it to 5 and everything after inherits that.
 
-This is the failure criterion section 11 names in as many words, and it is seductive because it removes a judgement call. It fails in both directions at once. A patch release that closes a real hole cannot raise the counter without an artificial minor bump, and a feature release raises it for nothing.
+This is the failure criterion section 11 names in as many words, and it is tempting because it removes a decision somebody has to make. It fails in both directions at once. A patch release that closes a real hole cannot raise the counter without an artificial minor bump, and a feature release raises it for nothing.
 
-The two numbers answer different questions. The version answers "which release is this", and humans need it to be readable and ordered. The counter answers "may a device ever go back to before this", and nothing except a security judgement should move it.
+The two numbers answer different questions. The version answers "which release is this", and humans need it to be readable and ordered. The counter answers "may a device ever go back to before this", and nothing except a security decision should move it.
 
 ## What to record
 

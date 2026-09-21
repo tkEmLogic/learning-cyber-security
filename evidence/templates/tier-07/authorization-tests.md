@@ -60,7 +60,7 @@ Four rows sign with your own Operational Device CA key. They show what an inside
 | --- | --- | --- | --- |
 |  |  |  |  |
 
-## The pair to sit with
+## The pair to read together
 
 Both `E-7-05` and `E-7-15` are correct refusals of a certificate. Only one of them can tell anybody what went wrong.
 

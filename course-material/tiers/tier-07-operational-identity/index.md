@@ -75,7 +75,7 @@ Inherited from Tier 6. Not your own work yet.
 | T4-W-12 | Downgrade prevention does not protect the first install | Install onto a device whose primary image carries no counter | The install is accepted | Accepted for the core course |
 | T4-W-13 | The security counter is compared, never remembered | Rewrite the primary slot | The device forgets what it was running | Advanced Tier A |
 | T5-W-14 | A power cut during the health window forces a revert indefinitely | Power-cycle during the sixty second window | The device reverts each time | Residual availability risk |
-| T5-W-15 | The watchdog depends on a driver quirk an upstream fix would change | Upgrade Zephyr | The behaviour changes silently | Recorded limit |
+| T5-W-15 | The watchdog depends on a driver quirk an upstream fix would change | Upgrade Zephyr | The behavior changes silently | Recorded limit |
 | T5-W-26 | A revert is reported once and nothing acknowledges it | Revert while the service is unreachable | The revert is never reported | Tier 8 revisits delivery |
 | T6-W-16 | The Secure Storage encryption key is a hash of public values | Dump the flash and run the published derivation | The private key is recovered | Advanced Tier B |
 | T6-W-17 | Stored records carry no freshness, so an older copy is accepted as authentic | Write back a superseded record from the same dump | The device accepts it | No tier on this course closes it |
@@ -358,7 +358,7 @@ Operators and the lab controls: https://ota.course.example:8444
 Health and the Course environment marker stay on http://192.168.68.81:8080
 ```
 
-Three listeners where Tier 6 had two, and the split is the design rather than a detail. Mutual TLS is decided in the handshake, before a single byte of the request has been read, so it cannot be applied per route. Any port that demands a client certificate demands it of everybody, including you at a laptop, and you hold no device certificate. So the routes a device uses live on 8443 behind mutual TLS, the routes a person uses live on 8444 with the server authenticated and no client certificate asked for, and health and the Course environment marker stay in the clear on 8080 because a targeting check must not depend on the control it is used to test.
+Three listeners where Tier 6 had two, and the split is the design rather than a detail. Mutual TLS is decided in the handshake, before a single byte of the request has been read, so it cannot be applied per route. Any port that demands a client certificate demands it of everybody, including you at a laptop, and you hold no device certificate. So the routes a device uses live on 8443, behind mutual TLS. The routes a person uses live on 8444, with the server authenticated and no client certificate asked for. Health and the Course environment marker stay in the clear on 8080, because a targeting check must not depend on the control it is used to test.
 
 Ask the plain port for something that has moved, and it tells you the whole shape:
 
@@ -509,7 +509,7 @@ claim.window it claims or recovers.
 tls.identity presenting the Operational certificate, signed by PSA key 0x00000701
 ```
 
-The two halves never met except inside the service. The person never talked to the device, the device never talked to the person, and neither one could have completed the claim alone. That is what makes the match two-party: the device proves it is physically present by producing a nonce that only somebody standing at it can read, the owner proves entitlement with a credential the device has never seen, and the service issues a certificate only when both arrive inside one window.
+The two halves never met except inside the service. The person never talked to the device, the device never talked to the person, and neither one could have completed the claim alone. That is what makes the match two-party. The device proves it is physically present by producing a nonce that only somebody standing at it can read. The owner proves entitlement with a credential the device has never seen. The service issues a certificate only when both arrive inside one window.
 
 Confirm what the service wrote, which is the half a device cannot fake:
 
@@ -551,7 +551,7 @@ Take either half away and ask what is left.
 
 Without the physical action, a claim is a request naming a device. Anyone who can guess or read a device identifier can send one, and identifiers are not secret: Tier 1 recorded that as `T1-W-08`, and your board prints its own on every boot. The press is what turns "I know this device's name" into "I am standing at this device".
 
-Without the owner, the device is claiming itself. It has no way to know whose it is, and a device that decided its own ownership would be claimed by whoever powered it on first, including a stranger who found it in a skip. The record, not the device, is the authority on ownership, and that is why the refusal for an already-owned device comes from the record and is worded as `device-unowned`.
+Without the owner, the device is claiming itself. It has no way to know whose it is, and a device that decided its own ownership would be claimed by whoever powered it on first, including a stranger who found it in a pile of discarded equipment. The record, not the device, is the authority on ownership, and that is why the refusal for an already-owned device comes from the record and is worded as `device-unowned`.
 
 Ownership here is first come, and it is worth knowing the consequence rather than discovering it. The first party to complete a claim on an unclaimed device owns it, and the service will not take that back. In this course that means a second claim attempt on your own board is refused, which you can see for yourself: press BOOT on a claimed board and approve the nonce, and the operator half answers `device-unowned` while the device's own identity is left completely untouched. A press never damages an issued identity; it only ever creates a pending one that dies with the window.
 
@@ -561,7 +561,7 @@ Most consumer devices do this differently. The device starts its own Wi-Fi acces
 
 What a phone and a SoftAP genuinely add is connectivity bootstrap. A device fresh out of a box does not know your Wi-Fi network, and it cannot be told over a network it cannot reach. The access point is a temporary channel that exists to solve that one problem: it carries the network credentials in, and after that it has no reason to exist. That is a real problem and a reasonable answer to it.
 
-What it does not add is proof of ownership. Joining a device's access point proves that you are within radio range of it, which is not the same as being entitled to it, and radio range reaches through walls, floors and car parks. A neighbour, a delivery driver or someone in the flat below can all be in range. If access to the access point were the authorization, the first person within range to run the app would own the device. Any serious design therefore still needs what this tier built: something the device shows that requires eyes or hands on it, and a person who authenticates as themselves.
+What it does not add is proof of ownership. Joining a device's access point proves that you are within radio range of it, which is not the same as being entitled to it, and radio range reaches through walls, floors and parking areas. A neighbor, a delivery driver or someone in the apartment below can all be in range. If access to the access point were the authorization, the first person within range to run the app would own the device. Any serious design therefore still needs what this tier built: something the device shows that requires eyes or hands on it, and a person who authenticates as themselves.
 
 This course takes the credentials in at build time, which is a teaching simplification recorded as `T6-W-27` in the Tier 6 Weakness ledger. This tier does not change that row, and Tier 8 inherits it at decommissioning. The connectivity problem is therefore already solved, and an access point would carry only a nonce over a worse channel. Section 8 of the specification routes the claim over the authenticated connection for that reason. If you build the phone shape in a product, treat the access point as a transport for credentials and keep the claim itself two-party.
 
@@ -615,7 +615,7 @@ curl: (56) OpenSSL SSL_read: OpenSSL/3.0.13: error:0A00045C:SSL routines::tlsv13
 
 `certificate required` is the server telling the client, during the handshake, that it will not continue without one. Check your service's trail afterwards and you will find nothing: no line in `events.jsonl`, no refusal record, no name. The request was never read, so there is nothing to record about it.
 
-That is the first thing to understand about this control, and it is not entirely good news. A refusal at the handshake is the cheapest refusal there is, which is why it is where the coarse decision belongs. It is also the least informative refusal there is. Nobody was told which property failed, because nothing had been read yet, and your own board will one day be on the wrong end of exactly this silence.
+That is the first thing to understand about this control, and it is not entirely good news. A refusal at the handshake is the cheapest refusal there is, which is why it is where the coarse decision belongs. It is also the least informative refusal there is. Nobody was told which property failed, because nothing had been read yet, and one day your own board will meet exactly this silence.
 
 So run an attacker who does get through the handshake. This one holds a genuine, unexpired Factory certificate that your own provisioning station issued:
 
@@ -676,11 +676,11 @@ The `CA key` column is the other one to read carefully. Four rows sign with your
 
 Ten distinct check names appear in that table, and the service has thirteen. The three the table never reaches are the Owner credential checks, because the adversary holds a credential that is genuinely valid: it passes authentication and then loses on authorization, every time, which is what makes each of its refusals a decision about entitlement rather than about identity.
 
-Ten checks for six criteria is not padding. The specification asks for six kinds of rejection with distinct reason codes, and building them honestly needed more names than that, because a single criterion such as "the certificate is active" turns out to have three independent clauses: it has not expired, it has not been revoked, and this service issued it in the first place. Merging them would produce a refusal that cannot tell you which one failed, and a refusal you cannot read is worth very little.
+Ten checks for six criteria is not padding. The specification asks for six kinds of rejection with distinct reason codes, and building them honestly needed more names than that. A single criterion such as "the certificate is active" turns out to have three independent clauses: it has not expired, it has not been revoked, and this service issued it in the first place. Merging them would produce a refusal that cannot tell you which one failed, and a refusal you cannot read is worth very little.
 
 Four rows deserve a closer look while you run them.
 
-**`E-7-05` and `E-7-15` are the pair to sit with.** Both are correct refusals of a certificate. Only one of them can tell anybody what went wrong.
+**`E-7-05` and `E-7-15` are the pair to read together.** Both are correct refusals of a certificate. Only one of them can tell anybody what went wrong.
 
 ```text
 ./course service bypass e-7-15 --execute e-7-15
@@ -760,7 +760,7 @@ Discard the whole Course environment to run that row again.
 
 That output is worth as much as any of the rows. Reset removes the adversary's owner account, because an account left behind is a live credential after the lab is over, and it removes the serials the fixture marked revoked, because those change how the service answers a later honest request. It removes nothing from the manufacturing record and nothing from the service's own trail, and it says so. A record of what happened is never rewound; a store that decides what happens next is.
 
-One consequence to read rather than skip: the synthetic devices stay in your manufacturing record forever, with no field marking them as a fixture's work. The naming convention is the only tell, and anyone who can write the record can pick any name. That is `T7-W-25`.
+One consequence to read rather than skip: the synthetic devices stay in your manufacturing record forever, with no field marking them as a fixture's work. The naming convention is the only sign, and anyone who can write the record can pick any name. That is `T7-W-25`.
 
 Record any unexpected actual result before you troubleshoot it, and do not mark the Security claim supported on the strength of a result you have not seen.
 
@@ -795,7 +795,7 @@ This is the result you should expect to observe. Your own ledger lives in your w
 | T7-W-22 | New. With `--mutual-tls` the service holds a certificate authority signing key, so compromising the service mints devices | Open | Residual risk with an owner. Demonstrated by the four forging rows |
 | T7-W-23 | New. The claim endpoint is an oracle. Distinguishable refusals reveal whether a device exists and whether it is owned | Open | Accepted. The refusals must stay distinguishable, which is the tier's subject |
 | T7-W-24 | New. The Factory credential survives claiming permanently and reopens the claim path forever, by design | Open | Accepted. It is what a re-claim and a recovery need |
-| T7-W-25 | New. Synthetic devices land in the real manufacturing record with no marker field. The naming convention is the only tell | Open | Recorded limit. `docs/fixture-safety-contract.md` states it as a limitation rather than a property |
+| T7-W-25 | New. Synthetic devices land in the real manufacturing record with no marker field. The naming convention is the only sign | Open | Recorded limit. `docs/fixture-safety-contract.md` states it as a limitation rather than a property |
 
 Two rows closed and six opened, which is the shape a control tier's ledger usually takes and is sharper here than usual. The tier closes the weakness it was named for and opens six, five of which are about what happens after the certificate is issued. That is not a failure of the control. It is the control being honest about where its edges are, and it is why the next tier is about the lifecycle rather than about another check.
 
@@ -817,9 +817,9 @@ It becomes **partly supported**, and this is the claim to spend time on.
 
 Supported against the attacker in your threat model, who is `R-02` and sits on the network: the service derives the identity from the verified Operational certificate, a body or path that disagrees is refused at `identifier-consistent`, and nobody on the network can produce a report in another device's name. `REQ-04` asked for exactly this, in words worth rereading: "A report naming a device other than the one on the connection is rejected and recorded as rejected." That is `E-7-09`.
 
-Not supported against physical access. The Operational private key lives in the same Secure Storage as the Factory key, under the derivation `E-6-05` published, so anyone who can dump your flash can recover it and then genuinely is your device. The honest phrasing is worth memorising: **the service can no longer be told who you are, and it can still be shown a key that was copied off a board.**
+Not supported against physical access. The Operational private key lives in the same Secure Storage as the Factory key, under the derivation `E-6-05` published, so anyone who can dump your flash can recover it and then genuinely is your device. The honest phrasing is worth memorizing: **the service can no longer be told who you are, and it can still be shown a key that was copied off a board.**
 
-Two tiers have now aimed squarely at `SC-04` and it has reached partly supported. That is a more useful result than a victory lap, and it is the same shape as `SC-06`, whose headline verb Tier 6's own bypass table disproved.
+Two tiers have now aimed squarely at `SC-04` and it has reached partly supported. That is a more useful result than a claim of complete success, and it is the same shape as `SC-06`, whose headline verb Tier 6's own bypass table disproved.
 
 **SC-06: Each device's private key is generated on that device, never leaves it, and no credential permits enrolling a second device in its name.**
 
@@ -856,7 +856,7 @@ Like `SC-06`, it needs more than one control, so it gets a table rather than a s
 
 **Three claims you must not make.**
 
-You must not claim that reports are now unforgeable. Closing `T0-W-02` means the service cannot be *told* who you are. Anyone holding a copy of the Operational key still *is* you, and `E-6-05` is the published recipe for getting one. A reader who thinks `T0-W-02` closing makes reports unforgeable has merged it with `SC-04`, and that merge is exactly what this tier exists to prevent.
+You must not claim that reports are now unforgeable. Closing `T0-W-02` means the service cannot be *told* who you are. Anyone holding a copy of the Operational key still *is* you, and `E-6-05` is the published procedure for getting one. A reader who thinks `T0-W-02` closing makes reports unforgeable has merged it with `SC-04`, and that merge is exactly what this tier exists to prevent.
 
 You must not claim the device enforces its own authorization lifetime. It cannot read a clock. The service enforces expiry and revocation, alone, and a device that cannot reach the service knows nothing about either.
 
@@ -868,7 +868,7 @@ Five control tiers out of five have now found something in the tier before them,
 
 **A control tested through a synthesized request can be unreachable over the wire.** The check that refuses an expired Operational certificate was written, tested and merged, and it could never run. Its seventeen tests built a request with a certificate attached to it. A real handshake never gets that far, because Go's `RequireAndVerifyClientCert` verifies the certificate chain, validity window included, before any handler is reached. So an expired certificate was refused by the handshake, as a closed connection with no name on it, which is `E-7-15`'s outcome. The fix was to ask the handshake only which authority signed the certificate, and to leave every other question to a check that can name itself.
 
-**A ledger row can fall off and nothing will break.** Tier 1 recorded `T1-W-08`, the readable device identifier, and said Tier 6 would reduce it. Tier 2 carried it forward. From Tier 3 onwards it appears in no tier at all, including Tier 6, which reduced it in substance and never wrote the row Tier 1 had promised. Nothing broke, which is exactly why nobody noticed for four tiers. Evidence is only as good as the discipline of carrying every row forward, including the rows that are going well, so the failure is silent by construction. Tier 6's published ledger gains the missing row, and this tier closes it.
+**A ledger row can fall off and nothing will break.** Tier 1 recorded `T1-W-08`, the readable device identifier, and said Tier 6 would reduce it. Tier 2 carried it forward. From Tier 3 onward it appears in no tier at all, including Tier 6, which reduced it in substance and never wrote the row Tier 1 had promised. Nothing broke, which is exactly why nobody noticed for four tiers. Evidence is only as good as the discipline of carrying every row forward, including the rows that are going well, so the failure is silent by construction. Tier 6's published ledger gains the missing row, and this tier closes it.
 
 This tier also met Tier 5's stale trial record, which belongs to Tier 5's code and is fixed there, in the tree Tiers 6 and 7 carry. Tier 5 already tells that story twice, in [the prose under `T5-W-26` in its ledger](../tier-05-recovery/index.md#weakness-ledger-after-the-work) and in [the section where the device reports a revert](../tier-05-recovery/index.md#say-what-happened-once-there-is-somewhere-to-say-it), and `T5-W-26` is the row you inherited at the top of this tier.
 
@@ -897,7 +897,7 @@ Which records become `observed`: the claim sequence, the handshake evidence and 
 
 The thirteen host rows are `host` results and they stay that way. A host result never stands in for a device result, and this tier makes that unusually tempting, because thirteen convincing refusals on your laptop can feel like a validated device. They are evidence about your service. `E-7-01` and `E-7-02` are the evidence about your device.
 
-One closure in this tier rests on a pair rather than on a single row, and you should record it that way. `T0-W-02` closes on `E-7-09`, which is a host result, paired with `E-7-02`, which is a device result. `E-7-09` runs from the fixture because a board that fabricates a mismatched body would be a board running fixture firmware. The refusal is observed on the host, the replacement behaviour is observed on the board, and neither half alone closes the row.
+One closure in this tier rests on a pair rather than on a single row, and you should record it that way. `T0-W-02` closes on `E-7-09`, which is a host result, paired with `E-7-02`, which is a device result. `E-7-09` runs from the fixture because a board that fabricates a mismatched body would be a board running fixture firmware. The refusal is observed on the host, the replacement behavior is observed on the board, and neither half alone closes the row.
 
 ## Troubleshooting
 
@@ -906,7 +906,7 @@ One closure in this tier rests on a pair rather than on a single row, and you sh
 | The operator half is refused at `claim-window-open` right after you pressed BOOT | The device half has to arrive first. The board sends it a few seconds after the press, so wait for `claim.pending` on the console and approve after that |
 | The device says it holds no Operational certificate and will not connect | Expected on an unclaimed device. It does not fall back to its Factory identity. Hold BOOT for ten seconds and claim it |
 | `curl` fails with `certificate required` | Expected against the device listener. Operator commands go to port 8444, and the device routes need a client certificate you do not have |
-| A bypass row is refused at `identifier-unused` | That is Tier 6's provisioning check, not a Tier 7 check. The row is trying to enrol a synthetic device whose identifier is already in the record. Check that you are running against a Course environment you have not exhausted |
+| A bypass row is refused at `identifier-unused` | That is Tier 6's provisioning check, not a Tier 7 check. The row is trying to enroll a synthetic device whose identifier is already in the record. Check that you are running against a Course environment you have not exhausted |
 | The operator half is refused at `owner-credential-known` | The credential was printed once. If you lost it, mint a new one, which supersedes the old one rather than recovering it |
 | The claim is refused at `identifier-consistent` | The request names one device and the Factory certificate names another. This happens after a remanufacture if a window was opened before the new enrollment |
 | The board reports a revert of a release you never installed | A defect this tier found in Tier 5's code and fixed there, described above. A board flashed before that fix clears the stale record on its first boot afterwards and says so |
@@ -931,7 +931,7 @@ Run the current reference product and demonstrate the boundary you built. Your M
 - Which asset is protected here, and which threat. Be precise about the difference between a report being attributed and a report being unforgeable.
 - Which trust boundary moved. Before this tier the identity was in the request body; after it, the identity is in the connection.
 - Why the attack worked before the change, in one sentence, without using the word "insecure".
-- **What an attacker can still do.** Name three things. An attacker who owns your update service completely, an attacker who can dump your board's flash, and an attacker who steals your Owner credential each have a different set of powers, and if you cannot name one power for each you have overread the control.
+- **What an attacker can still do.** Name three things. An attacker who owns your update service completely, an attacker who can dump your board's flash, and an attacker who steals your Owner credential each have a different set of powers. If you cannot name one power for each, you have read more into the control than it does.
 - Why `SC-04` reaches only partly supported after two tiers aimed at it.
 
 ### Diagnose
@@ -961,7 +961,7 @@ The cause is one line in a file the device has never heard of. The service refus
 
 The diagnostic path runs from the device to the service and not the other way. The board can tell you only that a body did not parse. The service's own `events.jsonl` has the check name, and the manufacturing record and the revocation store have the reason. A Learner who reaches for the service's trail early gets there in a minute; a Learner who starts from the release record can lose half an hour, which is the half hour worth having.
 
-Two questions to end on. The first is practical: where else does this firmware act on a body without first reading the status that describes it? The second is the one that generalises: a control that is enforced in one place and invisible in another is normal and often correct, so how would you make the device's account of this failure honest without giving the device a revocation client it cannot have?
+Two questions to end on. The first is practical: where else does this firmware act on a body without first reading the status that describes it? The second is the one that generalizes: a control that is enforced in one place and invisible in another is normal and often correct, so how would you make the device's account of this failure honest without giving the device a revocation client it cannot have?
 
 ### Plan
 

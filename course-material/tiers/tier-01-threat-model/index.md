@@ -122,7 +122,7 @@ Every fixture you ran with `--execute` wrote one JSON record under `artifacts/ge
 | `started_at` and `ended_at` | When, so the record can be tied to a state of the repository |
 | `hardware_limitation` | What this record does not prove because no board was involved |
 
-Read `expected_effect` and `observed_effect` next to each other. Those two fields together are the whole of what you are allowed to claim from that run. Everything else in your analysis is reasoning built on top of them, and it has to be labelled as reasoning.
+Read `expected_effect` and `observed_effect` next to each other. Those two fields together are the whole of what you are allowed to claim from that run. Everything else in your analysis is reasoning built on top of them, and it has to be labeled as reasoning.
 
 `hardware_limitation` is the field analysts skip and reviewers do not. A record that says the altered image was delivered is not a record that says a device ran it.
 
@@ -204,7 +204,7 @@ Answer these seven questions about that one exchange:
 6. **Requirement.** What must the product do, stated so that somebody else could test it without asking you what you meant? Include how they would know it passed.
 7. **Planned control.** Which design choice meets that requirement, and which tier adds it?
 
-Two of these hops trip almost everyone, so give them longer. Hop 4 is where a missing control gets written down as if it were a risk. Hop 6 is where a technology gets written down as if it were a requirement.
+Two of these hops go wrong for almost everyone, so give them longer. Hop 4 is where a missing control gets written down as if it were a risk. Hop 6 is where a technology gets written down as if it were a requirement.
 
 When all seven are written, open **[Tier 1 answers](answers.md)** and read the section **Exercise 1 answer**. It shows a wrong version of each hop beside the right one, and then the whole chain end to end.
 
@@ -393,7 +393,7 @@ Do not edit your Tier 0 records to match your new model. If your analysis contra
 | A weakness maps to no asset on the list | Check whether it is reconnaissance that makes another scenario cheaper, and record it that way |
 | An asset has no scenario at all | Check whether the product has that asset yet. An asset that does not exist has no risk today and a large one later |
 | Every risk looks equally serious | Compare reach, not difficulty. One request that affects every device outranks a hard attack on one device |
-| You disagree with the answers page | Write down why and bring it to the gate. It is one worked model, not a marking scheme |
+| You disagree with the answers page | Write down why and bring it to the gate. It is one worked model, not a list of correct answers |
 | `./course evidence check` refuses because the Course environment is missing or expired | The environment marker expires after 24 hours. Run `./course setup` again. Tier 1 itself needs no service and no board |
 
 Involve a Mentor early when your model and your Tier 0 evidence disagree about what happened. That disagreement is worth more than a tidy table, and it is much easier to resolve in conversation than in writing.
@@ -402,7 +402,7 @@ Involve a Mentor early when your model and your Tier 0 evidence disagree about w
 
 Tier 1 ends at the first required Mentor review gate. It is the readiness gate, held before the implementation-heavy tiers begin.
 
-It is still a conversation. There is no grade, no percentage, no pass and no fail. Its purpose is to check that the foundation you are about to build on is one you understand, and the Mentor's job is to ask questions and give hints, not to catch you out.
+It is still a conversation. There is no grade, no percentage, no pass and no fail. Its purpose is to check that the foundation you are about to build on is one you understand, and the Mentor's job is to ask questions and give hints, not to look for your mistakes.
 
 **Show.** Your Tier 0 evidence records and one fixture record. Your threat model worksheet, your risk register, and your claim record. The completeness table with your own Actual result column filled in.
 

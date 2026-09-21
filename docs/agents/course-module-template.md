@@ -412,9 +412,10 @@ the Learner has just spent the tier running it.
 is the failure mode of every control tier, not just one of them, and the
 specification names it as the stated failure criterion for several. Tier 3 asks
 the Learner to name three things an attacker who owns the update service
-completely can still do. A Learner who cannot name one has overread the control,
-and the question finds that out in seconds without anyone feeling caught out,
-which section 13 of `docs/course-specification.md` explicitly asks for.
+completely can still do. A Learner who cannot name one has read more into the
+control than it does, and the question finds that out in seconds without anyone
+feeling tested, which section 13 of `docs/course-specification.md` explicitly
+asks for.
 
 Section 13 of `docs/course-specification.md` already fixes the rest: the three
 outcomes, that only safety and dependency prerequisites may block progress, and
@@ -528,7 +529,7 @@ shipped without that exercise existing.
 
 Tier 3 found that Tier 2's HTTPS client cannot receive a response larger than
 2 KB. Every response Tier 2 ever fetched was small JSON, so nothing noticed, and
-a firmware image arrives in 16 KiB TLS records. Tier 2's published behaviour was
+a firmware image arrives in 16 KiB TLS records. Tier 2's published behavior was
 never wrong, and a Learner who went looking would have hit it with a symptom
 pointing nowhere near the cause.
 
@@ -565,10 +566,11 @@ Rules for an answers page:
   exercise, in the order the tier asks them.
 - The module links to it, and it links back to the module.
 - Every answer shows the wrong version beside the right one. The wrong versions
-  are the answers engineers actually write, not strawmen, and each one carries
-  the reason it fails.
-- The page states that it is one worked model and not a marking scheme, and
-  tells the Learner to record the differences rather than copy the answer.
+  are the answers engineers actually write, not weak answers invented to be
+  easy to reject, and each one carries the reason it fails.
+- The page states that it is one worked model and not a list of correct
+  answers, and tells the Learner to record the differences rather than copy the
+  answer.
 
 ## Skeleton
 
