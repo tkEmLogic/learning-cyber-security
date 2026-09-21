@@ -318,9 +318,14 @@ A one-line mention here is not a compromise: it reintroduces the bug diary at
 lower resolution and still spends the Learner's attention on a bug they cannot
 hit.
 
-**The section is never omitted.** A tier that found nothing says so in one line,
-and says why. Tier 2 is the worked example, because Tier 1 handed it a threat
-model rather than an implementation, so there was nothing in it to break. The
+**The section is never omitted from a tier that has something to exercise.** A
+tier that found nothing says so in one line, and says why. Tier 2 is the worked
+example, because Tier 1 handed it a threat model rather than an implementation,
+so there was nothing in it to break. The duty begins at Tier 2 for the same
+reason the counting rule does: a Baseline tier has no earlier tier at all, and
+an Analysis tier runs nothing, so neither can exercise a predecessor's work in a
+new way. Tier 0 and Tier 1 carry no section 14 and are not departures. Every
+Control tier carries one. The
 section exists because three modules invented the same heading in the same place
 before it was written down here, and because leaving it out silently is what let
 Tiers 2, 3 and 4 read as if they had found nothing at all.
