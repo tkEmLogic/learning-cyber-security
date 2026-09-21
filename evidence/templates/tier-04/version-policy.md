@@ -36,7 +36,7 @@ Your device is running `0.4.0-release-policy` at security counter 1. Commit to a
 
 ## After you compare
 
-The companion answers page holds one worked model, not a marking scheme. Record the differences here rather than a copy of the answer.
+The companion answers page holds one worked model, not a list of correct answers. Record the differences here rather than a copy of the answer.
 
 | Case | What you decided | What the worked model decided | Why they differ |
 | --- | --- | --- | --- |

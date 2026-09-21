@@ -12,7 +12,7 @@ Nothing was forged, nothing was replayed, and every control you have built worke
 
 `T0-W-07` has been open since Tier 0 saying precisely this. The fallback path physically exists: the course has used MCUboot's swap-using-offset mode in every tier, so the displaced image is written into the secondary slot on every install. No tier has ever taken that path. Tier 0 said a path you never take is not a recovery mechanism, and four tiers later it still is not one.
 
-This tier makes the device sceptical about its own success. It will install on trial rather than permanently, judge itself for sixty seconds, and put the old image back on its own if it cannot prove it works. It will also learn to survive being interrupted: a download that stops halfway will resume rather than start again, which matters because the thing most likely to interrupt an update is not an attacker.
+This tier makes the device skeptical about its own success. It will install on trial rather than permanently, judge itself for sixty seconds, and put the old image back on its own if it cannot prove it works. It will also learn to survive being interrupted: a download that stops halfway will resume rather than start again, which matters because the thing most likely to interrupt an update is not an attacker.
 
 By the end you will have reverted a device four different ways, and you will be able to say which of those four the device could explain and which it could not.
 
@@ -91,7 +91,7 @@ Your Tier 4 device will take it. Every check passes, because there is nothing wr
 
 Watch it install and watch what you are left with. The device swaps the broken image into the primary slot, reboots, and faults. The image that worked is gone, because the swap was permanent.
 
-This is `T0-W-07`, and it is worth sitting with for a moment. You did not make a mistake here that any of your existing controls could have caught. Tier 3 asks who signed it. Tier 4 asks whether it is the right release. Neither has an opinion about whether it works, and neither should: that is not a question a signature can answer.
+This is `T0-W-07`, and it is worth understanding fully. You did not make a mistake here that any of your existing controls could have caught. Tier 3 asks who signed it. Tier 4 asks whether it is the right release. Neither has an opinion about whether it works, and neither should: that is not a question a signature can answer.
 
 Reflash a working image before you continue.
 
@@ -132,7 +132,7 @@ Read `firmware/tier-05-recovery/src/main.c` and `health_gate.c` before you run a
 
 **The watchdog is fed by the thread it vouches for, and nothing else.** The beacon reports that it is alive; `main` feeds the watchdog. Feeding from a timer would have been easier and would have guarded nothing, because a timer keeps running in interrupt context while the thread it describes is dead.
 
-**The progress record is written after the bytes it describes.** The record may lag the flash. It may never lead it. There is one rule underneath the whole download path and it is worth memorising: *the record may never describe more than the flash holds.*
+**The progress record is written after the bytes it describes.** The record may lag the flash. It may never lead it. There is one rule underneath the whole download path and it is worth memorizing: *the record may never describe more than the flash holds.*
 
 Now install a release that works, onto a device running something else.
 
@@ -155,7 +155,7 @@ health.gate passed
 trial.confirm this image is now the one the device falls back to
 ```
 
-Every check runs and every result prints, even when the first one fails. That is the same choice Tier 4 made with its eight refusal reasons, for the same reason: you cannot diagnose a failure whose siblings you cannot see.
+Every check runs and every result prints, even when the first one fails. That is the same choice Tier 4 made with its eight refusal reasons, for the same reason: you cannot diagnose a failure when you cannot see the checks beside it.
 
 ## Watch it revert, four different ways
 
@@ -314,7 +314,7 @@ ota.resume was allowed to matter. The record says where to resume, never what to
 ota.resume requesting Range: bytes=196608-
 ```
 
-Two details in that output repay attention.
+Two details in that output are worth a closer look.
 
 **It resumed from 196608, not 200000.** The record is written after the bytes it describes, at 64 KiB checkpoints, so it lagged the flash by 3392 bytes and those bytes were downloaded twice. That is the safe direction. A record that led the flash would have resumed into a gap and built an image that only the digest would catch.
 
@@ -338,7 +338,7 @@ Three things can be defeated separately here, so there are three attempts.
 ./course service start --https --range ignore
 ```
 
-A server that ignores `Range` and answers `200` with the whole body is the failure most likely to be got wrong, because it looks like success while restarting the image from byte zero underneath a device that believes it is appending.
+A server that ignores `Range` and answers `200` with the whole body is the failure most likely to be handled wrongly, because it looks like success while restarting the image from byte zero underneath a device that believes it is appending.
 
 ```text
 ota.resume requesting Range: bytes=393216-
@@ -347,7 +347,7 @@ ota.discard the response was refused before any write
 ota.discard the progress record was cleared before the slot was erased
 ```
 
-Note the discard order: record first, then slot. That is the mirror of the write order, and for the same reason. Writing lags so the record can only under-claim; discarding leads so a power cut in the middle leaves no record rather than one pointing into an erased slot.
+Note the discard order: record first, then slot. That is the reverse of the write order, and for the same reason. Writing lags so the record can only under-claim; discarding leads so a power cut in the middle leaves no record rather than one pointing into an erased slot.
 
 **Change the release underneath a partial download.** Assign a different release while one is half-downloaded. The device discards rather than splicing two images together.
 
@@ -393,7 +393,7 @@ So the device writes the event down and sends it when there is a link:
 event.queued update.reverted release_id=tier-05-healthy detail=tier-05-fail-health update-client-ready
 ```
 
-Three things about that line repay attention.
+Three things about that line are worth a closer look.
 
 **The reporting image is not the image that failed.** A failed trial reboots, so the image that reports the revert is the one that came back. It reads the reason out of flash, which is why the reason had to be written before the reboot rather than sent over a network that was not up.
 
@@ -412,7 +412,7 @@ Compare against what you predicted.
 3. It confirms. No health check asks whether the service is reachable.
 4. Three trials, three reverts, and then it stops accepting that release and carries on beaconing.
 
-If you predicted that the network loss would fail the gate, you are in good company: it is the intuitive answer and it is the one the specification forbids.
+If you predicted that the network loss would fail the gate, that is the answer most engineers give: it is the intuitive answer and it is the one the specification forbids.
 
 ## Weakness ledger after the work
 
@@ -472,7 +472,7 @@ A control tier is the first thing to exercise the previous tier's work in a new 
 
 In Tier 4 this is harmless: nothing branches on that value, the refusal is printed where it is decided, and you still read `check=image-size`. In Tier 5 it was not harmless, because Tier 5 decides whether to discard a partial download based on that value, and a refused range response kept its bytes.
 
-Tier 4 is not being changed. Every behaviour its module describes is correct and its validated outcomes stand, and a published tier changing underneath a Learner is its own problem. The finding is recorded here instead.
+Tier 4 is not being changed. Every behavior its module describes is correct and its validated outcomes stand, and a published tier changing underneath a Learner is its own problem. The finding is recorded here instead.
 
 ## Update the Security evidence pack
 

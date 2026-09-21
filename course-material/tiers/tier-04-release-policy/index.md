@@ -12,7 +12,7 @@ It is correctly signed. It is your firmware, built by you, signed by your key, a
 
 The fleet went back to February. The hole is open again on every device you own.
 
-Nothing was forged. That is the part worth sitting with, because it means no signature check anywhere could have stopped it. Tier 3 asks who published an image. It has nothing to say about a release that is authentic and wrong.
+Nothing was forged. That is the part worth understanding, because it means no signature check anywhere could have stopped it. Tier 3 asks who published an image. It has nothing to say about a release that is authentic and wrong.
 
 This tier gives the device something to reason with. You will publish a Release manifest, signed with the same key, that says what a release actually is: which hardware it is for, which channel it belongs to, how big the image is, what its digest is, and a security counter that only ever moves forwards. Then you will make the application verify that manifest before it believes a single byte of it, and watch it refuse seven releases that Tier 3 would have installed without complaint.
 
@@ -118,7 +118,7 @@ Step 2. Find an older release this environment actually produced.
      Its signature verifies. Nothing about this release is forged, edited, or expired,
 ```
 
-Sit with step 2. There is no attack in it. The release is yours, the signature verifies, the bytes are untouched, and every check Tier 3 added would pass. The only thing wrong with it is that it is older than the one the device is running, and on a Tier 3 device nothing anywhere knows that.
+Look closely at step 2. There is no attack in it. The release is yours, the signature verifies, the bytes are untouched, and every check Tier 3 added would pass. The only thing wrong with it is that it is older than the one the device is running, and on a Tier 3 device nothing anywhere knows that.
 
 That is `T0-W-06`, and it is why a signature is not a release policy.
 
@@ -199,7 +199,7 @@ The signature covers these exact bytes. Reformatting the file breaks it,
 which is why the device verifies the bytes before it parses them.
 ```
 
-A handful of short names appear in that output. `SHA-256`, `ECDSA`, `P-256`, `ASN.1` and `DER` are all in the primer's [Names you will meet](../../cryptography-primer.md#names-you-will-meet) table. `TLV` is not on that page, because it is not a cryptography name: it stands for tag, length, value, which is how MCUboot stores small labelled fields beside an image. The security counter is one of those fields.
+A handful of short names appear in that output. `SHA-256`, `ECDSA`, `P-256`, `ASN.1` and `DER` are all in the primer's [Names you will meet](../../cryptography-primer.md#names-you-will-meet) table. `TLV` is not on that page, because it is not a cryptography name: it stands for tag, length, value, which is how MCUboot stores small labeled fields beside an image. The security counter is one of those fields.
 
 Three things in that output are the whole tier.
 
@@ -239,7 +239,7 @@ Tier 4 boot mode: signed MCUboot images, swap using offset, permanent upgrade
 Tier 4 downgrade prevention: by security counter, enforced by the bootloader
 ```
 
-Those two hardware lines are worth a minute. The silicon revision is real and readable: `efuse_hal_chip_revision()` asks the chip and it answers `v0.1`. The product hardware revision is not readable at all, on this part or any other, because nothing in the silicon knows which board it was soldered into. So it is asserted by the build and signed into the manifest.
+Those two hardware lines are worth a careful look. The silicon revision is real and readable: `efuse_hal_chip_revision()` asks the chip and it answers `v0.1`. The product hardware revision is not readable at all, on this part or any other, because nothing in the silicon knows which board it was soldered into. So it is asserted by the build and signed into the manifest.
 
 That is the general shape of product identity. It is something you assert and then protect, not something you read. A device that trusted a hardware revision it discovered at runtime would be trusting whatever could set it.
 
@@ -289,7 +289,7 @@ I: course: slot=secondary header=ok tlv=ok signature=present key=match counter=2
 I: course: slot=primary   header=ok tlv=ok signature=present key=match counter=2
 ```
 
-Four lines in there are the tier in miniature.
+Four lines in there hold the whole of this tier.
 
 `release.verified nothing has parsed these bytes yet; that is the point` is the ordering the specification requires. The signature is checked against the bytes exactly as they arrived, before any field is read out of them. A device that parsed first and verified afterwards would already have acted on attacker-controlled structure.
 
@@ -476,7 +476,7 @@ Compare these against what you predicted.
 2. Nothing at all. The signature says who made the image. It says nothing about whether this is the release the device should be running now, for this hardware, on this channel, at this size. Before the work in this tier, "one comparison decides everything on that path, and it is a string comparison on an identifier the attacker chooses", and the bootloader "can answer exactly one question: was this signed by the key I hold". A signature is not a release policy.
 3. The device remembers nothing, and this tier gives it nowhere to remember. The security counter travels inside the signed image and inside the signed Release manifest, and the bootloader compares the candidate against the counter in the image that is in the primary slot right now. You watch it happen in the `counter-mismatch` run: `slot=secondary` reports `counter=1`, the bootloader prints `Image 0 in slot 1 erased due to downgrade prevention`, and `slot=primary` reports `counter=2`. The fixture states the same fact as its own precondition: "the counter is compared, never remembered, and the comparison lives in flash an attacker can rewrite."
 
-The wrong answer most engineers give is to question 3, and it is that the device keeps a stored high-water mark, a number written to non-volatile storage after every successful install. It is the design most people have seen, and it is not this one, which is why the tier is built around watching the comparison rather than around a stored value. Two rows in the ledger only make sense once you have let that go. `T4-W-12` exists because a device whose primary image carries no counter has nothing to compare against, so the first install after the transition is unprotected, which is `E-4-06`. `T4-W-13` exists because both copies of the number live in flash, so whoever can rewrite the primary slot chooses what the device thinks it is running. A remembered counter would have different weaknesses. This one has these.
+The wrong answer most engineers give is to question 3, and it is that the device keeps the highest counter it has ever seen, written to non-volatile storage after every successful install. It is the design most people have seen, and it is not this one, which is why the tier is built around watching the comparison rather than around a stored value. Two rows in the ledger only make sense once you stop expecting a stored value. `T4-W-12` exists because a device whose primary image carries no counter has nothing to compare against, so the first install after the transition is unprotected, which is `E-4-06`. `T4-W-13` exists because both copies of the number live in flash, so whoever can rewrite the primary slot chooses what the device thinks it is running. A remembered counter would have different weaknesses. This one has these.
 
 This section was added after Tier 4 was published. If you worked the tier before it existed, your three written answers are checkable now.
 
@@ -538,7 +538,7 @@ cp evidence/templates/tier-04/*.md evidence/learner/tier-04/
 Record:
 
 - The seven refusal observations and the good install, each with the check that refused it. These become `observed` only when you watched them on the board.
-- Your version policy decision table, which is your own work. The companion page has one worked model to compare against, not a marking scheme.
+- Your version policy decision table, which is your own work. The companion page has one worked model to compare against, not a list of correct answers.
 - The `SC-02` claim record, moved from `unsupported` to `partly_supported`, with both gaps named.
 - Your `control` records for `CTL-02`, moved from `planned` to `implemented`.
 - The two new weaknesses, `T4-W-12` and `T4-W-13`, with owners.
@@ -547,7 +547,7 @@ Which records become `observed`: the refusal rows and the good install, once you
 
 Your version policy decision table is reasoning rather than observation, so it is never `observed` either. It is still evidence, and the Mentor review gates ask for it.
 
-Every refusal row must come from a board you watched. A host result never stands in for a device result, and in this tier the distinction has teeth: the fixtures deliberately cannot tell you what the device did, and they say so.
+Every refusal row must come from a board you watched. A host result never stands in for a device result, and in this tier that distinction decides what you may write down: the fixtures deliberately cannot tell you what the device did, and they say so.
 
 ## Troubleshooting
 
@@ -568,7 +568,7 @@ Tier 4 has no required Mentor review gate. Section 13 of the specification names
 
 If you want one, the most useful thing to show is `counter-mismatch`: the application accepting a release and the bootloader refusing the same release. Then explain, in your own words, which of the two is the security boundary and what would still be true if you deleted the other.
 
-The question worth being asked is the same one every control tier should ask. Name three things an attacker who completely owns your update service can still do to your fleet. A Learner who cannot name one has overread the control.
+The question worth being asked is the same one every control tier should ask. Name three things an attacker who completely owns your update service can still do to your fleet. A Learner who cannot name one has read more into the control than it does.
 
 ## Continue
 

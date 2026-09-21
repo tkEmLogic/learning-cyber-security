@@ -23,7 +23,7 @@ Copy this file into `evidence/learner/tier-06/` and write in the copy.
 
 | ID | Requirement | Acceptance criterion | Supports |
 | --- | --- | --- | --- |
-| REQ-07 | Each device holds a private key that was generated on that device and never leaves it, and no credential enrols a second device in a device's name | The private key is present in no firmware image and in no other device's records, and a credential that has already enrolled one device is refused when it is presented for a second | SC-06 |
+| REQ-07 | Each device holds a private key that was generated on that device and never leaves it, and no credential enrolls a second device in a device's name | The private key is present in no firmware image and in no other device's records, and a credential that has already enrolled one device is refused when it is presented for a second | SC-06 |
 
 ## The controls
 
@@ -32,7 +32,7 @@ Neither control was planned in Tier 1, because neither existed there. Both enter
 | ID | Control | Meets requirement | Lifecycle state | Evidence | Record state |
 | --- | --- | --- | --- | --- | --- |
 | CTL-08 | The device generates a non-exportable identity key and stores it through the limited Secure Storage configuration | REQ-07 | implemented |  |  |
-| CTL-09 | A unique one-use Bootstrap credential and an append-only manufacturing record, so no credential enrols a second device | REQ-07 | implemented |  |  |
+| CTL-09 | A unique one-use Bootstrap credential and an append-only manufacturing record, so no credential enrolls a second device | REQ-07 | implemented |  |  |
 
 A control entering at `implemented` still needs evidence under it. Name the evidence for each one, and keep the record `pending` where the evidence is still `pending`.
 
@@ -47,7 +47,7 @@ Every residual risk needs an owner and either a treatment or a recorded acceptan
 | T6-W-16 | The Secure Storage encryption key is `SHA-256` of the board's MAC and the record's UID, both public. Anyone who can read the flash can derive the key |  |  | Advanced Tier B, STSAFE-A120 |
 | T6-W-17 | Stored records carry no freshness, so writing back an older copy is accepted as authentic |  |  | No tier on this course closes it |
 | T6-W-18 | The private key is protected at rest only. Privileged firmware, the application itself, and a debugger can all reach it |  |  | Advanced Tier B, STSAFE-A120 |
-| T6-W-19 | The AES-GCM nonce is randomised once per boot then incremented, while the record's key never changes |  |  | Recheck on any Zephyr upgrade |
+| T6-W-19 | The AES-GCM nonce is randomized once per boot then incremented, while the record's key never changes |  |  | Recheck on any Zephyr upgrade |
 
 `T6-W-17` is the row most likely to be skipped, because nothing in the lab fails when you exercise it. Write its owner down anyway.
 

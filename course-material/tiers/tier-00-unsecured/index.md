@@ -93,7 +93,7 @@ Before you run anything, write down:
 2. Which component decides whether downloaded firmware may run?
 3. Which observation cannot be made without a physical device?
 
-Each answer arrives in this tier's own output: question 1 in the `Expected insecure effect` and `Weaknesses this demonstrates` lines that every fixture prints in its dry run below, question 2 in the Tier 0 path under Investigate the missing boundaries, where unsigned MCUboot runs whatever arrives, and question 3 in Watch the device accept the altered image, which is the one step that needs a physical ESP32-C6.
+Each answer arrives in this tier's own output. Question 1 is answered by the `Expected insecure effect` and `Weaknesses this demonstrates` lines that every fixture prints in its dry run below. Question 2 is answered in the Tier 0 path under Investigate the missing boundaries, where unsigned MCUboot runs whatever arrives. Question 3 is answered in Watch the device accept the altered image, which is the one step that needs a physical ESP32-C6.
 
 ### Look before you act
 

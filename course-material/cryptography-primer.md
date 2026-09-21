@@ -38,7 +38,7 @@ One of them is kept secret and never leaves its holder. That is the private key,
 
 The two halves are not interchangeable. What one half does, only the other half can undo. Everything else on this page is built on that one property.
 
-You cannot work out the private half from the public half. This is why publishing the public half costs you nothing, and that is the whole trick. Two parties who have never met can work together, because one of them can publish something in the open and still keep a secret.
+You cannot work out the private half from the public half. This is why publishing the public half costs you nothing, and that is the whole point. Two parties who have never met can work together, because one of them can publish something in the open and still keep a secret.
 
 One consequence is worth stating plainly. Every control in this course that uses a key pair depends on whether the private half stayed private, and nothing else on this page repairs the loss of a private key.
 

@@ -26,7 +26,7 @@ The wrong answer engineers give most often is to question 3, and it is `T0-W-03`
 
 The observation was the second step of the altered-image fixture. The attacker overwrote the record that decides which firmware every device installs, and the service accepted the change without asking who sent it.
 
-Each hop below shows a wrong version first. The wrong versions are not strawmen. They are the answers that engineers write most often, and each one fails for a reason worth knowing.
+Each hop below shows a wrong version first. The wrong versions are not weak answers invented to be easy to reject. They are the answers that engineers write most often, and each one fails for a reason worth knowing.
 
 ### Hop 1: the asset
 
@@ -58,7 +58,7 @@ Wrong: HTTP is insecure.
 
 Right: an attacker who can reach the update service for one minute gains permanent code execution on every device in the fleet, including devices they cannot reach directly, and the fleet installs their code as a normal update with no error and no record that anything unusual happened.
 
-"HTTP is insecure" is a missing control wearing a risk costume. A control is what you add. A risk is what happens while you have not added it. The test is whether your sentence would still make sense to the factory manager who pays for the fix. "HTTP is insecure" would not. "Anyone on your network can choose what your machines run" would.
+"HTTP is insecure" names a missing control and calls it a risk. A control is what you add. A risk is what happens while you have not added it. The test is whether your sentence would still make sense to the factory manager who pays for the fix. "HTTP is insecure" would not. "Anyone on your network can choose what your machines run" would.
 
 Note what makes this risk large. It is not the difficulty of the attack, which is one HTTP request. It is the reach: one request affects every device, and the effect survives a reboot.
 

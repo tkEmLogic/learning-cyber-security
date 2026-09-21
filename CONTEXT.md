@@ -286,7 +286,7 @@ _Avoid_: Version, build number, rollback index
 **Trial image**:
 An image MCUboot has swapped into the primary slot but not been told to keep.
 It is running, and it is one reboot away from being replaced by the image it
-displaced. Every install from Tier 5 onwards begins as one.
+displaced. Every install from Tier 5 onward begins as one.
 _Avoid_: Test image, candidate image, pending image
 
 **Confirmed image**:
