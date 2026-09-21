@@ -330,6 +330,13 @@ It is fixed in Tier 6's own tree, in `recovery_state.c`, which stops mounting a 
 
 ## Update the Security evidence pack
 
+Create the Tier 6 evidence directory and copy the templates, from the repository root:
+
+```text
+mkdir -p evidence/learner/tier-06
+cp evidence/templates/tier-06/*.md evidence/learner/tier-06/
+```
+
 Add to your pack:
 
 - The clone demonstration: the extraction output, and the record entries the clone wrote under one fingerprint.
@@ -340,6 +347,8 @@ Add to your pack:
 - The four residual risks, `T6-W-16` to `T6-W-19`, each with its owner.
 
 The provisioning record and the certificate fingerprint become `observed` once you have run enrollment on the board. Do not let the host clone result stand in for a device enrollment: they answer different questions.
+
+`E-6-04` is a device result and becomes `observed` only from your own board. `E-6-05` starts with a dump taken from your own board, so it becomes `observed` only when the key you recovered is your board's key. The clone and the station refusals are host results and they stay host results: they are evidence about the station, not about any device. Everything you did not run stays `pending`.
 
 ## Troubleshooting
 
