@@ -142,10 +142,22 @@ _Avoid_: Spec item, feature, user story
 
 **Security control**:
 The technical or procedural measure that meets one or more security
-requirements, identified as `CTL-<nn>` and carrying a lifecycle state of
-`planned`, `implemented`, or `verified`. A control names the technology a
-requirement must not.
+requirements, identified as `CTL-<nn>` and carrying a status of `planned`,
+`implemented`, or `verified`. A control names the technology a requirement must
+not. Its status is a workflow position and not a Device lifecycle state; the
+two words were the same word until issue #205 separated them.
 _Avoid_: Mitigation, countermeasure, safeguard
+
+**Device lifecycle state**:
+Where one physical device stands in its life, as the Provisioning record
+tells it: `manufactured`, `claimed`, `active`, `transferred`, `revoked`, or
+`decommissioned`. It is derived by replaying the record rather than stored, so
+the `lifecycle_state` field on a record line is a copy written for a reader and
+never the authority. A device is `claimed` once it holds an Operational
+identity and `active` once it has used one. It tracks what a device is
+authorized to do and not what it is holding, which is why renewal and recovery
+change no state at all.
+_Avoid_: Device state, provisioning state, status
 
 **Residual risk**:
 A known security risk that remains after the selected controls are applied,
