@@ -1,12 +1,26 @@
 # Tier 1 answers
 
-This page holds the finished answers to the two Tier 1 exercises.
+This page holds the finished answers to the four Tier 1 Predict questions and to the two Tier 1 exercises.
 
 Do not read it before you have written your own answer. A partial answer that you wrote is worth more than a complete one that you read, because the difference between the two is the only thing this tier can teach you.
 
 When you have written your answer, read the matching section here and mark every place the two differ. Do not copy this page into your worksheet. Write down the differences instead.
 
 This is one worked model. It is not the only correct one. If you think something here is wrong, write down why and take it to your Mentor review gate.
+
+## Predict answers
+
+The Tier 1 page asks four questions before the exercises begin. They are answered here, and the answers use the finished model further down this page, so read this section only after your own model is written.
+
+**1. Noticed first, and never noticed at all.** A factory customer notices `T0-W-07` first. It is the only weakness in the ledger whose scenario has no attacker in it: `MS-06` is power lost during an overwrite install, or an installed image that crashes on start, and `R-06` records the result as a device that no longer starts and cannot be recovered remotely. A beacon that has stopped working is visible from across the floor. The customer never notices `T0-W-01`. Reading the release record and downloading the image is one ordinary request that the service is happy to answer, it changes nothing on the device, and `MS-01` harms no protected asset, so there is nothing for anyone to see afterwards.
+
+**2. Least effort for the attacker.** `T0-W-01` again. It costs one unauthenticated request from anywhere on the same network, with no exploit, no credential and no device. That is why `R-01` records what the actor achieves as full knowledge of the update path before attacking it, and why `MS-01` is written down although it harms no asset: it lowers the cost of every other scenario in the register.
+
+**3. Closed on its own, removes the most attacker outcomes.** `T0-W-04`, that MCUboot accepts unsigned images. It is one of only two weaknesses that appear in more than one misuse scenario, `MS-04` and `MS-08`, and those two carry the worst outcomes in the register: `R-04` is permanent attacker-chosen code execution on every device from one request, and `R-08` is fleet-wide code execution from a compromised server. The register treats `R-08` in Tier 3 alone, which is the tier that closes this weakness. Close it and an attacker who rewrites the release record, or who owns the service host outright, can still make a device install an older release that you published yourself, which is `R-05`. They can no longer choose the code that runs. The boundary table on the Tier 1 page says why one control carries that much: boundary 3 belongs to MCUboot and to nothing else, because MCUboot is the last component that can refuse.
+
+**4. The asset no Tier 0 attack touched.** `A-02`, the firmware signing key, because the Reference product has no signing key in Tier 0 and no scenario can name an asset that does not exist. The section [The asset no scenario touches](#the-asset-no-scenario-touches) below holds the answer and the reason it matters, and it is worth reading there rather than here.
+
+The wrong answer engineers give most often is to question 3, and it is `T0-W-03`, that the device trusts an unauthenticated service. It is the weakness that feels most like the attack, because an imposter answering at the address is the Tier 0 attack people remember. Closing it authenticates the sender and says nothing about what was sent. `R-08` is the row that shows the difference: a hosting attacker publishes from the genuine service, over a connection the device verifies, and an authenticated transport hands them the fleet rather than stopping them.
 
 ## Exercise 1 answer: one observation, one threat
 

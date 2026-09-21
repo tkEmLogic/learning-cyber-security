@@ -78,7 +78,11 @@ a control tier. Do not ask it a third time.
 
 ## Section order
 
-Every section is required in every variant.
+Every section is required in every variant, except section 11a, `## Reveal`,
+which a tier carries only when its Predict owes one. Its heading and its slot
+are fixed when it is there. "Where Predict goes" below says when a tier owes
+one. It is numbered 11a rather than 12 so that every other number in this list,
+and every reference to one elsewhere, keeps its meaning.
 
 The list binds in two different strengths, and the difference is the one thing
 to understand before writing a module.
@@ -120,6 +124,7 @@ two numbering schemes collide and both are in use here.
 | 9 | `## <name the work this tier performs>` | Tier-named |
 | 10 | `## Replay the <attack or observation>` | Tier-named |
 | 11 | `## Test bypass attempts` or `## Test safety and failure behavior` | Tier-named |
+| 11a | `## Reveal` | Fixed, and optional |
 | 12 | `## Weakness ledger after the work` | Fixed |
 | 13 | `## Security claim and evidence status` | Fixed |
 | 14 | `## What this tier found in <the earlier tier or tiers>` | Tier-named |
@@ -150,11 +155,45 @@ The reason section 7 is the default home is that a control tier's answers arrive
 as real output rather than as a page to compare against, which holds while the
 questions are about the attack and stops holding when they are about the tier.
 
-A lifted Predict must be paired with a closing section that answers every
-question it opened. Tier 5 does this: `## Predict` near the top and `## Reveal`
-near the end, four questions asked and four answered. A lifted Predict with no
-close leaves the Learner holding written answers that nothing ever checks, which
-is worse than not asking.
+**A written commitment creates the debt, not the sentence that promises to
+settle it.** Asking a Learner to write an answer down is itself the promise.
+"You will compare them at the end" and a bare "write down your answers" owe the
+same thing, so deleting the promise sentence is not a repair. A Learner who
+wrote four answers down does not care which verb the page used.
+
+**The span of the question decides where the debt is discharged, and there are
+two places.**
+
+A question that the command the Learner is about to run answers **closes itself
+where the output lands**. The Predict says so in one sentence, naming the
+section whose output carries each answer. There is no closing section, because
+one would restate output a screen above it. Tier 0 and Tier 2 work this way.
+
+A question about the tier as a whole owes **`## Reveal`**, placed after section
+11 and before section 12. Tier 5 and Tier 6 both chose that heading and that
+slot independently, and Tiers 3, 4 and 7 were brought to it. A tier that
+publishes a companion answers page may discharge there instead, in a section of
+its own before the exercises, which is what Tier 1 does.
+
+**A Reveal answers, then corrects.** One or two lines per question, each answer
+read out of the module's own quoted output and evidence identifiers rather than
+written from memory. Then one paragraph naming the wrong answer most engineers
+give and why the tier is built to correct it. Roughly 150 to 250 words. This
+does not break the one-fact-one-place check below, because a Reveal is not
+restating the demonstration, it is scoring a commitment. A Reveal that only
+points at section numbers is an index, and it gives a Learner who got it wrong
+nothing.
+
+**Position and closure are independent.** Whether Predict is lifted to a
+level-2 section is decided by span alone. Whether it owes a close is decided by
+the commitment. The two rules do not interact, and a `### Predict` inside
+section 7 may be closed by a level-2 `## Reveal` near the end, as long as the
+Predict names it.
+
+**A repaired tier admits the repair in one line.** A published tier must not
+change under a Learner, and someone who worked that tier last month wrote
+answers down. One line at the end of the Reveal tells them the answers exist
+now. One line is enough for a fact that ages out.
 
 ## Show the mechanism, not the verdict
 
@@ -452,12 +491,13 @@ Five out of five have now found something, which is why this has a section of
 its own. Write what you found in section 14, not in a paragraph buried in
 section 12.
 
-**Predict and reveal did not carry over, and that is fine.** Unchanged from
-Tier 2. A control tier's work is running and reading, and its answers arrive as
-real output rather than as a page to compare against. Tier 3 opens section 7
-with `### Predict`, as the template requires, and publishes no answers page. Do
-not add one to a control tier unless the tier asks the Learner to design
-something.
+**A control tier publishes no companion answers page.** Unchanged from Tier 2.
+A control tier's work is running and reading, and its answers arrive as real
+output rather than as a page to compare against. Tier 3 opens section 7 with
+`### Predict`, as the template requires, and publishes no second page. Do not
+add one to a control tier unless the tier asks the Learner to design something.
+This says nothing about whether the Predict is closed. Every Predict is closed,
+and "Where Predict goes" above says where.
 
 ## Companion answers page
 

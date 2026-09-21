@@ -95,7 +95,7 @@ This table is inherited context, not your work. It is the same ledger you closed
 
 ### Predict
 
-Before you read anything, write down your answers to these four questions. You will check them against your own finished model at the end of the tier.
+Before you read anything, write down your answers to these four questions. **[Tier 1 answers](answers.md)** opens with a section called Predict answers that answers all four. Do not open it until your own model is written, and then read it beside your own answers and mark every place the two differ.
 
 1. Which of the seven weaknesses would a factory customer notice first, and which one would they never notice at all?
 2. Which weakness costs an attacker the least effort to use?

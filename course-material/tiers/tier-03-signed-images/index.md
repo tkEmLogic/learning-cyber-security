@@ -76,7 +76,7 @@ One thing to be clear about before you begin, because this tier is built on it. 
 
 ### Predict
 
-Before running anything, write down your answers. You will compare them at the end.
+Before running anything, write down your answers. The Reveal section, after Test bypass attempts, answers all three.
 
 1. Your update service is genuine, its certificate verifies, and the connection is encrypted. If someone publishes hostile firmware through it, what stops the device installing it?
 2. If you sign your firmware, what exactly does the signature prove? Write the sentence out.
@@ -389,6 +389,18 @@ Your signing key is a file on the laptop that also builds the firmware, runs the
 On one laptop, "offline" is a convention you are choosing to respect. A real manufacturer does not rely on a convention: the signing key lives in a hardware security module or on a machine with no network, signing is a request that someone approves, and every signature is logged. None of that fits in a course on one computer, and pretending otherwise would teach you a habit rather than a control.
 
 What this tier can honestly claim is the thing you just watched: an operator with complete control of the update service, who can publish anything they like over a perfectly valid connection, still cannot make your device run their code. That is `REQ-06`, and it is demonstrable rather than assertable because you just did it yourself.
+
+## Reveal
+
+Compare these against what you predicted.
+
+1. Before this tier, nothing stops it. The hostile-image fixture publishes through your own genuine service and its last step says so: `Stop. Nothing here can refuse this image.` Every check Tier 2 added passed, and the application announced on the board that it was installing `without any check`. After this tier one thing stops it, and only one: the bootloader, at the last moment before the code would run.
+2. The signature proves that this image was produced by whoever holds the private half of the key the bootloader carries. It proves nothing else. It does not say that the bytes are the release you meant to ship, that the release is the current one, or that the service that delivered it is honest. The `modified` image is the proof: it prints `header=ok tlv=ok signature=present key=match`, the same line your good image prints, and it is refused anyway, because the bytes no longer match what was signed.
+3. Nothing about the keys themselves. `./course keys list` prints the answer in two lines: "Both keys are ECDSA P-256 and both are equally valid. Only the fingerprint compiled into the bootloader decides which one the device will run." Yours is the one whose fingerprint is compiled into your bootloader, and that is the whole difference. The attacker's key is refused with `key=other`, not because it is weaker, but because it is not that one.
+
+If you answered question 2 with something like "the image is safe" or "the image has not been tampered with", you are giving the answer most engineers give, and it is the one this tier is built to correct. Signing is not a property an image has. It is a relationship between an image and one specific key that one specific device was built to expect. That is why Bypass 2 defeats the control without touching the image at all: anyone who can flash a bootloader compiles in whatever key they like, and the device then runs firmware signed by that key. The honest sentence is the one in Bypass 2: this device runs only firmware signed by the key its bootloader carries, and the bootloader is trusted because it is there. That gap is `T3-W-10`, and it stays open.
+
+This section was added after Tier 3 was published. If you worked the tier before it existed, your three written answers are checkable now.
 
 ## Weakness ledger after the work
 
