@@ -15,6 +15,32 @@ be native English speakers.
 - Avoid idioms, jokes, culture-specific references, and esoteric language.
 - Do not use em dashes. Use a full stop, comma, colon, or a new sentence.
 - Do not use a complex word when a simple word has the same meaning.
+- Use US spelling: `behavior`, `recognize`, `labeled`, `skeptical`. The section
+  11 heading `## Test safety and failure behavior` is fixed spine and cannot be
+  reworded, so the choice is already made. Never change spelling inside quoted
+  output, a command, a path, an identifier or the title of an external reading.
+- Keep every prose sentence under 50 words. Tiers 6 and 7 drifted past that with
+  two and three colon-joined clauses; Tiers 0 to 3 never did, so the target is
+  already in the course.
+
+The 2026-09 review found idiom, spelling and sentence length in eight published
+modules, and the first rule in that list had been written here since the
+beginning. A rule nobody checks is not a rule, so the three tests below are the
+ones to actually run, and none of them can be answered by reading the list
+above.
+
+**The idiom test is a reader, not a word list.** Ask whether a competent
+engineer reading English as a second language gets the meaning on the first
+pass. "A stranger who found it in a skip", "the factory canteen" and "sit with
+that" all passed a search for jokes and slang and failed a reader.
+
+**Replace an idiom, never delete it.** The course's voice is one of its
+strengths, and a pass that flattens every sentence into instructions costs more
+than the idioms do. Keep the work the sentence was doing.
+
+**Measure sentence length, do not eyeball it.** Script it over prose, excluding
+fenced blocks and table rows. Eight sentences were over the limit and none of
+them looked long in place.
 
 ## Procedures
 

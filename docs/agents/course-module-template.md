@@ -30,6 +30,15 @@ file, in this order.
   `Tier 0: Build the unsecured reference product`.
 - Link it from the tier table and the closing section of
   `course-material/index.md`, and from the previous tier's Continue section.
+- Add every canonical term the tier introduces to the glossary on
+  `course-material/index.md`, using the wording from `CONTEXT.md`. Tiers 6 and 7
+  defined six terms there and reached the landing page with none of them.
+- A cryptography noun belongs to
+  [`course-material/cryptography-primer.md`](../../course-material/cryptography-primer.md),
+  not to the module. Link its section on first use in the tier rather than
+  defining the word again. A term only one tier needs is defined in that tier,
+  in one sentence, because a module that sends the reader away on every noun is
+  worse than one that defines in passing.
 - Link `course-material/index.md` back from the module's Starting state. A
   Learner who opens a tier from a bookmark, a search result or a fork needs the
   setup, the glossary and the tier list, and Starting state is where they are
@@ -376,6 +385,16 @@ Tiers 2, 3 and 4 read as if they had found nothing at all.
 
 **15. Update the Security evidence pack.** The commands that create the Learner
 evidence directory and copy templates, then a bullet list of what to record.
+
+**Write the templates before the section, and ship them under
+`evidence/templates/tier-NN/`.** A tier's records are Markdown from Tier 1
+onward, following the shape of the tiers before it: the metadata table, then the
+record tables. The section then uses the `mkdir` and `cp` pattern every other
+tier uses, and `./course evidence check --tier NN` checks the copies for
+structure. Tiers 4 to 7 shipped with no templates at all and the sections
+degraded into bullet lists with no command, which is what the 2026-09 review
+found as `F-02`. A tier whose section says "record the following" and hands the
+Learner nowhere to record it has not finished this section.
 Say which records become `observed` and which stay `pending`, and never let a
 host-only result replace a pending hardware field.
 
@@ -617,3 +636,29 @@ Rules for an answers page:
 6. Check that each fact appears in exactly one place in the module.
 7. Check that every attack shows its steps and its real output, not a verdict.
 8. Read it rendered on GitHub and follow every link in it.
+
+The checks below were added after the 2026-09 review, which found fourteen
+problems across eight published modules. Three of them broke rules that were
+already written down, so this list is the place the rules are actually applied.
+Each one names the finding it exists to catch.
+
+9. Every Predict question is closed, by the next command's output or by a
+    `## Reveal`. Nothing promises an answer that never arrives (`F-04`).
+10. Every technical term is defined or linked before its first unexplained use,
+    with the cryptography nouns going to the primer (`F-01`). Every canonical
+    term the tier introduces has reached the landing-page glossary (`F-09`).
+11. The tier ships its evidence templates and its section 15 gives a command,
+    not a bullet list (`F-02`).
+12. Section 14 admits only what the rule admits, and says so in one line when
+    the tier found nothing (`F-05`, `F-06`). Any streak count is recounted.
+13. The Continue section links the next tier, Starting state links the landing
+    page, and Primary references is the five-column table with at least one
+    external reading (`F-07`, `F-08`).
+14. Spelling is US throughout, and no prose sentence exceeds 50 words. Measure
+    the sentences, do not eyeball them (`F-12`, `F-13`).
+15. The expected time in `course-material/index.md` and in section 11 of
+    `docs/course-specification.md` agree with each other and with the module's
+    measured length (`F-14`). The course total is the sum of the rows.
+16. Every new identifier follows
+    [`docs/adr/0001-identifier-allocation.md`](../adr/0001-identifier-allocation.md),
+    and the tier records its own controls and requirements (`F-03`).
