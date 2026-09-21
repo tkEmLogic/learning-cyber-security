@@ -270,7 +270,7 @@ The first problem splits in two, and the tier answers its halves differently. Wh
 
 If you predicted that per-device keys fix both problems, that is the answer this tier is built to correct, and it is the one most engineers give. Generating a key on the device changes where the key came from. It does not change what a flash dump yields. What this tier bought is the blast radius of one recovered key, not the difficulty of recovering one.
 
-This section was added after Tier 6 was published. The three questions were always here and nothing answered them, which meant a Learner was asked to commit to an answer and then left holding it. If you worked Tier 6 before this section existed, your three written answers are checkable now.
+This section was added after Tier 6 was published. If you worked the tier before it existed, your three written answers are checkable now.
 
 ## Weakness ledger after the work
 

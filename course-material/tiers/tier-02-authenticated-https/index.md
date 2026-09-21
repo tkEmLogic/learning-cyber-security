@@ -100,7 +100,7 @@ Before you run anything, write down:
 3. If the connection were encrypted but nobody checked who answered, which of the two attacks would still work?
 4. If the device checked who answered but the connection were readable, which would still work?
 
-Questions 3 and 4 are the point of this tier. Encryption and authentication are two different properties, they fail separately, and a control that provides one is regularly described as if it provided both.
+Questions 3 and 4 are the point of this tier. Encryption and authentication are two different properties, they fail separately, and a control that provides one is regularly described as if it provided both. Each pair of answers closes where its output lands: questions 1 and 2 in the Look before you act run below, where both Tier 0 attacks succeed again, and questions 3 and 4 in Replay the attacks against the control, where the same two attacks fail at two different checks.
 
 ### Look before you act
 

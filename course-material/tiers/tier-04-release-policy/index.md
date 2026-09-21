@@ -79,7 +79,7 @@ Note the last row before you begin. Everything this tier builds rests on that ke
 
 ### Predict
 
-Before running anything, write down your answers. You will compare them at the end.
+Before running anything, write down your answers. The Reveal section, after Test bypass attempts, answers all three.
 
 1. An attacker who owns your update service has no signing key. Name something damaging they can still do to a fleet of Tier 3 devices.
 2. Your device checks the signature on every image it installs. What does that signature tell it about whether the image is the right one to be running?
@@ -465,6 +465,18 @@ Record the actual result yourself. If one surprises you, write down what you saw
 `E-4-06` is a bypass that succeeds, and it is published rather than hidden. MCUboot allows the swap outright when the image in the primary slot carries no security counter, and every image built before this tier is like that. So the first install after the transition is unprotected, and anyone who can reflash a device over serial to a pre-Tier-4 image restores that window.
 
 `E-4-07` needs no device at all. It is `T3-W-11`, unchanged by this tier.
+
+## Reveal
+
+Compare these against what you predicted.
+
+1. They can put an old release back. The replay fixture re-assigns a release you published yourself, and step 2 of its output is the answer: `tier-04-baseline, security_counter 1`, whose "signature verifies. Nothing about this release is forged, edited, or expired". On a Tier 3 device every check passes, because the only check is who signed the image, and a release you signed last year is still signed by you. That is `T0-W-06`, and a fleet sent back to a version whose defects are published is the damage.
+2. Nothing at all. The signature says who made the image. It says nothing about whether this is the release the device should be running now, for this hardware, on this channel, at this size. Before the work in this tier, "one comparison decides everything on that path, and it is a string comparison on an identifier the attacker chooses", and the bootloader "can answer exactly one question: was this signed by the key I hold". A signature is not a release policy.
+3. The device remembers nothing, and this tier gives it nowhere to remember. The security counter travels inside the signed image and inside the signed Release manifest, and the bootloader compares the candidate against the counter in the image that is in the primary slot right now. You watch it happen in the `counter-mismatch` run: `slot=secondary` reports `counter=1`, the bootloader prints `Image 0 in slot 1 erased due to downgrade prevention`, and `slot=primary` reports `counter=2`. The fixture states the same fact as its own precondition: "the counter is compared, never remembered, and the comparison lives in flash an attacker can rewrite."
+
+The wrong answer most engineers give is to question 3, and it is that the device keeps a stored high-water mark, a number written to non-volatile storage after every successful install. It is the design most people have seen, and it is not this one, which is why the tier is built around watching the comparison rather than around a stored value. Two rows in the ledger only make sense once you have let that go. `T4-W-12` exists because a device whose primary image carries no counter has nothing to compare against, so the first install after the transition is unprotected, which is `E-4-06`. `T4-W-13` exists because both copies of the number live in flash, so whoever can rewrite the primary slot chooses what the device thinks it is running. A remembered counter would have different weaknesses. This one has these.
+
+This section was added after Tier 4 was published. If you worked the tier before it existed, your three written answers are checkable now.
 
 ## Weakness ledger after the work
 

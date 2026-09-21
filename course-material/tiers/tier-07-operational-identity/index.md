@@ -85,16 +85,16 @@ Inherited from Tier 6. Not your own work yet.
 
 The row this tier is about is `T0-W-02`. Read it again and notice how little Tier 6 changed about it. Your device gained an identity. The service never asked for one.
 
-## Reproduce the impersonation
+## Predict
 
-### Predict
-
-Before you run anything, write down your answers:
+Before you run anything, write down your answers. These four questions are about the whole tier rather than about the attack below, and the Reveal section, after Test bypass attempts, answers all four.
 
 1. Your board proves possession of its Factory key every time it enrolls. What does it prove when it sends a status event?
 2. A status event names a device in the path and again in the body. Who decides which one the service believes?
 3. If you copy your board's identifier off the console and send a report under it from your laptop, what could the service compare it against?
 4. The firmware image is signed and its release manifest is signed. Does that stop a stranger downloading it?
+
+## Reproduce the impersonation
 
 ### Look before you act
 
@@ -759,6 +759,19 @@ That output is worth as much as any of the rows. Reset removes the adversary's o
 One consequence to read rather than skip: the synthetic devices stay in your manufacturing record forever, with no field marking them as a fixture's work. The naming convention is the only tell, and anyone who can write the record can pick any name. That is `T7-W-25`.
 
 Record any unexpected actual result before you troubleshoot it, and do not mark the Security claim supported on the strength of a result you have not seen.
+
+## Reveal
+
+Compare these against what you predicted.
+
+1. Before this tier, nothing. Enrollment proves possession of the Factory key because the certification request is signed with it, and a status event proved nothing at all: "Nothing in the request proves the device sent it." After the work the event proves possession of the Operational private key, because the key is used in the handshake that carries the request, and the service writes `accepted_from: client_certificate` into the record to say so.
+2. Before this tier, the body decided, and the service admitted it in its own answer: `"warning":"Tier 0 trusts the JSON body device_id"`, with `tier_00_trust: body_device_id` written into the record. After the work neither one decides. There are three identifiers, in the certificate, the path and the body, and "the one the service acts on is `accepted_device_id`, and it is copied from the certificate". A body that disagrees with the path is refused at `identifier-consistent`, which is `E-7-09`.
+3. Before this tier, nothing. The service had no second copy of your identifier to hold the first one against, which is why the forged event was accepted and written into an append-only history a support engineer would later read. After the work it compares your claim against the identifier in the verified Operational certificate on the connection, and `REQ-04` is met in the words it was written in: a report naming a device other than the one on the connection is rejected and recorded as rejected.
+4. No. The download in section 7 fetched the whole image, byte for byte, from a caller who proved nothing, and the signature on it stayed intact throughout: "a signature says who made an image, and it never says who may have it." After the work the same command never gets a request read at all, because the handshake answers `certificate required`, and a caller holding a genuine, unexpired Factory certificate is still refused at `identity-operational`, which is `E-7-03`.
+
+The wrong answer most engineers give is to question 1, and it is that a device which has an identity is a device the service can identify. Tier 6 gave every board its own key and its own certificate, and nothing about status events changed, which is why this module says of `T0-W-02` that your device gained an identity and the service never asked for one. An identity that is never presented on a connection, and never checked by the party keeping the record, is a fact about the device that nobody uses. What closes the weakness is not the credential. It is the service refusing to read a request that does not carry one, and then deriving the name it records from that credential rather than from the request. The limit of that is worth writing down beside it: an attacker who dumps your board's flash still recovers the Operational private key by the published derivation from `E-6-05`, and then they are your device, with nothing in this tier able to tell the difference.
+
+This section was added after Tier 7 was published. If you worked the tier before it existed, your four written answers are checkable now.
 
 ## Weakness ledger after the work
 

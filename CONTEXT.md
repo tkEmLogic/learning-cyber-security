@@ -186,6 +186,29 @@ that close or reduce them, evidence of the changed behavior, and weaknesses
 that remain for later tiers.
 _Avoid_: Bug list, vulnerability scan
 
+**Predict**:
+The numbered questions a Hardening tier asks a Learner to answer in writing
+before they run anything. They are published as `### Predict` inside the
+reproduce section, or as `## Predict` before it when the questions span the
+whole tier rather than the reproduction. Asking for a written answer is itself
+a commitment, so every Predict owes an answer somewhere. A question that the
+next command answers is closed where that output lands, and the Predict names
+the place. A question about the tier as a whole is closed by a Reveal, or on
+the tier's companion answers page when it has one.
+_Avoid_: Quiz, pre-test, warm-up questions
+
+**Reveal**:
+The section that answers a Predict, placed after the bypass or failure tests
+and before the Weakness ledger after the work. It answers each question in one
+or two lines, read out of the tier's own quoted output and evidence
+identifiers rather than written from memory, and then spends one paragraph on
+the wrong answer most engineers give and why the tier is built to correct it.
+A Reveal that only points at section numbers is an index and gives a Learner
+who got it wrong nothing. A Reveal added to an already published tier says so
+in one line, so a Learner who wrote answers down before it existed knows they
+can be checked now.
+_Avoid_: Answers, solutions, tier summary
+
 **Tier checkpoint**:
 An immutable, annotated Git tag that identifies a tested runnable state at the
 start or completion of a hardening tier.
