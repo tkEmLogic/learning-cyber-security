@@ -198,7 +198,7 @@ Attach one board, then run:
 ./course device flash
 ```
 
-The command refuses to continue when no board is attached, or when more than one Espressif board is attached. It writes normal flash only. It runs no eFuse, secure boot, or flash encryption command.
+The command refuses to continue when no board is attached, or when more than one Espressif board is attached. It writes normal flash only. It runs no eFuse, secure boot, or flash encryption command. An eFuse is a bit inside the chip that can be written only once, so nothing in the core course blows one.
 
 Watch the device:
 
@@ -265,6 +265,8 @@ Step 1. Ask the service which firmware release it is handing out.
 Then it downloads the image itself and prints the first bytes.
 
 Look at what you just learned about a product you did not write: its version, its board, the exact size and digest of its firmware, and the fact that `signed` is `false`. An attacker learns the same things, in one request, without touching the device.
+
+Digest is the first cryptography word this course uses, and the [cryptography primer](../../cryptography-primer.md#bytes-hashes-and-digests) defines it. Read that one section now if the word is new to you. The rest of the primer is required reading before Tier 2, and you do not need it yet.
 
 This is `T0-W-01`. Tier 2 closes it with HTTPS.
 

@@ -122,6 +122,8 @@ Found it at offset 0xa7f48. The next 121 bytes are the fleet's private key.
   certificate subject:     beacon-development-shared
 ```
 
+`SEC1` in that output is one of the two private-key file formats in the primer's [Names you will meet](../../cryptography-primer.md#names-you-will-meet) table.
+
 The command never prints the key, because it does not need to. The fingerprint proves the key is present, and the point is made: everything the fleet identity is made of travels in every image built the same way. Outside the lab, the image is on the update server, in the build pipeline, and on every device you can desolder a flash chip from. There is nothing to steal that has not already been handed out.
 
 This demonstrates `T0-W-02`: the identity is a value that anyone with an image holds.
@@ -181,7 +183,11 @@ Two controls replace the shared credential, and they are defeated separately, so
 
 The first control is a key that never existed anywhere but on the device. On the ESP32-C6 the firmware asks PSA to generate a P-256 key and mark it non-exportable at the course API boundary, and it stores that key through the exact Secure Storage configuration section 8 pins. Read what that storage does with care, because the honest account of it is half the value of this tier.
 
+`PSA` is the Platform Security Architecture API, the standard interface Zephyr offers for generating, using and storing keys. Zephyr's name for the storage part of it is Internal Trusted Storage, shortened to `ITS`, which is why `its` appears in the boot warning below and in the record names you read later in this tier.
+
 The Secure Storage configuration encrypts each stored record with AES-GCM and authenticates it with a sixteen byte tag, so the private key does not appear in flash as readable bytes. It detects any change to a stored record: a modified ciphertext, tag, nonce or flags byte makes the read fail, and the device refuses the record rather than returning altered data. It binds each record to its own entry identifier and to this one board, so a record moved to another entry, or copied onto a second ESP32-C6, fails to decrypt. It derives its encryption key at each use and never stores it. What it does is raise the cost of reading a key out of a flash dump from reading it directly to running a known derivation first.
+
+The cryptography primer defines two of the words in that paragraph. `AES-GCM` is in its [Names you will meet](../../cryptography-primer.md#names-you-will-meet) table, beside `AEAD`, the wider name this tier's readings use for it. Nonce is defined in [Freshness and the nonce](../../cryptography-primer.md#freshness-and-the-nonce).
 
 That last sentence is the whole boundary, and section 11 makes you prove it. The encryption key is `SHA-256` of the board's MAC and the record's entry identifier, and both of those are public: the MAC is printed by `esptool read-mac` on the same cable you dump the flash with, and the entry identifier is written in clear as the record's name in the same dump. This is Zephyr's own default configuration on this board, which Zephyr documents as functional support for the PSA Secure Storage API rather than a guarantee that data is secure at rest, and which prints `WARNING: Using a potentially insecure PSA ITS encryption key provider.` at every boot. The course leaves that warning switched on. A production design replaces this key provider with one rooted in protected device-specific hardware, which is what Advanced Tier B does with the STSAFE-A120.
 
