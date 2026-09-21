@@ -126,6 +126,8 @@ The command never prints the key, because it does not need to. The fingerprint p
 
 This demonstrates `T0-W-02`: the identity is a value that anyone with an image holds.
 
+The same argument applies to a secret this course put in the image itself. Every image you build carries the passphrase of your own Wi-Fi network, because the course compiles that passphrase in as a build setting. Anyone who holds one of your images therefore holds your network passphrase. You do not need to print it to know it is there, and the safety boundary at the top of this tier keeps the flash dump away from that same secret for the same reason. It is recorded as `T6-W-27` in the Weakness ledger after the work, and no tier on this course closes it.
+
 ### Register devices that were never manufactured
 
 The clone fixture reads that same key and acts as the fleet against the provisioning station, entirely on the host with no board attached, which is itself the lesson: a copied credential does not need the hardware it was copied from.
@@ -280,10 +282,11 @@ This is the result you should expect to observe. Your own ledger lives in your w
 | T6-W-17 | New. Stored records carry no freshness, so writing back an older copy is accepted as authentic. NVS appends, so superseded copies are usually still in the same dump. A record's state before a revocation can be restored without deriving any key | Open | Recorded limit. Zephyr states it does not protect against replay. No tier on this course closes it |
 | T6-W-18 | New. The private key is protected at rest only. Privileged firmware, the application itself, and a debugger can all reach it. The non-exportable marking is enforced at the course API boundary and nowhere below it | Open | Residual risk with an owner. Advanced Tier B, STSAFE-A120 |
 | T6-W-19 | New. The AES-GCM nonce is randomised once per boot then incremented, while the record's key never changes, so a nonce drawn before the RF subsystem is up would weaken the guarantee | Open | Recorded limit. Confirm Wi-Fi is up before the first Secure Storage write. Recheck on any Zephyr upgrade |
+| T6-W-27 | New. The Wi-Fi passphrase is compiled into every image this course builds, so anyone who holds an image holds the network credential. This tier proved exactly that about a private key. The passphrase has been there since Tier 0 and no tier removes it | Open | Recorded limit. The Reference product has the customer install the device on their own network; this course compiles the credential in instead. Tier 8 inherits it at decommissioning |
 
 One row in that table was added late, and it is marked as such rather than quietly slipped in. `T1-W-08` was recorded in Tier 1, carried by Tier 2, and then dropped: it appears in no tier from Tier 3 onwards. Tier 6 reduced it in substance and never wrote the row down. Tier 7 found the gap while moving the claim register and the row is restored here, because a ledger that loses a row while the work goes well is worth more as a lesson than as an embarrassment.
 
-Four new rows, every one a limit. That is the expected shape of a control tier's ledger, and it is sharper here: this tier adds per-device identity and reduces `T0-W-02`, and the storage underneath that identity opens four rows at once. `T6-W-16` is the one the lab puts in front of you. `T6-W-17` is the one most likely to be skipped, because nothing in the lab fails when you exercise it, which is exactly why it is worth naming.
+Five new rows, every one a limit. That is the expected shape of a control tier's ledger, and it is sharper here: this tier adds per-device identity and reduces `T0-W-02`, and the storage underneath that identity opens four rows at once. `T6-W-16` is the one the lab puts in front of you. `T6-W-17` is the one most likely to be skipped, because nothing in the lab fails when you exercise it, which is exactly why it is worth naming. The fifth row, `T6-W-27`, comes from outside the storage work: it is the credential this course compiled into its own images.
 
 The manufacturing interface itself is residual attack surface: anyone with physical access and the BOOT button can reopen provisioning on an enrolled device. That is a deliberate trade for recoverability, named rather than hidden, and Advanced Tier A is where the debug and download paths around it are closed.
 
@@ -337,7 +340,7 @@ Add to your pack:
 - The proof-of-possession evidence: the certification request that carried the Bootstrap credential inside its signature.
 - The storage-boundary analysis: the `E-6-04` refusal, the `E-6-05` recovery, and the derivation that connects them.
 - The new `REQ-07` row in your requirement table, and your `control` records for `CTL-08` and `CTL-09`. Neither control was planned in Tier 1, because neither existed there, so both enter your records directly at `implemented` instead of moving from `planned`.
-- The four residual risks, `T6-W-16` to `T6-W-19`, each with its owner.
+- The five residual risks, `T6-W-16` to `T6-W-19` and `T6-W-27`, each with its owner.
 
 The provisioning record and the certificate fingerprint become `observed` once you have run enrollment on the board. Do not let the host clone result stand in for a device enrollment: they answer different questions.
 

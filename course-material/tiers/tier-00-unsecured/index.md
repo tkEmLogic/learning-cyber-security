@@ -156,7 +156,7 @@ No authenticated trust boundary exists anywhere in this path.
 
 The Reference product joins one Wi-Fi network and talks to one service address. You supplied both to `./course setup` on the landing page.
 
-Both values are compiled into the firmware image. Tier 0 has no way to change them on the device. That is itself a limitation worth noticing: a device that cannot be reconfigured also cannot be recovered by reconfiguring it.
+Both values are compiled into the firmware image. Tier 0 has no way to change them on the device. That is itself a limitation worth noticing: a device that cannot be reconfigured also cannot be recovered by reconfiguring it. The passphrase for that network is compiled in with the address, so every image you build holds it, and [Tier 6](../tier-06-factory-identity/index.md) returns to what that means.
 
 If you gave a loopback address, a physical board cannot reach the service. Run setup again with your machine's private address before you build.
 
