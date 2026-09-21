@@ -2588,8 +2588,17 @@ func (a *app) deviceStatus() error {
 }
 
 func (a *app) evidence(args []string) error {
-	if len(args) != 1 {
+	if len(args) == 0 {
 		return errors.New("evidence requires context or check")
+	}
+	// `check --tier NN` reads the Markdown records of Tier 1 onwards. Bare
+	// `check` stays Tier 0's JSON check, because that is what every published
+	// Tier 0 instruction tells a Learner to run.
+	if args[0] == "check" && len(args) == 3 && args[1] == "--tier" {
+		return a.checkLearnerMarkdownEvidence(args[2])
+	}
+	if len(args) != 1 {
+		return errors.New("evidence requires context, check, or check --tier <nn>")
 	}
 	switch args[0] {
 	case "context":

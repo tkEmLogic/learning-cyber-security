@@ -17,4 +17,14 @@ Run `./course evidence context` after the four Tier 0 fixtures. Copy its revisio
 
 Run `./course evidence check` when the four Tier 0 records are complete.
 
-Both commands cover Tier 0 only. No schema exists for the later tiers, so from Tier 1 onwards nothing checks your records for you, and the Mentor review gates are where they are read. Keeping a record honest is your own work: when you did not observe something, you record it as `pending`, and you never write down a result you did not see.
+Both commands cover Tier 0 only, because Tier 0 is the one tier whose records are JSON that a schema can read.
+
+From Tier 1 onwards, check the structure of one tier's records like this.
+
+```text
+./course evidence check --tier 04
+```
+
+That reports four things and nothing else: a template you have not copied yet, a metadata field left empty, a placeholder such as `(date)` still standing, and a row marked `observed` with no observation written under it. It never reads what you wrote. Whether your threat model is right, or your claim is honest, is not something a command can answer, and the Mentor review gates are where those are read.
+
+Keeping a record honest is your own work: when you did not observe something, you record it as `pending`, and you never write down a result you did not see.

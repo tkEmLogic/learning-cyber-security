@@ -357,6 +357,8 @@ The provisioning record and the certificate fingerprint become `observed` once y
 
 `E-6-04` is a device result and becomes `observed` only from your own board. `E-6-05` starts with a dump taken from your own board, so it becomes `observed` only when the key you recovered is your board's key. The clone and the station refusals are host results and they stay host results: they are evidence about the station, not about any device. Everything you did not run stays `pending`.
 
+Check the structure of what you wrote with `./course evidence check --tier 06`. It reports an uncopied template, an empty metadata field, a placeholder left standing, and a row marked `observed` with no observation under it. It never reads what you wrote, because whether your reasoning is right is what the Mentor review is for.
+
 ## Troubleshooting
 
 | Observation | First check |

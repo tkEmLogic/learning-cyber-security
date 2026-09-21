@@ -549,6 +549,8 @@ Your version policy decision table is reasoning rather than observation, so it i
 
 Every refusal row must come from a board you watched. A host result never stands in for a device result, and in this tier that distinction decides what you may write down: the fixtures deliberately cannot tell you what the device did, and they say so.
 
+Check the structure of what you wrote with `./course evidence check --tier 04`. It reports an uncopied template, an empty metadata field, a placeholder left standing, and a row marked `observed` with no observation under it. It never reads what you wrote, because whether your reasoning is right is what the Mentor review is for.
+
 ## Troubleshooting
 
 | Observation | First check |

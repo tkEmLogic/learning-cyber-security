@@ -899,6 +899,8 @@ The thirteen host rows are `host` results and they stay that way. A host result 
 
 One closure in this tier rests on a pair rather than on a single row, and you should record it that way. `T0-W-02` closes on `E-7-09`, which is a host result, paired with `E-7-02`, which is a device result. `E-7-09` runs from the fixture because a board that fabricates a mismatched body would be a board running fixture firmware. The refusal is observed on the host, the replacement behavior is observed on the board, and neither half alone closes the row.
 
+Check the structure of what you wrote with `./course evidence check --tier 07`. It reports an uncopied template, an empty metadata field, a placeholder left standing, and a row marked `observed` with no observation under it. It never reads what you wrote, because whether your reasoning is right is what the Mentor review is for.
+
 ## Troubleshooting
 
 | Observation | First check |

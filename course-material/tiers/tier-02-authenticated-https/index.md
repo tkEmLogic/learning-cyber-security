@@ -544,6 +544,8 @@ Record:
 
 Set the host results to observed. Keep the two device rows, `E-2-06` and `E-2-07`, pending until you have watched the board refuse both certificates with your own eyes. A host result never stands in for a device result, and this is the tier where that distinction stops being theoretical.
 
+Check the structure of what you wrote with `./course evidence check --tier 02`. It reports an uncopied template, an empty metadata field, a placeholder left standing, and a row marked `observed` with no observation under it. It never reads what you wrote, because whether your reasoning is right is what the Mentor review is for.
+
 ## Troubleshooting
 
 | Observation | First check |

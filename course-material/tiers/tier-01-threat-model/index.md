@@ -384,6 +384,8 @@ No Tier 1 record is ever marked `observed`, because nothing was observed in this
 
 Do not edit your Tier 0 records to match your new model. If your analysis contradicts something you recorded in Tier 0, that contradiction is a finding, and it belongs in the open questions field of your Mentor review record.
 
+Check the structure of what you wrote with `./course evidence check --tier 01`. It reports an uncopied template, an empty metadata field, a placeholder left standing, and a row marked `observed` with no observation under it. It never reads what you wrote, because whether your reasoning is right is what the Mentor review is for.
+
 ## Troubleshooting
 
 | Observation | First check |

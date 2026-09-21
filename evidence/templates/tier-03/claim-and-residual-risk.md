@@ -15,6 +15,7 @@ Copy this file into `evidence/learner/tier-03/` and write in the copy.
 | last_reviewed_at |  |
 | source_revision | (output of `git rev-parse --short HEAD`) |
 | environment | course_id learning-cyber-security, tier 03, synthetic_data true |
+| limitations | `SC-01` reaches partly supported and no further. The bootloader that holds the key is not itself verified, so the claim rests on a component this tier does not check. |
 
 ## Claim
 

@@ -483,6 +483,8 @@ Record the three transitions that were not reached as `not_reached` rather than 
 
 Every row in this tier is a device result. Nothing on your machine can put an image on trial or revert one, so there is no host result that could stand in for one even if you wanted it to.
 
+Check the structure of what you wrote with `./course evidence check --tier 05`. It reports an uncopied template, an empty metadata field, a placeholder left standing, and a row marked `observed` with no observation under it. It never reads what you wrote, because whether your reasoning is right is what the Mentor review is for.
+
 ## Serial recovery
 
 The last confirmed image is your normal recovery path, and everything above is about keeping it available. When there is no valid image left, recovery is physical.

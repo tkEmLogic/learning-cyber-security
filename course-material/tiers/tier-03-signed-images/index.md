@@ -473,6 +473,8 @@ Record:
 
 Every refusal row must come from a board you watched. A host result never stands in for a device result, and in this tier the host cannot refuse anything at all, so there is nothing on the host that could stand in even if you wanted it to.
 
+Check the structure of what you wrote with `./course evidence check --tier 03`. It reports an uncopied template, an empty metadata field, a placeholder left standing, and a row marked `observed` with no observation under it. It never reads what you wrote, because whether your reasoning is right is what the Mentor review is for.
+
 ## Troubleshooting
 
 | Observation | First check |
