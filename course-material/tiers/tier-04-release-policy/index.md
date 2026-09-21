@@ -16,7 +16,7 @@ Nothing was forged. That is the part worth sitting with, because it means no sig
 
 This tier gives the device something to reason with. You will publish a Release manifest, signed with the same key, that says what a release actually is: which hardware it is for, which channel it belongs to, how big the image is, what its digest is, and a security counter that only ever moves forwards. Then you will make the application verify that manifest before it believes a single byte of it, and watch it refuse seven releases that Tier 3 would have installed without complaint.
 
-The cryptography primer defines the two words that sentence leans on: [Bytes, hashes and digests](../../cryptography-primer.md#bytes-hashes-and-digests) and [Freshness and the nonce](../../cryptography-primer.md#freshness-and-the-nonce).
+The cryptography primer defines the word that sentence leans on, in [Bytes, hashes and digests](../../cryptography-primer.md#bytes-hashes-and-digests).
 
 By the end you will have a device that refuses an authentic image, for six different stated reasons, and you will be able to say exactly which of those refusals is a security boundary and which is merely a convenience.
 
