@@ -476,6 +476,13 @@ Tier 4 is not being changed. Every behaviour its module describes is correct and
 
 ## Update the Security evidence pack
 
+Create the Tier 5 evidence directory and copy the templates, from the repository root:
+
+```text
+mkdir -p evidence/learner/tier-05
+cp evidence/templates/tier-05/*.md evidence/learner/tier-05/
+```
+
 Add to your pack:
 
 - The update state diagram: download, verify, test boot, judge, confirm or revert.
@@ -484,6 +491,12 @@ Add to your pack:
 - A recovery record: how you would restore a device whose primary image no longer works, using the serial recovery procedure below.
 - Your `control` records for `CTL-05`, moved from `planned` to `implemented`.
 - Residual availability risks, which for this tier are `T5-W-14` and `T5-W-15`.
+
+Which records become `observed`: the trial, the confirmation and the four reverts, once you have watched each one on the board. Which stay `pending`: every row you did not run on hardware, including a recovery procedure you wrote and never performed.
+
+Record the three transitions that were not reached as `not_reached` rather than as passes. A skipped check never supports a claim, and a blank field reads like an oversight while `not_reached` reads like a fact.
+
+Every row in this tier is a device result. Nothing on your machine can put an image on trial or revert one, so there is no host result that could stand in for one even if you wanted it to.
 
 ## Serial recovery
 

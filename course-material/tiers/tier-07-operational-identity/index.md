@@ -857,6 +857,13 @@ This tier also met Tier 5's stale trial record, which belongs to Tier 5's code a
 
 ## Update the Security evidence pack
 
+Create the Tier 7 evidence directory and copy the templates, from the repository root:
+
+```text
+mkdir -p evidence/learner/tier-07
+cp evidence/templates/tier-07/*.md evidence/learner/tier-07/
+```
+
 The lab artifact for this tier has five parts. Add each one:
 
 - **The claim sequence.** Both halves: the console output showing the window opening, the nonce and the request going out, and the operator approval with the certificate it returned. Note the times, so the window is visible in the evidence.

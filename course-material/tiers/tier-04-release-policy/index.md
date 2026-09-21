@@ -514,8 +514,11 @@ Two control tiers out of two have now found something in the tier before them, c
 
 ## Update the Security evidence pack
 
+Create the Tier 4 evidence directory and copy the templates, from the repository root:
+
 ```text
-./course evidence init --tier 04
+mkdir -p evidence/learner/tier-04
+cp evidence/templates/tier-04/*.md evidence/learner/tier-04/
 ```
 
 Record:
@@ -525,6 +528,10 @@ Record:
 - The `SC-02` claim record, moved from `unsupported` to `partly_supported`, with both gaps named.
 - Your `control` records for `CTL-02`, moved from `planned` to `implemented`.
 - The two new weaknesses, `T4-W-12` and `T4-W-13`, with owners.
+
+Which records become `observed`: the refusal rows and the good install, once you have watched each one on the board. Which stay `pending`: every row you did not run on hardware. `E-4-07` is the one row that is never `observed`, because it is a conclusion you can reach without running anything, and recording reasoning as an observation makes the record false.
+
+Your version policy decision table is reasoning rather than observation, so it is never `observed` either. It is still evidence, and the Mentor review gates ask for it.
 
 Every refusal row must come from a board you watched. A host result never stands in for a device result, and in this tier the distinction has teeth: the fixtures deliberately cannot tell you what the device did, and they say so.
 
