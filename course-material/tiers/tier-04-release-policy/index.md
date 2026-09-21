@@ -543,7 +543,7 @@ The question worth being asked is the same one every control tier should ask. Na
 
 ## Continue
 
-Next: **Tier 5: Make installation recoverable**.
+Next: **[Tier 5: Make installation recoverable](../tier-05-recovery/index.md)**.
 
 Your device now refuses the wrong release. It still has no way back from a bad one. Every install in this tier is permanent, requested as `BOOT_UPGRADE_PERMANENT` on purpose, and an image that verifies perfectly and then fails to work leaves the device with nothing to fall back to.
 
