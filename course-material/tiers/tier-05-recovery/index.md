@@ -526,7 +526,16 @@ Start it from a device running a confirmed image.
 
 ## Primary references
 
-- Specification sections 6, 7, 11, 13 and 18.
-- MCUboot: `boot_request_upgrade()`, `boot_write_img_confirmed()`, `boot_is_img_confirmed()`.
-- Zephyr: `stream_flash`, NVS, and the watchdog API.
-- `docs/fixture-safety-contract.md`, Tier 5 section.
+| Reading | Level | Type | Learning question | Where to read |
+| --- | --- | --- | --- | --- |
+| [MCUboot design, swap and revert](https://docs.mcuboot.com/design.html) | Required | Explanatory | How do a test boot, a confirmation, and an automatic revert work together, and which one does the bootloader choose on the next start | The high-level operation and swap sections |
+| [MCUboot serial recovery](https://github.com/mcu-tools/mcuboot/blob/v2.4.0/docs/serial_recovery.md) | Required | Explanatory | How can a device recover when no image left on it can be confirmed | The whole document, pinned to v2.4.0 |
+| [Zephyr device management, mcumgr](https://docs.zephyrproject.org/4.4.2/services/device_mgmt/mcumgr.html) | Optional | Reference | How does a device receive and manage images over the SMP protocol, which this course replaces with its own HTTPS path | The image management and transport sections |
+| MCUboot trial and confirmation calls | Required | Source | Which call asks for a trial rather than a permanent install, and which call confirms the running image | `boot_request_upgrade()`, `boot_write_img_confirmed()`, `boot_is_img_confirmed()` |
+| Zephyr `stream_flash`, NVS, and the watchdog API | Required | Reference | How is a partial download written and resumed, and how is a hung trial image reset | The `stream_flash`, NVS, and watchdog pages of the Zephyr 4.4.2 documentation |
+| Section 6, Boot and firmware trust model | Required | Specification | What the course fixes about the flash map, the trial boot, and confirmation | `docs/course-specification.md` |
+| Section 7, OTA architecture | Required | Specification | Where download progress may be kept, and what the OTA service is never allowed to decide | `docs/course-specification.md` |
+| Section 11, Hardening tier progression | Required | Specification | What this tier must demonstrate, and what counts as a failure | `docs/course-specification.md` |
+| Section 13, Mentor review gates | Required | Specification | What the update-recovery gate asks of you | `docs/course-specification.md` |
+| Section 18, Continuous integration | Optional | Specification | Which recovery transitions the core boot matrix verifies, and which row this tier does not satisfy | `docs/course-specification.md` |
+| Tier 5 fixtures | Required | Contract | Why this tier has no attack fixture, and what the prepared releases are allowed to do | `docs/fixture-safety-contract.md`, Tier 5 section |
