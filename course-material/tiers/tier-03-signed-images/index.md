@@ -50,6 +50,8 @@ This tier changes no eFuse, enables no secure boot, and makes no irreversible ch
 
 You have finished Tier 2. Your device verifies the update service by chain and by name, and refuses anything it cannot verify.
 
+The [course landing page](../../index.md) carries the environment setup, the glossary and the list of every tier, if you need to go back to any of them.
+
 Check that the service and the board are where you left them:
 
 ```text

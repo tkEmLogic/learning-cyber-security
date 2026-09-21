@@ -52,6 +52,8 @@ Use only the synthetic identifiers from Tier 0 in your analysis. Never write a r
 
 You need your finished Tier 0 work. Tier 1 continues in the same Course workspace, on the same branch. Do not create a new workspace.
 
+The [course landing page](../../index.md) carries the environment setup, the glossary and the list of every tier, if you need to go back to any of them.
+
 You need three things from Tier 0:
 
 - Your Weakness ledger with its seven entries.

@@ -46,6 +46,8 @@ Nothing in this tier runs an eFuse command, and nothing here is irreversible. Ev
 
 You have finished Tier 3. Your device runs only firmware signed by the key its bootloader carries, and it refused four kinds of bad image on hardware.
 
+The [course landing page](../../index.md) carries the environment setup, the glossary and the list of every tier, if you need to go back to any of them.
+
 Check that the service and the board are where you left them:
 
 ```text

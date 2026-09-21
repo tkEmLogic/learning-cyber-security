@@ -44,7 +44,7 @@ Every fixture is a dry run unless you provide `--execute` with the exact fixture
 
 ## Starting state
 
-You need the dev container running, as described on the course landing page. All commands in this tier run inside it, from the repository root.
+You need the dev container running, as described on the [course landing page](../../index.md). All commands in this tier run inside it, from the repository root.
 
 You need the local update service running. Check it:
 

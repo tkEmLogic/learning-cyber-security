@@ -44,6 +44,8 @@ Both signing keys still live in `.course-secrets/signing`. Git ignores that dire
 
 You have finished Tier 4. Your device refuses seven hostile releases for distinguishable reasons and installs the current one.
 
+The [course landing page](../../index.md) carries the environment setup, the glossary and the list of every tier, if you need to go back to any of them.
+
 ```text
 ./course service start --https
 ./course device logs

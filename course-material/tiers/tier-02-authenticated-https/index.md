@@ -50,6 +50,8 @@ The packet capture in this tier is bounded: one interface, only the two course s
 
 You need your finished Tier 1 work. Tier 2 continues in the same Course workspace, on the same branch.
 
+The [course landing page](../../index.md) carries the environment setup, the glossary and the list of every tier, if you need to go back to any of them.
+
 You need to have read the [cryptography primer](../../cryptography-primer.md), which takes about twenty minutes. This tier uses key pair, certificate, certificate authority, chain and trust anchor from its first page and does not stop to define them.
 
 This tier also uses four short names without expanding them. `TLS`, `ECDSA` and `SAN` are in the primer's [Names you will meet](../../cryptography-primer.md#names-you-will-meet) table, and `CA` is the short form of certificate authority, which the primer covers in [Certificate authorities, chains and trust anchors](../../cryptography-primer.md#certificate-authorities-chains-and-trust-anchors).

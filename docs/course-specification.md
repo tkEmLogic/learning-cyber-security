@@ -574,7 +574,7 @@ Source: resolved decision ticket [#12](https://github.com/tkEmLogic/learning-cyb
 | Failure criteria | The Factory identity can use the ordinary download endpoint or certificate and hostname validation are disabled. |
 | Mentor review gate | Required identity-boundary gate. |
 | Lab artifact | Claim sequence, certificate-role inventory, mutual TLS evidence, authorization tests, and updated lifecycle model. |
-| Expected time | 4 hours. |
+| Expected time | 8 hours. |
 
 #### Tier 8: Operate the credential lifecycle
 
@@ -618,7 +618,7 @@ Source: resolved decision ticket [#12](https://github.com/tkEmLogic/learning-cyb
 | Lab artifact | Incident timeline, diagnostic evidence, corrected release record, canary result, recovery proof, final claim matrix, and residual-risk summary. |
 | Expected time | 5 hours. |
 
-**Fixed decision.** The expected core hands-on time is about 43 hours. Reading, setup variation, Mentor scheduling, and optional extension work are additional.
+**Fixed decision.** The expected core hands-on time is about 47 hours. Reading, setup variation, Mentor scheduling, and optional extension work are additional. Tier 7 is about twice the length of any other module, so its estimate is set from measured length rather than from the band the other tiers sit in.
 
 ### Advanced hardening tiers
 

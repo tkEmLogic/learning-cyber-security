@@ -30,6 +30,11 @@ file, in this order.
   `Tier 0: Build the unsecured reference product`.
 - Link it from the tier table and the closing section of
   `course-material/index.md`, and from the previous tier's Continue section.
+- Link `course-material/index.md` back from the module's Starting state. A
+  Learner who opens a tier from a bookmark, a search result or a fork needs the
+  setup, the glossary and the tier list, and Starting state is where they are
+  already looking for orientation. Continue is the wrong end of the page for a
+  reader who is lost.
 - Environment setup does not belong in a tier. It lives on the landing page.
 - Follow `course-writing.md`: plain English, no em dashes, no raw HTML, simple
   pipe tables, one prose paragraph per source line.
