@@ -79,6 +79,7 @@ Inherited from Tier 6. Not your own work yet.
 | T6-W-17 | Stored records carry no freshness, so an older copy is accepted as authentic | Write back a superseded record from the same dump | The device accepts it | No tier on this course closes it |
 | T6-W-18 | The private key is protected at rest only | Privileged firmware, the application, or a debugger reads it | The key is reachable | Advanced Tier B |
 | T6-W-19 | The AES-GCM nonce is drawn once per boot while the record key never changes | Draw the nonce before the RF subsystem is up | The guarantee weakens | Recorded limit |
+| T6-W-27 | The Wi-Fi passphrase is compiled into every image this course builds | Read the strings of any image you built | The passphrase is readable | Recorded limit. Tier 8 inherits it at decommissioning |
 
 The row this tier is about is `T0-W-02`. Read it again and notice how little Tier 6 changed about it. Your device gained an identity. The service never asked for one.
 
@@ -558,7 +559,7 @@ What a phone and a SoftAP genuinely add is connectivity bootstrap. A device fres
 
 What it does not add is proof of ownership. Joining a device's access point proves that you are within radio range of it, which is not the same as being entitled to it, and radio range reaches through walls, floors and car parks. A neighbour, a delivery driver or someone in the flat below can all be in range. If access to the access point were the authorization, the first person within range to run the app would own the device. Any serious design therefore still needs what this tier built: something the device shows that requires eyes or hands on it, and a person who authenticates as themselves.
 
-This course takes the credentials in at build time, which is a teaching simplification recorded as such, so the connectivity problem is already solved and an access point would carry only a nonce over a worse channel. Section 8 of the specification routes the claim over the authenticated connection for that reason. If you build the phone shape in a product, treat the access point as a transport for credentials and keep the claim itself two-party.
+This course takes the credentials in at build time, which is a teaching simplification recorded as `T6-W-27` in the Tier 6 Weakness ledger, so the connectivity problem is already solved and an access point would carry only a nonce over a worse channel. Section 8 of the specification routes the claim over the authenticated connection for that reason. If you build the phone shape in a product, treat the access point as a transport for credentials and keep the claim itself two-party.
 
 ### What this device cannot check, and who checks it instead
 
