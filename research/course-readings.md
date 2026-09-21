@@ -70,6 +70,20 @@ The learner describes the product, its assets, and its threats before adding any
 | [ENISA, Baseline Security Recommendations for IoT](https://www.enisa.europa.eu/publications/baseline-security-recommendations-for-iot) | Recommended | Explanatory | Which baseline security areas apply to a connected device? | The security measures and gap sections. |
 | [ETSI EN 303 645, Cyber Security for Consumer IoT](https://www.etsi.org/deliver/etsi_en/303600_303699/303645/03.01.03_60/en_303645v030103p.pdf) | Optional | Normative | Which baseline provisions describe good practice for connected devices? | Clause 5 provisions. Version 3.1.3. |
 
+## Cryptography primer, read between T1 and T2
+
+The [cryptography primer](../course-material/cryptography-primer.md) is a companion page rather than a tier. It defines the vocabulary that T2 to T7 share: key pair, signature, certificate, certificate authority, chain, trust anchor, certification request and nonce. It is prerequisite reading for T2.
+
+Every reading below is optional. The primer itself is self-contained, and no tier assumes any of these have been read. They exist for a learner who wants the precise version of a definition the primer gives in plain words.
+
+| Reading | Level | Type | Learning question it answers | Where to read |
+| --- | --- | --- | --- | --- |
+| [RFC 5280, Internet X.509 Public Key Infrastructure Certificate and CRL Profile](https://www.rfc-editor.org/rfc/rfc5280) | Optional | Normative | What is inside a certificate, and what does it mean to follow a chain to a trust anchor? | Section 1 for the overview and Section 3.2 for certification paths. Not the whole document. |
+| [RFC 2986, PKCS #10 Certification Request Syntax Specification](https://www.rfc-editor.org/rfc/rfc2986) | Optional | Normative | What does a certification request carry, and where does the proof of possession sit? | Section 3 and Section 4. |
+| [RFC 4949, Internet Security Glossary, Version 2](https://www.rfc-editor.org/rfc/rfc4949) | Optional | Explanatory | What is the precise meaning of a security term that a tier uses in passing? | Single entries only. It is a dictionary and is not read end to end. |
+
+RFC 5280 is also listed as Recommended under T2, where it answers the narrower question of how a server certificate is checked against a trust anchor. The primer is the first place in the course that reaches it.
+
 ## T2. HTTPS server authentication and confidentiality
 
 The learner replaces HTTP with HTTPS so the device can authenticate the server and protect the transfer.
@@ -254,6 +268,8 @@ All sources were accessed and reviewed on 11 September 2026.
 | [ETSI EN 303 645](https://www.etsi.org/deliver/etsi_en/303600_303699/303645/03.01.03_60/en_303645v030103p.pdf) | Version 3.1.3. | Normative | ETSI copyright. Free PDF download. |
 | [RFC 8446, TLS 1.3](https://www.rfc-editor.org/rfc/rfc8446) | August 2018, standards track. | Normative | IETF Trust. Free to read. |
 | [RFC 5280, X.509 and CRL profile](https://www.rfc-editor.org/rfc/rfc5280) | May 2008, standards track. | Normative | IETF Trust. Free to read. |
+| [RFC 2986, PKCS #10 certification request syntax](https://www.rfc-editor.org/rfc/rfc2986) | November 2000, informational. | Normative (informational) | IETF Trust. Free to read. Added for the cryptography primer and checked on 21 September 2026, after this register's access date. |
+| [RFC 4949, Internet Security Glossary, Version 2](https://www.rfc-editor.org/rfc/rfc4949) | August 2007, informational. | Explanatory | IETF Trust. Free to read. Added for the cryptography primer and checked on 21 September 2026, after this register's access date. |
 | [RFC 6960, OCSP](https://www.rfc-editor.org/rfc/rfc6960) | June 2013, standards track. | Normative | IETF Trust. Free to read. |
 | [RFC 7030, EST](https://www.rfc-editor.org/rfc/rfc7030.html) | October 2013, standards track. | Normative | IETF Trust. Free to read. |
 | [RFC 8995, BRSKI](https://www.rfc-editor.org/rfc/rfc8995.html) | May 2021, standards track. | Normative | IETF Trust. Free to read. |

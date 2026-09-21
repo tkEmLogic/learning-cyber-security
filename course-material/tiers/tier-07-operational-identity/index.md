@@ -12,6 +12,8 @@ The same person then asks the service for the current release and downloads the 
 
 That is `T0-W-02`, the weakness from Tier 0 that has survived every tier since. Tier 6 reduced it: the device now has an identity that could be checked. Tier 7 is where something finally checks it.
 
+Three words below carry most of this tier, and the cryptography primer defines all three: [A certificate](../../cryptography-primer.md#a-certificate), [Certificate authorities, chains and trust anchors](../../cryptography-primer.md#certificate-authorities-chains-and-trust-anchors) and [Freshness and the nonce](../../cryptography-primer.md#freshness-and-the-nonce).
+
 The work has two halves and they are easy to confuse, so name them now. The first half is a connection that proves who is calling, which is mutual TLS: the device presents a certificate, the service reads the identity out of it, and a name in a request body stops being an identity claim at all. The second half is deciding which certificate the device should hold, which is the claim: a physical action on the device, a code the device shows to a person, and a second party who proves they own it. Neither half is much use without the other.
 
 You will build both. You will create an Operational certificate authority, mint an Owner credential for yourself, turn on mutual TLS, hold the BOOT button until the board opens a Claim window, read a nonce off its console, and approve the claim as the owner. Then you will run thirteen attacks against the result, each one holding a real certificate, and read which named check refuses each one.

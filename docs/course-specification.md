@@ -934,6 +934,8 @@ The table below is a compact pointer, not the full list. It names the required r
 | Advanced A | Espressif ESP32-C6 Secure Boot v2, flash encryption, and eFuse Manager, ESP-IDF v6.1 | How does hardware-rooted secure boot verify the bootloader, and why is eFuse burning permanent? |
 | Advanced B | STMicroelectronics STSAFE-A120 datasheet; catie-aq Zephyr STSAFE-A1xx driver | What does the secure element do, and how does the community driver expose it? |
 
+The table lists tiers only. The cryptography primer at `course-material/cryptography-primer.md` is a companion page read between T1 and T2, and it is prerequisite reading for T2. It gains no row here because it is not a tier and carries no required reading. Its three optional readings, RFC 5280, RFC 2986 and RFC 4949, are listed in `research/course-readings.md` under its own heading and are repeated on the primer page itself. This is where RFC 5280 first reaches learner-facing material. Source: resolved decision ticket [#184](https://github.com/tkEmLogic/learning-cyber-security/issues/184).
+
 **Fixed decision.** Re-check the reading list on each course release and at least every six months. Watch the pinned Zephyr, MCUboot, and ESP-IDF versions, re-validate URLs, and update the "where to read" pointers if section numbers move. ST.com PDFs and ISO catalogue pages need manual link checks during maintenance, and the community STSAFE Zephyr driver remains a validation risk to re-check at each review.
 
 Source: resolved research ticket [#18](https://github.com/tkEmLogic/learning-cyber-security/issues/18).

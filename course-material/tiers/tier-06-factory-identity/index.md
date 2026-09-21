@@ -187,6 +187,8 @@ The second control is a one-use Bootstrap credential and an append-only manufact
 
 Enroll the device. The station issues the credential, the device generates its key and returns a certification request that carries the credential inside its own signature, and the station returns the certificate it issued.
 
+A certification request, and why its own signature is what proves possession of the key, is defined in [Asking for a certificate](../../cryptography-primer.md#asking-for-a-certificate) in the cryptography primer.
+
 Your device needs a name of its own first, and the course builds one from the board in front of you: the word `beacon`, a hyphen, and your board's MAC in lower case with the colons removed. Read that MAC with `esptool read-mac` on the same cable you flash with, so a board with the MAC `aa:bb:cc:dd:ee:ff` is named `beacon-aabbccddeeff`. Substitute your own name for `beacon-aabbccddeeff` in all three commands below, because a name taken from this page would name somebody else's board.
 
 ```text
