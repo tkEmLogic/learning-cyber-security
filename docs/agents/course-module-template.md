@@ -216,6 +216,16 @@ near its neighbours. Check the highest number in use across all modules before
 adding a row. Sorting the identifiers by prefix hides a collision, because two
 rows from different tiers can share a number; sort by the number instead.
 
+**A row is admitted cause-blind.** A weakness earns a row when a risk is still
+present in the product the Learner carries forward and can be stated as an
+attack vector plus an expected result. Whether the cause was a security defect
+or an ordinary engineering choice is irrelevant, because the ledger records what
+remains true, not how it got there. A fixed bug is not a weakness, however much
+it cost to find. This is the test that admits `T5-W-26`, a row produced entirely
+by a non-security defect, and `T5-W-15`, a Zephyr watchdog driver quirk, without
+special pleading for either. The reasoning is in
+[`docs/adr/0002-findings-in-learner-facing-material.md`](../adr/0002-findings-in-learner-facing-material.md).
+
 **7. Reproduce the attack or observation.** Opens with `### Predict` and a
 numbered list of questions the Learner answers before running anything. Then a
 `### Look before you act` subsection showing a dry run. Then **one subsection
@@ -264,22 +274,56 @@ the Learner should expect to observe. Label it that way, so a Learner who
 observes something else knows they went wrong. The Learner's own ledger lives
 in their workspace under `evidence/learner/`, never in the wiki.
 
+New rows are admitted by the cause-blind test in section 6. **Prose under the
+table is held to a narrower test.** It earns its place only when the choice is
+counter-intuitive: when the honest engineering looks worse than the broken
+version, and a Learner would otherwise read the row as a bug nobody fixed.
+Otherwise the row stands alone. Tier 5 has one passage that passes this test,
+under `T5-W-26`, and it is the clearest statement in that tier that a message
+repeated until it is wrong is not more reliable than a message sent once.
+
 **13. Security claim and evidence status.** The claim in bold with its
 identifier, then the conditions for supported, partly supported, and
 unsupported. State any claim the Learner must not make, and why.
 
 **14. What this tier found in the earlier tiers.** What exercising the previous
-tier's work in a new way turned up, one bold lead sentence per finding and a
-short paragraph under it. Say for each one whether this tier fixed it, named it
-as a limit, or handed it to a later tier, and name that tier. A finding that
-belongs to an earlier tier's code says so, so a Learner who meets the symptom
-knows where it lives.
+tier's work in a new way turned up, one bold lead sentence per finding and one
+short paragraph under it, roughly 100 words. The lead sentence states the
+transferable lesson, not the symptom. Say for each finding whether this tier
+fixed it, named it as a limit, or handed it to a later tier, and name that tier.
+A finding that belongs to an earlier tier's code says so, so a Learner who meets
+the symptom knows where it lives.
 
-This section exists because "Expect to find a bug in the previous tier" below
-turned out to be true in every control tier so far, and three modules invented
-the same heading in the same place before it was written down here. Omit it only
-when the tier genuinely found nothing, and say that in one line rather than
-leaving the section out silently.
+**Most of what a tier finds does not belong here.** A finding is admitted only
+when both halves hold: it changes what a Learner believes about a trust
+boundary, a control's reach or the trustworthiness of evidence, **and** it was
+silent while that belief was false. A defect that fails loudly the first time it
+is exercised teaches debugging, not security, however many days it cost. Expect
+this section to be short, and expect most of a tier's debugging to appear
+nowhere a Learner can see. That is the intended outcome, not an omission.
+[`docs/adr/0002-findings-in-learner-facing-material.md`](../adr/0002-findings-in-learner-facing-material.md)
+records the decision and works through the examples.
+
+**No finding is written twice.** Where a Weakness ledger row, an earlier tier's
+body or another tier's section 14 already carries a finding, name it in one line
+and link to it rather than retelling it. Telling the same story a third time is
+duplication, not emphasis.
+
+**A defect the Learner cannot reproduce has no learner-facing home.** The
+Learner does not write the firmware, they build the tree they are given, so a
+defect already fixed in that tree is one they can never meet. If the symptom is
+still reachable, it earns one Troubleshooting row in the tier where it appears,
+and nothing more. If it is not, the commit and the tracker issue are the record.
+A one-line mention here is not a compromise: it reintroduces the bug diary at
+lower resolution and still spends the Learner's attention on a bug they cannot
+hit.
+
+**The section is never omitted.** A tier that found nothing says so in one line,
+and says why. Tier 2 is the worked example, because Tier 1 handed it a threat
+model rather than an implementation, so there was nothing in it to break. The
+section exists because three modules invented the same heading in the same place
+before it was written down here, and because leaving it out silently is what let
+Tiers 2, 3 and 4 read as if they had found nothing at all.
 
 **15. Update the Security evidence pack.** The commands that create the Learner
 evidence directory and copy templates, then a bullet list of what to record.
@@ -448,9 +492,13 @@ Budget time for this, and when it happens, decide deliberately whether to fix
 the published tier or to name the limit. Do not fix it silently: a published
 tier changing underneath a Learner is its own problem.
 
-Five out of five have now found something, which is why this has a section of
-its own. Write what you found in section 14, not in a paragraph buried in
-section 12.
+Count only control tiers whose predecessor built something. Tier 2 could find
+nothing in Tier 1, which produced a threat model rather than an implementation,
+so the count starts at Tier 3. On that count, five control tiers out of five
+have found something, which is why this has a section of its own. State the
+counting rule in one tier only: Tier 3 states it, and later tiers give the
+number and link back. Write what you found in section 14, not in a paragraph
+buried in section 12, and admit it there by the test section 14 sets out.
 
 **Predict and reveal did not carry over, and that is fine.** Unchanged from
 Tier 2. A control tier's work is running and reading, and its answers arrive as

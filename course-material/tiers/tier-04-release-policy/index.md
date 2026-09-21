@@ -248,7 +248,7 @@ ota.assignment this device believes neither; they are the service's claims
 ota.assignment about itself. Only release_id is used, to know what to ask about.
 ```
 
-The record has not changed since Tier 0. It is still mutable, still writable by one unauthenticated request, and it still carries `"signed": true`, which Tier 3 pointed at and called the service's claim about itself. What changed is that the device stopped believing it. It reads one field, to know which release to go and ask about, and gets every fact from the signed manifest instead.
+The record has not changed since Tier 0. It is still mutable, still writable by one unauthenticated request, and it still carries a `signed` field that decides nothing: the service overwrites it with `false` whatever a publisher claims, and nothing verifies it either way. What changed is that the device stopped believing any of it. It reads one field, to know which release to go and ask about, and gets every fact from the signed manifest instead.
 
 ### Build the second release
 
@@ -504,6 +504,12 @@ Four claims you must not make at the end of this tier:
 - That downgrade is impossible. It is refused. A physical attacker who can rewrite the primary slot chooses the reference the comparison uses.
 - That a signed manifest makes a release correct. It makes it authentic. Five of the seven releases you just refused were signed by your own key, and the device could not tell them from a leaked one.
 
+## What this tier found in Tier 3
+
+Two control tiers out of two have now found something in the tier before them, counted the way [Tier 3 explains](../tier-03-signed-images/index.md#what-this-tier-found-in-tier-2).
+
+**A published transcript can be evidence for something that never happened.** Tier 3's hostile release fixture narrated the record as claiming `"signed": true`, and said that nothing checks it. The update service never stored that claim. It overwrites the field with `false` on every publish, which is why the record you read in Tier 0 says `"signed": false`, so Tier 3 described a record no service would ever hold and a Learner could have shown that page wrong with a single request. Nothing broke, because nothing reads the field either way, which is exactly why it stood for a whole tier. Tier 3's fixture now narrates what actually happens, and this tier takes nothing from that record except `release_id`.
+
 ## Update the Security evidence pack
 
 ```text
@@ -529,7 +535,7 @@ Every refusal row must come from a board you watched. A host result never stands
 | The replay fixture refuses to run | It requires a signed Tier 4 release to be assigned and an older one with a strictly lower counter to exist. Build and sign the second variant |
 | `counter-mismatch: skipped` | Only one signed release exists, so there is no older image for it to point at. Sign the second variant |
 | A downgrade installs when you expected the bootloader to stop it | The image in the primary slot carries no security counter, so MCUboot allowed the swap. This is `T4-W-12` and it is expected before the first counter-carrying image is primary |
-| The board reports `ota.request failed err=-113` | The response was too large for the device's TLS buffer, whatever the handshake line above it says. `CONFIG_MBEDTLS_SSL_MAX_CONTENT_LEN` must be 16384 |
+| The board reports `ota.request failed err=-113` | In this tier that is usually not a transport fault. The device's own response callback refused the download, and the HTTP client aborts the connection and reports the abort, so the refusal arrives as `-113`. Read the `release.refused check=...` line printed just before it, which names what refused |
 
 Involve a Mentor when a refusal names a check you did not expect. Bring the board's serial record and the manifest the service served, because the two together usually answer it in a minute.
 
