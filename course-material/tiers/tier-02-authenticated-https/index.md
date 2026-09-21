@@ -224,7 +224,7 @@ Third, the trust anchor. `tls_credential_add` registers the Course certificate a
 
 Note what the credential store does, because it catches people: it keeps a pointer to your certificate rather than a copy, so the array has to have static storage. If you moved it onto a stack, the handshake would read freed memory.
 
-One option in `prj.conf` is worth a moment, because it is not obvious and it has already cost an afternoon. `CONFIG_MBEDTLS_SSL_MAX_CONTENT_LEN` is set to 16384, which is the largest a TLS record is allowed to be. Every response this tier fetches is small JSON, so 2048 fits all of them, and 2048 is what this file said at first. But the peer decides how large a record it sends, and a firmware image arrives in full sized ones. Tier 3 is the first tier to download an image over this connection, and it found the limit the hard way: the transfer is refused before a single byte reaches the flash, and the failure reads `err=-113` on the line after a handshake the same log says succeeded. Sizing a buffer for the traffic you have seen so far is a reasonable thing to do and a miserable thing to debug afterwards.
+One option in `prj.conf` is worth naming: `CONFIG_MBEDTLS_SSL_MAX_CONTENT_LEN` is set to 16384, the largest size a TLS record may have, because the peer decides how large a record it sends and [Tier 3 found what happens when this buffer is smaller](../tier-03-signed-images/index.md#what-this-tier-found-in-tier-2).
 
 Build the image:
 
@@ -514,6 +514,10 @@ Three claims you must not make at the end of this tier:
 - That certificates are checked for expiry. They are not, on this device, and `T2-W-09` records it.
 
 Run `./course device status` to see which hardware results the course currently claims.
+
+## What this tier found in Tier 1
+
+Nothing, and the reason is worth a line. Tier 1 produced a threat model rather than an implementation, so this tier had nothing in it to break. A reasoning tier hands you a plan to check your own work against, and a plan has no code in it that a later tier can exercise and find wrong.
 
 ## Update the Security evidence pack
 

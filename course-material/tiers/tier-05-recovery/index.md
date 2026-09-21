@@ -466,9 +466,9 @@ One control supports it. Unlike `SC-01` and `SC-02`, this claim needs no second 
 
 ## What this tier found in Tier 4
 
-A control tier is the first thing to exercise the previous tier's work in a new way, and four out of four have now found something.
+A control tier is the first thing to exercise the previous tier's work in a new way, and three out of three have now found something, counted the way [Tier 3 explains](../tier-03-signed-images/index.md#what-this-tier-found-in-tier-2).
 
-Tier 4 returns the transport's error before it looks at the refusal that caused it. When a response callback refuses, the HTTP client aborts the connection and reports the abort, so a size refusal comes back as `-113`, which is what a dropped connection looks like.
+**An error code can name the transport and hide the check that refused.** Tier 4 returns the transport's error before it looks at the refusal that caused it. When a response callback refuses, the HTTP client aborts the connection and reports the abort, so a size refusal comes back as `-113`, which is what a dropped connection looks like.
 
 In Tier 4 this is harmless: nothing branches on that value, the refusal is printed where it is decided, and you still read `check=image-size`. In Tier 5 it was not harmless, because Tier 5 decides whether to discard a partial download based on that value, and a refused range response kept its bytes.
 

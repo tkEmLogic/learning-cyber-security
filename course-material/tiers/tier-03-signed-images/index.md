@@ -429,6 +429,12 @@ Four claims you must not make at the end of this tier:
 
 Run `./course device status` to see which hardware results the course currently claims.
 
+## What this tier found in Tier 2
+
+This is the first tier that can find anything in the tier before it, so it is the tier that sets the count. Tier 2 found nothing in Tier 1, because Tier 1 produced a threat model rather than an implementation. The count in this course therefore runs over control tiers whose predecessor built something, and it starts here, at one out of one.
+
+**A buffer sized for the traffic you have seen fails on the traffic you have not.** Tier 2's HTTPS client could not receive a response larger than 2 KB, because `CONFIG_MBEDTLS_SSL_MAX_CONTENT_LEN` was 2048. Every response Tier 2 fetched was small JSON, so nothing ever noticed. But the peer decides how large a TLS record it sends, and a firmware image arrives in full sized ones, so this tier, the first to download an image over that connection, was refused before one byte reached the flash. The symptom points nowhere near the cause: the transfer fails with `err=-113`, a transport error, on the line after a handshake the same log reports as successful. Tier 2's published behaviour was never wrong. Both tiers now set the option to 16384, so a Learner working in order never meets the limit.
+
 ## Update the Security evidence pack
 
 Create the Tier 3 evidence directory and copy the templates:

@@ -320,13 +320,9 @@ One thing to explain rather than assume: `SC-06` was not in Tier 1's table. Tier
 
 ## What this tier found in Tier 5
 
-A control tier is the first thing to exercise the previous tier's work in a new way, and five out of five have now found something.
+A control tier is the first thing to exercise the previous tier's work in a new way, and four out of four have now found something, counted the way [Tier 3 explains](../tier-03-signed-images/index.md#what-this-tier-found-in-tier-2).
 
-Tier 5 mounted its own NVS instance at the first byte of the `storage` partition, and explained at length why it used NVS directly. On its own that is correct, and it was validated on hardware as Tier 5, on the earlier nanoESP32-C6 1.0.
-
-Tier 6 is the first tier to also use that partition: it stores the Secure Storage key there, through the settings subsystem, whose own NVS instance takes its offset from the same first byte and cannot be moved. Both instances landed on the same bytes, and nothing detected it. `nvs_mount()` checks write block size, sector size and a minimum count, and nothing else, so both mounts returned zero and the damage did not even wait for a write. Tier 5 was the only user of the partition, so the fault could not exist until Tier 6 shared it. That is the instructive half: a correct, published, hardware-validated tier sat harmless until a later tier exercised the same resource in a new way, and this is exactly the mistake you will make for real when two subsystems quietly assume they own the same flash.
-
-It is fixed in Tier 6's own tree, in `recovery_state.c`, which stops mounting a second instance and writes through the one the settings subsystem already owns. Tier 5's published source is not changed, because a Learner following Tier 5 as written reaches no wrong conclusion. Validated on the earlier nanoESP32-C6 1.0: Tier 5's records coexist with Secure Storage in the one shared instance.
+**Two subsystems can own the same flash and both report success.** Tier 5 mounted its own NVS instance at the first byte of the `storage` partition. Tier 6 is the first tier to share that partition, because it stores the Secure Storage key there through the settings subsystem, whose NVS instance starts at the same byte and cannot be moved. Both instances landed on the same bytes and nothing detected it: `nvs_mount()` checks write block size, sector size and a minimum sector count and nothing else, so both mounts returned zero. A correct, published, hardware validated tier sat harmless until a later tier used the same resource. Tier 6 fixes it in its own tree, in `recovery_state.c`, which writes through the instance the settings subsystem already owns, and Tier 5's published source is not changed, because a Learner following Tier 5 as written reaches no wrong conclusion. Validated on the earlier nanoESP32-C6 1.0: Tier 5's records coexist with Secure Storage in the one shared instance.
 
 ## Update the Security evidence pack
 
