@@ -228,15 +228,9 @@ boot.state and MCUboot has put this image back. That is a revert.
 
 ## Prove the revert is not blocked by the counter
 
-Section 6 says a failed trial can revert to the previously confirmed image
-without a newer counter making that image ineligible. That is a claim worth
-testing rather than believing, because Tier 4 spent a whole tier teaching the
-bootloader to refuse an image whose counter went backwards, and a revert is an
-image whose counter goes backwards.
+Section 6 says a failed trial can revert to the previously confirmed image without a newer counter making that image ineligible. That is a claim worth testing rather than believing, because Tier 4 spent a whole tier teaching the bootloader to refuse an image whose counter went backwards, and a revert is an image whose counter goes backwards.
 
-The `crash` release is the one that raises the security counter, and it is the
-only one of the five that does. Every other release carries the same counter so
-that the trial path is what is being tested. This one is deliberately different:
+The `crash` release is the one that raises the security counter, and it is the only one of the five that does. Every other release carries the same counter so that the trial path is what is being tested. This one is deliberately different:
 
 ```text
 release.admitted release_id=tier-05-crash version=0.5.1-crash counter=4 channel=stable
@@ -256,17 +250,9 @@ Security counter of the running image: 3
 
 No refusal, and no `Image 0 in slot 1 erased due to downgrade prevention`.
 
-Why this needed a counter of 4 to mean anything is worth understanding.
-MCUboot's `check_downgrade_prevention()` refuses when the primary slot's
-counter is **strictly greater** than the candidate's. With every release at the
-same counter, the check would not fire even if a revert did pass through it, so
-a revert between equal counters proves nothing at all. Only a revert that would
-otherwise be refused can demonstrate the exemption.
+Why this needed a counter of 4 to mean anything is worth understanding. MCUboot's `check_downgrade_prevention()` refuses when the primary slot's counter is **strictly greater** than the candidate's. With every release at the same counter, the check would not fire even if a revert did pass through it, so a revert between equal counters proves nothing at all. Only a revert that would otherwise be refused can demonstrate the exemption.
 
-The exemption is structural rather than lucky. In `loader.c`,
-`check_downgrade_prevention()` is called under `case BOOT_SWAP_TYPE_TEST` and
-`case BOOT_SWAP_TYPE_PERM` only, and `BOOT_SWAP_TYPE_REVERT` is a separate case
-reached after both of those break out.
+The exemption is structural rather than lucky. In `loader.c`, `check_downgrade_prevention()` is called under `case BOOT_SWAP_TYPE_TEST` and `case BOOT_SWAP_TYPE_PERM` only, and `BOOT_SWAP_TYPE_REVERT` is a separate case reached after both of those break out.
 
 ## What the device cannot tell you
 
@@ -449,8 +435,7 @@ It becomes **partly supported**.
 
 Supported against the failures this tier can demonstrate: a release that crashes, hangs, fails a health check or stalls during the window is reverted to the last confirmed image, and a download interrupted by a dropped connection or a reset resumes and completes. All of this was observed on the board the course used before, a nanoESP32-C6 1.0, and none of it has been repeated yet on the ESP32-C6-DevKitC-1 this course now targets.
 
-The revert path itself is not blocked by the anti-rollback control, observed
-with a trial image at counter 4 reverting to a confirmed image at counter 3.
+The revert path itself is not blocked by the anti-rollback control, observed with a trial image at counter 4 reverting to a confirmed image at counter 3.
 
 Not supported against a power cut at every transition. Three of section 6's transitions were not reached during validation: the trailer update, the confirmation write, and the first reboot after confirmation. Each is a window of a few milliseconds. They are recorded as `not_reached` in `course.yml` rather than as passes, because a skipped check never supports a claim.
 

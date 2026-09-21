@@ -123,7 +123,7 @@ The device and the local Wi-Fi network, the device and the OTA service, the rele
 
 **Fixed decision.** The manufacturer provisions a unique device identity, the customer installs the device on a local Wi-Fi network, a limited Bootstrap credential may support first bring-up, the product receives security updates for at least a five-year support period, credentials can be rotated and revoked, ownership transfer removes the old owner's access and creates new owner credentials, and decommissioning revokes backend access and removes customer credentials where the hardware permits it.
 
-**Fixed decision.** The product uses two MCUboot image slots with test boot, confirmation, and revert. A failed or interrupted update must never leave the device without a bootable image. A physically present operator may use a documented serial recovery path. Irreversible eFuse exercises use virtual eFuses first and labelled disposable hardware only after a Mentor review gate.
+**Fixed decision.** The product uses two MCUboot image slots with test boot, confirmation, and revert. A failed or interrupted update must never leave the device without a bootable image. A physically present operator may use a documented serial recovery path. Irreversible eFuse exercises use virtual eFuses first and labeled disposable hardware only after a Mentor review gate.
 
 ### Teaching simplifications
 
@@ -225,7 +225,7 @@ The last confirmed image remains the normal recovery path. Configure MCUboot ser
 
 ### Irreversible controls
 
-**Implementation requirement.** Learners use simulated or virtual eFuses first. Physical eFuse work requires a Mentor review gate, a labelled disposable board, a recorded pre-change eFuse state, and a command-by-command checklist. The Learner verifies signed boot and recovery before disabling debug access or restricting download modes. Examples use non-production keys generated for the lab. Secret key material is never committed to the repository, copied into course pages, or uploaded to the OTA service. Each irreversible exercise states the expected post-change state and the failure mode if a wrong value is burned.
+**Implementation requirement.** Learners use simulated or virtual eFuses first. Physical eFuse work requires a Mentor review gate, a labeled disposable board, a recorded pre-change eFuse state, and a command-by-command checklist. The Learner verifies signed boot and recovery before disabling debug access or restricting download modes. Examples use non-production keys generated for the lab. Secret key material is never committed to the repository, copied into course pages, or uploaded to the OTA service. Each irreversible exercise states the expected post-change state and the failure mode if a wrong value is burned.
 
 Source: resolved decision ticket [#8](https://github.com/tkEmLogic/learning-cyber-security/issues/8), research ticket [#4](https://github.com/tkEmLogic/learning-cyber-security/issues/4).
 
@@ -629,7 +629,7 @@ Source: resolved decision ticket [#12](https://github.com/tkEmLogic/learning-cyb
 | Prerequisites | Core Tier 10 and disposable hardware. |
 | Learning result | Compare software-rooted image verification with ESP32-C6 Secure Boot v2 and flash encryption. |
 | Threat shown | A physical attacker replaces the software-rooted bootloader or reads flash contents. |
-| Hands-on task | Use virtual eFuses first, then the validated manually integrated MCUboot Espressif port on labelled disposable hardware. Enable signed recovery before restricting debug or download modes. Add flash encryption as a separate confidentiality control. Run the separate bootloader-signing-key and firmware-release-key rotation sequences from section 6. |
+| Hands-on task | Use virtual eFuses first, then the validated manually integrated MCUboot Espressif port on labeled disposable hardware. Enable signed recovery before restricting debug or download modes. Add flash encryption as a separate confidentiality control. Run the separate bootloader-signing-key and firmware-release-key rotation sequences from section 6. |
 | Success criteria | The exact ROM-to-application chain and signed recovery pass on physical hardware. Invalid boot components fail. Flash contents are not directly readable as plaintext through the tested path. Both key rotations preserve a bootable signed recovery path, and the retired key is rejected only after the next key is proven. |
 | Failure criteria | Irreversible controls are applied before recovery is proven or the course claims unvalidated upstream support. |
 | Mentor review gate | Mandatory before and after physical eFuse changes. |
@@ -882,7 +882,7 @@ Mentor review prompts and prepared failures live in the same repository because 
 
 ### Irreversible hardware work
 
-**Implementation requirement.** Keep physical eFuse and other irreversible operations under `hardware/irreversible/`. They are excluded from normal setup, build, and verification commands. An irreversible command requires Advanced Tier A context, a labelled disposable board identifier, a saved pre-change eFuse report, successful virtual-eFuse practice, successful signed recovery on the same board, recorded Mentor approval, and an explicit command flag with typed confirmation containing the board identifier. Dry-run is the default. CI never invokes physical irreversible commands.
+**Implementation requirement.** Keep physical eFuse and other irreversible operations under `hardware/irreversible/`. They are excluded from normal setup, build, and verification commands. An irreversible command requires Advanced Tier A context, a labeled disposable board identifier, a saved pre-change eFuse report, successful virtual-eFuse practice, successful signed recovery on the same board, recorded Mentor approval, and an explicit command flag with typed confirmation containing the board identifier. Dry-run is the default. CI never invokes physical irreversible commands.
 
 Source: resolved decision ticket [#16](https://github.com/tkEmLogic/learning-cyber-security/issues/16).
 
@@ -958,7 +958,7 @@ Source: `docs/agents/course-writing.md`, resolved prototype ticket [#15](https:/
 
 **Implementation requirement.** All attack demonstrations and insecure baselines run only on an isolated local lab network, using disposable credentials and synthetic data, and are never presented as deployment defaults. Attack fixtures fail closed when a target does not identify itself as the course environment, and no fixture scans arbitrary networks or accepts an unrestricted target range.
 
-**Implementation requirement.** Every physical eFuse or other irreversible hardware operation follows this order, without exception: practice with virtual eFuses first, use a labelled disposable board, save a pre-change eFuse report, prove signed recovery works on the same board before restricting debug or download modes, obtain a recorded Mentor review gate approval, and require an explicit command flag with typed confirmation naming the board identifier. Dry-run is the default, and CI never invokes a physical irreversible command.
+**Implementation requirement.** Every physical eFuse or other irreversible hardware operation follows this order, without exception: practice with virtual eFuses first, use a labeled disposable board, save a pre-change eFuse report, prove signed recovery works on the same board before restricting debug or download modes, obtain a recorded Mentor review gate approval, and require an explicit command flag with typed confirmation naming the board identifier. Dry-run is the default, and CI never invokes a physical irreversible command.
 
 **Implementation requirement.** No private key, Bootstrap credential, bearer token, or other secret is ever committed to the repository, printed in course pages, or uploaded to the OTA service. Generated secrets live only in the untracked locations named in section 17.
 
