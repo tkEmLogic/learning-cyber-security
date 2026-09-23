@@ -61,8 +61,6 @@ The [course landing page](../../index.md) carries the environment setup, the glo
 
 The device can prove which board it is, and nothing has ever asked it to. The service still believes the device identifier it finds in a request body.
 
-One note about the device output quoted in this module. Every serial line in it was recorded on the board the course used before, a nanoESP32-C6 1.0, and no tier has yet been run on the ESP32-C6-DevKitC-1 this course now targets. Treat the quoted lines as what to expect rather than as a result on your board, record what you actually see, and raise any difference with a Mentor instead of editing your observation to match the page.
-
 ## Weakness ledger before the work
 
 Inherited from Tier 6. Not your own work yet.
@@ -114,9 +112,9 @@ Transport: health and the Course environment marker stay on plain HTTP
 
 Read that carefully, because it is the whole vulnerability. The service presents a certificate, which is Tier 2's work and still holding. It says nothing about what the caller presents, because the caller presents nothing. Every route on that port is open to anyone who trusts the course certificate authority, which is anyone who has your repository.
 
-One note before you run them. The board these captures were recorded on is called `beacon-t07b-404cca5ea9fc` here and `beacon-t07c-404cca5ea9fc` later in the page, because it was remanufactured part of the way through the recording. Your board keeps one identifier throughout, and you use your own in every command.
+One note before you run them. The board these captures were recorded on is called `beacon-remfg-206ef1170d64`, because it was remanufactured once in Tier 6. You use your own identifier in every command.
 
-The two attacks below are one `curl` each. They use the course certificate authority, so the connection is verified exactly as your device verifies it, and neither attack breaks TLS. Substitute your own device identifier for `beacon-t07b-404cca5ea9fc` throughout, because an identifier taken from this page names somebody else's board.
+The two attacks below are one `curl` each. They use the course certificate authority, so the connection is verified exactly as your device verifies it, and neither attack breaks TLS. Substitute your own device identifier for `beacon-remfg-206ef1170d64` throughout, because an identifier taken from this page names somebody else's board.
 
 ### Report as a device you are not
 
@@ -125,9 +123,9 @@ A status event is the device telling its history. The service writes it into an 
 ```text
 curl --cacert .course-secrets/pki/course-ca.crt.pem \
   --resolve ota.course.example:8443:127.0.0.1 \
-  -i -X POST https://ota.course.example:8443/v1/devices/beacon-t07b-404cca5ea9fc/events \
+  -i -X POST https://ota.course.example:8443/v1/devices/beacon-remfg-206ef1170d64/events \
   -H "Content-Type: application/json" \
-  -d '{"device_id":"beacon-t07b-404cca5ea9fc","event_type":"status.observed","boot_id":"not-your-board","event_sequence":1,"firmware_version":"0.7.0-operational-identity","security_counter":3,"machine_state":"stopped","result":"ok","reason_code":"none"}'
+  -d '{"device_id":"beacon-remfg-206ef1170d64","event_type":"status.observed","boot_id":"not-your-board","event_sequence":1,"firmware_version":"0.7.0-operational-identity","security_counter":3,"machine_state":"stopped","result":"ok","reason_code":"none"}'
 ```
 
 ```text
@@ -135,7 +133,7 @@ HTTP/2 202
 content-type: application/json
 x-course-environment: unsafe-tier-00
 
-{"accepted":true,"accepted_device_id":"beacon-t07b-404cca5ea9fc","warning":"Tier 0 trusts the JSON body device_id"}
+{"accepted":true,"accepted_device_id":"beacon-remfg-206ef1170d64","warning":"Tier 0 trusts the JSON body device_id"}
 ```
 
 The service accepted it and told you why in the answer: `Tier 0 trusts the JSON body device_id`. That warning has been in every answer since Tier 0 and this is the tier that removes it.
@@ -144,17 +142,18 @@ Now read what it wrote, in `.course-state/ota/events.jsonl`:
 
 ```text
 {
-    "accepted_device_id": "beacon-t07b-404cca5ea9fc",
+    "accepted_device_id": "beacon-remfg-206ef1170d64",
     "boot_id": "not-your-board",
-    "device_id": "beacon-t07b-404cca5ea9fc",
+    "device_id": "beacon-remfg-206ef1170d64",
     "event_sequence": 1,
     "event_type": "status.observed",
+    "firmware_version": "0.7.0-operational-identity",
     "machine_state": "stopped",
-    "path_device_id": "beacon-t07b-404cca5ea9fc",
+    "path_device_id": "beacon-remfg-206ef1170d64",
     "reason_code": "none",
     "result": "ok",
     "security_counter": 3,
-    "service_received_at": "2026-09-19T18:31:34.853830019Z",
+    "service_received_at": "2026-09-23T21:44:14.046880883Z",
     "tier_00_trust": "body_device_id"
 }
 ```
@@ -177,7 +176,7 @@ curl --cacert .course-secrets/pki/course-ca.crt.pem \
 HTTP/2 200
 content-type: application/json
 
-{"schema_version":1,"release_id":"tier-07-operational-identity","version":"0.7.0-operational-identity","board":"esp32c6_devkitc/esp32c6/hpcore","image_path":"tier-07-operational-identity.bin","image_sha256":"b8e5fa4d4a81d62d224d1cddc02acd082f3e5f1ab553dd536162802c5c7d7477","image_size":758664,"mutable":true,"signed":true}
+{"schema_version":1,"release_id":"tier-07-operational-identity","version":"0.7.0-operational-identity","board":"esp32c6_devkitc/esp32c6/hpcore","image_path":"tier-07-operational-identity.bin","image_sha256":"395f0159aac03ba554141cd9e0c9dec5febeab6ba595285061c2ca036fa96acc","image_size":758692,"mutable":true,"signed":true}
 ```
 
 Then take the image itself:
@@ -190,8 +189,8 @@ curl --cacert .course-secrets/pki/course-ca.crt.pem \
 ```
 
 ```text
-status 200, 758664 bytes
-b8e5fa4d4a81d62d224d1cddc02acd082f3e5f1ab553dd536162802c5c7d7477  stolen.bin
+status 200, 758692 bytes
+395f0159aac03ba554141cd9e0c9dec5febeab6ba595285061c2ca036fa96acc  stolen.bin
 ```
 
 That is your fleet's firmware, complete and byte for byte, fetched by a caller who proved nothing. The signature on it is intact, which is Tier 3 doing exactly its job: a signature says who made an image, and it never says who may have it.
@@ -357,7 +356,7 @@ Compare the two credentials while they are both fresh in your mind. A Bootstrap 
 Result: OTA service is healthy
 Devices, presenting a client certificate: https://ota.course.example:8443
 Operators and the lab controls: https://ota.course.example:8444
-Health and the Course environment marker stay on http://192.168.68.81:8080
+Health and the Course environment marker stay on http://192.168.68.77:8080
 ```
 
 Three listeners where Tier 6 had two, and the split is the design rather than a detail. Mutual TLS is decided in the handshake, before a single byte of the request has been read, so it cannot be applied per route. Any port that demands a client certificate demands it of everybody, including you at a laptop, and you hold no device certificate. So the routes a device uses live on 8443, behind mutual TLS. The routes a person uses live on 8444, with the server authenticated and no client certificate asked for. Health and the Course environment marker stay in the clear on 8080, because a targeting check must not depend on the control it is used to test.
@@ -378,11 +377,18 @@ One more thing about this flag before you move on. `--mutual-tls` is a flag, and
 
 ## Claim the device
 
-Your board is enrolled and unclaimed, and it is about to tell you what that means. Reset it and read the identity lines in its boot output:
+Your board is still running the Tier 6 factory image. Put the Tier 7 image on it before you turn mutual TLS on, while the Tier 6 image can still reach the service. If you have already started the service with `--mutual-tls`, restart it with `--https` alone for this step:
 
 ```text
-identity.state provisioned device_id=beacon-t07c-404cca5ea9fc
-identity.state factory certificate fingerprint=sha256:753b3bfe58d156a3e6ec80110af6e4e3c013ce0b25f358a38d767761a0fb24d3 key=0x00000601
+./course build firmware --tier 07
+./course release sign --tier 07 --variant baseline
+```
+
+Your Tier 6 device installs it on trial and confirms it, and then it is enrolled and unclaimed, and about to tell you what that means. Reset it and read the identity lines in its boot output:
+
+```text
+identity.state provisioned device_id=beacon-remfg-206ef1170d64
+identity.state factory certificate fingerprint=sha256:335e4ea306f9d68747cfb7b9816c29a0d7d4b490b9ebc0f9419952158dec30e8 key=0x00000601
 identity.state no operational certificate held, owner unknown
 identity.state this device will not download. It does not fall back to its factory
 identity.state identity, which claims and recovers and does not authorize updates.
@@ -413,12 +419,12 @@ identity.operational generated a pending P-256 key, volatile
 identity.operational it is in RAM only. A reset destroys it, and so does the
 identity.operational window closing. Nothing writes it to flash unless a
 identity.operational certificate comes back for it.
-identity.csr built a 225 byte Operational request for beacon-t07c-404cca5ea9fc
+identity.csr built a 226 byte Operational request for beacon-remfg-206ef1170d64
 claim.window open for 600 seconds. This device times its own window and closes
 claim.window it by destroying the nonce and the key. The service times its own,
 claim.window starting when the request reaches it, and the service alone decides
 claim.window that a claim has expired. A reset kills this window.
-claim.nonce DK83-A6WK-TN48-DACE-BE8Z-5HXG
+claim.nonce DV7E-5CB8-NGYB-RD7F-YW5T-TNTM
 claim.nonce Read that to whoever is claiming this device. They present it with
 claim.nonce their own Owner credential, from a machine this device never talks
 claim.nonce to. Both halves have to arrive inside the same window.
@@ -427,7 +433,7 @@ claim.nonce console is a weaker stand-in, not an equivalent one: a label needs
 claim.nonce eyes on the device, and this needs a cable that grants far more
 claim.nonce than the nonce.
 tls.identity presenting the Factory certificate, signed by PSA key 0x00000601
-ota.tls verified ota.course.example at 192.168.68.81:8443, TLSv1.2 TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256, mutually authenticated
+ota.tls verified ota.course.example at 192.168.68.77:8443, TLSv1.2 TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256, mutually authenticated
 claim.pending the request is with the service. Waiting for the operator
 claim.pending half, polling every 5 seconds on a fresh connection.
 ```
@@ -449,8 +455,8 @@ The device has already sent its half. It authenticated with its Factory certific
 Approve it, as the owner, from the machine holding your Owner credential:
 
 ```text
-./course claim approve --device beacon-t07c-404cca5ea9fc \
-  --nonce DK83-A6WK-TN48-DACE-BE8Z-5HXG \
+./course claim approve --device beacon-remfg-206ef1170d64 \
+  --nonce DV7E-5CB8-NGYB-RD7F-YW5T-TNTM \
   --credential 43839de9...
 ```
 
@@ -463,29 +469,29 @@ handshake, before any header is read, and a person holds no device
 certificate. The credential goes to the operator listener instead, as a
 bearer token, over a connection that authenticates the server only.
   operator listener: https://ota.course.example:8444
-  device named:      beacon-t07c-404cca5ea9fc
-  nonce presented:   DK83-A6WK-TN48-DACE-BE8Z-5HXG
+  device named:      beacon-remfg-206ef1170d64
+  nonce presented:   DV7E-5CB8-NGYB-RD7F-YW5T-TNTM
   owner named:       nothing. This command sends no owner field, and there
                      is no flag for one. The service derives the owner from
                      the credential it verified.
 
 + POST https://ota.course.example:8444/v1/claim
   Authorization: Bearer <the credential, not printed>
-  -> {"device_id":"beacon-t07c-404cca5ea9fc","nonce":"DK83-A6WK-TN48-DACE-BE8Z-5HXG"}
+  -> {"device_id":"beacon-remfg-206ef1170d64","nonce":"DV7E-5CB8-NGYB-RD7F-YW5T-TNTM"}
   <- 200 OK
      result:          claimed
-     device:          beacon-t07c-404cca5ea9fc
+     device:          beacon-remfg-206ef1170d64
      owner:           field-owner
      lifecycle state: claimed
-     serial:          43923639592142046874239079550106062069
-     fingerprint:     sha256:75c5cb088e2043f32e2fd1555a53c7ad028a1f30bb08b1b46f03d6334c0ae535
-     not after:       2026-12-18T18:51:52Z
+     serial:          159307069163124795337050571888294605858
+     fingerprint:     sha256:e2c3b1897b9ddc970cfcf235aeb1b31cefd6274ed8ba7e9828a4ce58dfd3193b
+     not after:       2026-12-22T21:46:55Z
 
 The owner on that line was never sent. It came from the credential.
 The certificate is now waiting in the open claim window, and the device
 collects it on its next poll. Nothing was sent to the device from here:
 the two halves never meet except inside the service.
-Result: beacon-t07c-404cca5ea9fc is claimed by field-owner, certificate sha256:75c5cb088e2043f3...
+Result: beacon-remfg-206ef1170d64 is claimed by field-owner, certificate sha256:e2c3b1897b9ddc97...
 ```
 
 Read the flags on that command, and then read the flag that is missing. You named a device and a nonce, both of which the service checks against what it already holds. You did not name an owner, and there is no flag for one. The service works out which owner you are from the credential it verified, exactly as it works out which device is calling from the certificate on the connection. A field the caller fills in is not an authentication, in either half.
@@ -499,8 +505,8 @@ The certificate is not sent to the device. It is left in the open window, and th
 ```text
 claim.issued the operator half landed and the service issued a certificate
 identity.operational the pending key is destroyed
-identity.store operational certificate held, device_id=beacon-t07c-404cca5ea9fc owner=field-owner
-identity.store fingerprint=sha256:75c5cb088e2043f32e2fd1555a53c7ad028a1f30bb08b1b46f03d6334c0ae535 key=0x00000701
+identity.store operational certificate held, device_id=beacon-remfg-206ef1170d64 owner=field-owner
+identity.store fingerprint=sha256:e2c3b1897b9ddc970cfcf235aeb1b31cefd6274ed8ba7e9828a4ce58dfd3193b key=0x00000701
 identity.store the key was copied into its persistent slot, not re-generated.
 identity.store It is still the key that signed the request, and it is still
 identity.store non-exportable: a copy cannot gain a flag its source lacked.
@@ -516,7 +522,7 @@ The two halves never met except inside the service. The person never talked to t
 Confirm what the service wrote, which is the half a device cannot fake:
 
 ```text
-./course provision record --device beacon-t07c-404cca5ea9fc
+./course provision record --device beacon-remfg-206ef1170d64
 ```
 
 The claim record carries the device, the owner, the lifecycle state `claimed`, the certificate serial and fingerprint, and a verifier of the nonce rather than the nonce itself. A nonce is a secret that authorized a state change, so the record keeps a hash of it in the same way the credential stores do.
@@ -527,17 +533,18 @@ Let the board run for a minute and then read the newest line your device wrote t
 
 ```text
 {
-    "accepted_device_id": "beacon-t07c-404cca5ea9fc",
+    "accepted_device_id": "beacon-remfg-206ef1170d64",
     "accepted_from": "client_certificate",
-    "certificate_device_id": "beacon-t07c-404cca5ea9fc",
+    "certificate_device_id": "beacon-remfg-206ef1170d64",
     "detail": "verified service, signed release metadata",
-    "device_id": "beacon-t07c-404cca5ea9fc",
+    "device_id": "beacon-remfg-206ef1170d64",
     "event": "status.observed",
     "machine_state": "steady",
-    "path_device_id": "beacon-t07c-404cca5ea9fc",
+    "path_device_id": "beacon-remfg-206ef1170d64",
     "running_release_id": "tier-07-operational-identity",
-    "service_received_at": "2026-09-19T18:52:47.09020757Z",
-    "synthetic_data": true
+    "service_received_at": "2026-09-23T21:47:13.242503515Z",
+    "synthetic_data": true,
+    "transport": "https"
 }
 ```
 
@@ -606,9 +613,9 @@ curl: (56) OpenSSL SSL_read: OpenSSL/3.0.13: error:0A00045C:SSL routines::tlsv13
 ```text
 curl --cacert .course-secrets/pki/course-ca.crt.pem \
   --resolve ota.course.example:8443:127.0.0.1 \
-  -i -X POST https://ota.course.example:8443/v1/devices/beacon-t07b-404cca5ea9fc/events \
+  -i -X POST https://ota.course.example:8443/v1/devices/beacon-remfg-206ef1170d64/events \
   -H "Content-Type: application/json" \
-  -d '{"device_id":"beacon-t07b-404cca5ea9fc","event_type":"status.observed","boot_id":"not-your-board","event_sequence":2,"machine_state":"stopped","result":"ok","reason_code":"none"}'
+  -d '{"device_id":"beacon-remfg-206ef1170d64","event_type":"status.observed","boot_id":"not-your-board","event_sequence":2,"machine_state":"stopped","result":"ok","reason_code":"none"}'
 ```
 
 ```text
@@ -724,11 +731,11 @@ Which layer refuses decides how useful a refusal can be. That is worth knowing b
 **`E-7-10` is the row that needs your board.** It forges an Operational certificate for a device that the record says somebody else has claimed, and in an ordinary lab that device is your own beacon:
 
 ```text
-  beacon-t07b-404cca5ea9fc is claimed, and not by the adversary. The forged certificate names
+  beacon-remfg-206ef1170d64 is claimed, and not by the adversary. The forged certificate names
   the device correctly and carries owner scope "rival-labs" in its subject.
   refused at check ownership-context, HTTP 403
   the owner scope "rival-labs" in the certificate presented is not this device's current ownership context
-  the refusal names device beacon-t07b-404cca5ea9fc, so the service had established which device it was talking to
+  the refusal names device beacon-remfg-206ef1170d64, so the service had established which device it was talking to
 
 Result: E-7-10 refused at ownership-context, as the tier requires
 Note what the reason does not say: it never names who does own the device.
@@ -952,10 +959,10 @@ Nothing is said to the device, because nothing can be. The device holds no revoc
 
 ```text
 tls.identity presenting the Operational certificate, signed by PSA key 0x00000701
-ota.tls verified ota.course.example at 192.168.68.81:8443, TLSv1.2 TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256, mutually authenticated
+ota.tls verified ota.course.example at 192.168.68.77:8443, TLSv1.2 TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256, mutually authenticated
 ota.report rejected status=403
 tls.identity presenting the Operational certificate, signed by PSA key 0x00000701
-ota.tls verified ota.course.example at 192.168.68.81:8443, TLSv1.2 TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256, mutually authenticated
+ota.tls verified ota.course.example at 192.168.68.77:8443, TLSv1.2 TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256, mutually authenticated
 ota.assignment missing release_id or image_path
 ```
 
