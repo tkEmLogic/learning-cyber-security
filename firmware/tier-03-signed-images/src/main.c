@@ -80,7 +80,7 @@ static bool poll_once(enum beacon_state state)
 	 * exchanges are independent, and Tier 0 gates neither on the other.
 	 */
 	(void)ota_client_report("status.observed", state_name, CONFIG_COURSE_RELEASE_ID,
-				"plaintext HTTP, shared identifier");
+				"verified service, shared identifier");
 
 	if (ota_client_fetch_assignment(&release) != 0) {
 		return false;

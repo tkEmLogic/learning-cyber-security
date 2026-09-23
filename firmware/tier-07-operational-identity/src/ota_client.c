@@ -697,7 +697,7 @@ int ota_client_report(const char *event, const char *machine_state,
 	len = snprintf(payload, sizeof(payload),
 		       "{\"device_id\":\"%s\",\"event\":\"%s\",\"machine_state\":\"%s\","
 		       "\"running_release_id\":\"%s\",\"detail\":\"%s\","
-		       "\"transport\":\"http\",\"synthetic_data\":true}",
+		       "\"transport\":\"https\",\"synthetic_data\":true}",
 		       device_id, event, machine_state, release_id,
 		       detail == NULL ? "" : detail);
 	if (len < 0 || len >= (int)sizeof(payload)) {
