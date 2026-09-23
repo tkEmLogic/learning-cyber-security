@@ -408,17 +408,23 @@ verification:
     receipt: .course-state/receipts/tier-02.json
     revision_bound: true
     hardware:
-      tls_handshake_verified: pending
-      untrusted_certificate_refused: pending
-      wrong_name_certificate_refused: pending
-      recovery_after_refusal: pending
+      # Issue #225. The refusals are flags 0x08 (untrusted issuer) and 0x04
+      # (wrong name), each followed by a verified connection once the real
+      # certificate was back. Status events are stored as transport https
+      # since #233.
+      tls_handshake_verified: validated
+      untrusted_certificate_refused: validated
+      wrong_name_certificate_refused: validated
+      recovery_after_refusal: validated
       certificate_dates_checked: not_checked_no_clock
       # Issue #62. The application's TLS buffer must hold a firmware image in
-      # full sized records, not only the small JSON that Tier 2 fetches. The
-      # row needs a full image downloaded over the verified connection,
-      # written to the secondary slot, swapped in by MCUboot, and run.
-      ota_download_over_tls: pending
-      ota_install_completed: pending
+      # full sized records, not only the small JSON that Tier 2 fetches.
+      # Observed in #225: the 663820 byte image, published under the fresh
+      # release identifier tier-02-tls-download, was downloaded over the
+      # verified connection, written to the secondary slot, swapped in by
+      # MCUboot, and run.
+      ota_download_over_tls: validated
+      ota_install_completed: validated
       # Tier 2 installs whatever the verified service names. The device says so
       # itself while doing it: "installing without any check". Tier 3 is where
       # that closes.
