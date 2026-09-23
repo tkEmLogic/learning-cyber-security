@@ -49,8 +49,6 @@ The [course landing page](../../index.md) carries the environment setup, the glo
 
 The device recovers from a bad release, and it still answers to the same name as every other device you own.
 
-One note about the device output quoted in this module. Every serial line in it was recorded on the board the course used before, a nanoESP32-C6 1.0, and no tier has yet been run on the ESP32-C6-DevKitC-1 this course now targets. Treat the quoted lines as what to expect rather than as a result on your board, record what you actually see, and raise any difference with a Mentor instead of editing your observation to match the page.
-
 ## Weakness ledger before the work
 
 Inherited from Tier 5. Not your own work yet.
@@ -113,12 +111,12 @@ The shared key is not stored anywhere secret. It is compiled into a firmware ima
 ```
 
 ```text
-Reading the shared image you built: artifacts/generated/releases/tier-06-shared-identity.bin (744312 bytes)
+Reading the shared image you built: artifacts/generated/releases/tier-06-shared-identity.bin (744852 bytes)
 This is a firmware image, not a secret store. It is the same file you would
 flash to a board, and anyone who has the image has everything in it.
 
 Searching for a SEC1 P-256 private key, which begins 30770201010420.
-Found it at offset 0xa7f48. The next 121 bytes are the fleet's private key.
+Found it at offset 0xa8070. The next 121 bytes are the fleet's private key.
 ...
   certificate fingerprint: sha256:d07fb116bdf51533e547d92456e9c7cae86d9f4a961dc08ac4fc37bcf498b83d
   certificate subject:     beacon-development-shared
@@ -199,6 +197,20 @@ Enroll the device. The station issues the credential, the device generates its k
 
 A certification request, and why its own signature is what proves possession of the key, is defined in [Asking for a certificate](../../cryptography-primer.md#asking-for-a-certificate) in the cryptography primer.
 
+The device needs the factory image first. It is the Tier 6 application built without the shared key, and your Tier 5 device installs it on trial like any other release:
+
+```text
+./course build firmware --tier 06 --variant factory
+./course release sign --tier 06 --variant factory
+```
+
+It boots holding no identity, opens the provisioning interface on its own, and makes no contact with the update service until it has an identity:
+
+```text
+identity.state unprovisioned, no Factory certificate held
+provision.gate this device holds no identity, opening the interface
+```
+
 Your device needs a name of its own first, and the course builds one from the board in front of you: the word `beacon`, a hyphen, and your board's MAC in lower case with the colons removed. Read that MAC with `esptool read-mac` on the same cable you flash with, so a board with the MAC `aa:bb:cc:dd:ee:ff` is named `beacon-aabbccddeeff`. Substitute your own name for `beacon-aabbccddeeff` in all three commands below, because a name taken from this page would name somebody else's board.
 
 ```text
@@ -260,7 +272,7 @@ Then dump the storage partition and recover the same key from it:
 ./course device dump
 ```
 
-The dump reads only the `storage` partition, then resets the board off the ROM loader. The private key is in there, encrypted, in the record named `its/2/601`, which is clear text in the dump. Recovering it needs no secret: the AES-GCM key is `SHA-256(MAC || 0x0000 || uid)`, the MAC is on the cable, and the `uid` is the record's own identifier read straight out of that name, `0x00000601` with the caller bits set, packed little-endian as the four bytes `01 06 00 80`. Run that derivation and the record decrypts to the P-256 private key. On the board this was recorded on, the earlier nanoESP32-C6 1.0, the recovered key matched the public key in the certificate the device holds. That is the boundary, stated as an observation rather than a warning: the key the API would not export is readable to anyone who can dump the flash and follows a published procedure.
+The dump reads only the `storage` partition, then resets the board off the ROM loader. The private key is in there, encrypted, in the record named `its/2/601`, which is clear text in the dump. Recovering it needs no secret: the AES-GCM key is `SHA-256(MAC || 0x0000 || uid)`, the MAC is on the cable, and the `uid` is the record's own identifier read straight out of that name, `0x00000601` with the caller bits set, packed little-endian as the four bytes `01 06 00 80`. Run that derivation and the record decrypts to the P-256 private key. On the ESP32-C6-DevKitC-1 this course was recorded on, the recovered key matched the public key in the certificate the device holds. The same dump also held the key from the device's previous enrollment, decryptable in the same way, because NVS appends and a superseded record stays in flash until the sector is reclaimed. That is `T6-W-17` made visible. That is the boundary, stated as an observation rather than a warning: the key the API would not export is readable to anyone who can dump the flash and follows a published procedure.
 
 Record any unexpected actual result before you troubleshoot it, and do not mark the Security claim supported on the strength of a result you have not seen.
 
@@ -268,7 +280,7 @@ Record any unexpected actual result before you troubleshoot it, and do not mark 
 
 Compare these against what you predicted.
 
-1. The shared key lives inside a firmware image, and anyone who holds the image can read it. `./course provision extract` found the whole SEC1 private key structure at offset `0xa7f48` of a file you can flash to a board. Outside the lab the same file sits in the build pipeline, on the update server, and in the flash of every device built from it. Nothing had to be stolen, because nothing was ever kept.
+1. The shared key lives inside a firmware image, and anyone who holds the image can read it. `./course provision extract` found the whole SEC1 private key structure at offset `0xa8070` of a file you can flash to a board. Outside the lab the same file sits in the build pipeline, on the update server, and in the flash of every device built from it. Nothing had to be stolen, because nothing was ever kept.
 2. The station's check passes because it tests possession of a key, not the identity of the holder. Every device holds the same key, so possession proves fleet membership and nothing more. The clone fixture registered `beacon-phantom-0001` to `beacon-phantom-0003` with no board attached at all, every one of them carrying the fingerprint `sha256:d07fb116...`, and the station had nothing to compare them against.
 3. Generating the key on the board fixes the second problem, and it fixes only half of the first.
 
@@ -335,7 +347,7 @@ One thing to explain rather than assume: `SC-06` was not in Tier 1's table. Tier
 
 A control tier is the first thing to exercise the previous tier's work in a new way, and four out of four have now found something, counted the way [Tier 3 explains](../tier-03-signed-images/index.md#what-this-tier-found-in-tier-2).
 
-**Two subsystems can own the same flash and both report success.** Tier 5 mounted its own NVS instance at the first byte of the `storage` partition. Tier 6 is the first tier to share that partition, because it stores the Secure Storage key there through the settings subsystem, whose NVS instance starts at the same byte and cannot be moved. Both instances landed on the same bytes and nothing detected it: `nvs_mount()` checks write block size, sector size and a minimum sector count and nothing else, so both mounts returned zero. A correct, published, hardware validated tier sat harmless until a later tier used the same resource. Tier 6 fixes it in its own tree, in `recovery_state.c`, which writes through the instance the settings subsystem already owns, and Tier 5's published source is not changed, because a Learner following Tier 5 as written reaches no wrong conclusion. Validated on the earlier nanoESP32-C6 1.0: Tier 5's records coexist with Secure Storage in the one shared instance.
+**Two subsystems can own the same flash and both report success.** Tier 5 mounted its own NVS instance at the first byte of the `storage` partition. Tier 6 is the first tier to share that partition, because it stores the Secure Storage key there through the settings subsystem, whose NVS instance starts at the same byte and cannot be moved. Both instances landed on the same bytes and nothing detected it: `nvs_mount()` checks write block size, sector size and a minimum sector count and nothing else, so both mounts returned zero. A correct, published, hardware validated tier sat harmless until a later tier used the same resource. Tier 6 fixes it in its own tree, in `recovery_state.c`, which writes through the instance the settings subsystem already owns, and Tier 5's published source is not changed, because a Learner following Tier 5 as written reaches no wrong conclusion. On the board, Tier 6 reports `recovery.state sharing the settings NVS instance at 0x3b0000`, and Tier 5's trial and download records sit beside the Secure Storage entry `its/2/601` in the one instance.
 
 ## Update the Security evidence pack
 

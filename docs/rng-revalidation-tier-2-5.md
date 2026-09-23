@@ -16,15 +16,10 @@ The module text is right as written. It was describing a confidentiality that th
 
 ## What was re-observed on the board
 
-Each tier was rebuilt with the fix, reflashed, and booted on the nanoESP32-C6 1.0 board (MAC `40:4c:ca:5e:a9:fc`), which is the board the course used at that time. The RNG-affected path, TLS, was confirmed working on every one, and the load-bearing outcome of each tier was re-observed. The RNG-independent refusal and recovery rows are rebound to the new binary by that rebuild and boot, on the reasoning above that the fix cannot change them; the physically destructive Tier 5 rows (power cut, hard reset during download) stay as `course.yml` already records them.
+Every tier from Tier 2 on builds `firmware/common` in, so every Tier 2 to Tier 5 firmware the course builds now carries the fix.
 
-| Tier | Re-observed on the fixed firmware |
-| --- | --- |
-| Tier 2 | Boots, Wi-Fi associates, `ota.tls verified ... connection established`. With the service forced to present the untrusted certificate, the device refused: `verification flags 0x00000008`, `the certificate was not issued by the trust anchor`, and `the running image is unchanged` |
-| Tier 3 | Boots, `slot=primary header=ok tlv=ok signature=present key=match`, trust anchor reported at boot, TLS verified |
-| Tier 4 | Boots, `key=match counter=1`, security counter reported by the bootloader hook, TLS verified |
-| Tier 5 | Boots, `key=match counter=3`, `recovery.state mounted the storage partition at 0x3b0000`, watchdog armed, TLS verified, and a device confirmed its running image |
+Tiers 2, 3 and 4 were revalidated on the ESP32-C6-DevKitC-1 with firmware that has the fix, in #225, #226 and #227. Every download in those runs went over the RNG-affected path, TLS. The Tier 2 run also saw the device refuse a certificate from an untrusted issuer and a certificate with the wrong name, and recover once the real certificate was back. The refusal rows of Tiers 3 and 4 were each observed through the real update path.
 
-The course has since moved to the Espressif ESP32-C6-DevKitC-1. The results in the table above were observed on the nanoESP32-C6 and stay recorded against it, and they are owed a repeat run on the ESP32-C6-DevKitC-1. Nothing in the reasoning above depends on the board, because the fix is a clock enable in `firmware/common` and the refusal outcomes do not read a random value.
+Tier 5 was revalidated on the ESP32-C6-DevKitC-1 with the fix in #228, with TLS on every download, every revert, and every interrupted download. Nothing in the reasoning above depends on the board, because the fix is a clock enable in `firmware/common` and the refusal outcomes do not read a random value.
 
 The build is a revision-bound artifact, so a `./course verify N` receipt taken on the new revision is the durable record. This note is the written check #126 asked for; the upstream Zephyr report and the teaching of the finding in a module are separate owed items on that issue.

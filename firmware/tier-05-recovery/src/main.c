@@ -256,14 +256,20 @@ static void queue_revert(const char *failed_release, const char *reason)
 	queue_event("update.reverted", CONFIG_COURSE_RELEASE_ID, detail);
 }
 
+/* Called on every poll, and the event is let go only once the service has
+ * taken it. A link that is up is not a service that is reachable: an event
+ * sent once as soon as Wi-Fi came up was lost whenever the service was down,
+ * which is exactly the network loss this tier tells the Learner to test.
+ */
 static void flush_pending_event(const char *state_name)
 {
 	if (!pending_event.present) {
 		return;
 	}
-	pending_event.present = false;
-	(void)ota_client_report(pending_event.event, state_name,
-				pending_event.release_id, pending_event.detail);
+	if (ota_client_report(pending_event.event, state_name,
+			      pending_event.release_id, pending_event.detail) == 0) {
+		pending_event.present = false;
+	}
 }
 
 /* What the device woke up as.
@@ -542,6 +548,18 @@ int main(void)
 	if (!report_boot_state()) {
 		confirm_or_revert();
 	}
+#if defined(CONFIG_COURSE_TRIAL_CRASH)
+	else {
+		/* A program that does not run does not run confirmed either. A
+		 * Tier 5 device never confirms this image, so this branch is
+		 * reached only when something without a trial installed it: a
+		 * Tier 4 device's permanent swap, which is what the module's
+		 * first section shows. Without it the crash release would run
+		 * normally there and the demonstration would show nothing.
+		 */
+		run_trial_behaviour();
+	}
+#endif
 
 	if (net_link_connect() != 0) {
 		printk("Offline mode: no OTA exchange is possible\n");
@@ -557,13 +575,13 @@ int main(void)
 		printk("wifi.address %s assigned by DHCP\n", address);
 	}
 
-	flush_pending_event(beacon_state_name(state));
 
 	while (true) {
 		/* main is the thread the watchdog vouches for, so main is the
 		 * only thing that feeds it.
 		 */
 		health_gate_feed();
+		flush_pending_event(beacon_state_name(state));
 		if (poll_once(state)) {
 			printk("Rebooting into the newly installed image\n");
 			k_sleep(K_MSEC(200));

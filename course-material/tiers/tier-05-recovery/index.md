@@ -53,8 +53,6 @@ The [course landing page](../../index.md) carries the environment setup, the glo
 
 You should see the Tier 4 banner and a verified connection.
 
-One note about the device output quoted in this module. Every serial line in it was recorded on the board the course used before, a nanoESP32-C6 1.0, and no tier has yet been run on the ESP32-C6-DevKitC-1 this course now targets. Treat the quoted lines as what to expect rather than as a result on your board, record what you actually see, and raise any difference with a Mentor instead of editing your observation to match the page.
-
 One thing to carry in clearly. Every install you have made so far was permanent, requested as `BOOT_UPGRADE_PERMANENT`, and the device has never once asked whether the result works. That is still true when you start, and it is what this tier closes.
 
 ## Weakness ledger before the work
@@ -93,11 +91,27 @@ Your Tier 4 device will take it. Every check passes, because there is nothing wr
 
 Watch it install and watch what you are left with. The device swaps the broken image into the primary slot, reboots, and faults. The image that worked is gone, because the swap was permanent.
 
+```text
+trial.crash faulting deliberately before the health gate starts
+...
+ mcause: 3, Breakpoint
+  mtval: 9002
+...
+rst:0x7 (TG0_WDT_HPSYS),boot:0xc (SPI_FAST_FLASH_BOOT)
+...
+Running release: tier-05-crash
+boot.state running image is confirmed
+trial.crash faulting deliberately before the health gate starts
+```
+
+It faults, the watchdog resets it twenty seconds later, and it faults again, for as long as it has power.
+
 This is `T0-W-07`, and it is worth understanding fully. You did not make a mistake here that any of your existing controls could have caught. Tier 3 asks who signed it. Tier 4 asks whether it is the right release. Neither has an opinion about whether it works, and neither should: that is not a question a signature can answer.
 
-Reflash a working image before you continue.
+Stop the service and reflash a working image before you continue. Stop the service first: it is still offering the broken release, and a working Tier 4 device would install it again on its next poll.
 
 ```text
+./course service stop
 ./course device flash --tier 04 --variant security-fix
 ```
 
@@ -119,12 +133,16 @@ That constraint is the interesting part of the design. A device that treated "ca
 
 ## Install on trial and judge the result
 
-Build and publish the five releases this tier uses. They come from one source tree and differ only in what they do during the trial, which is the whole subject, so the difference you have to understand is a single Kconfig choice rather than a diff between five directories.
+Build and publish the other four releases this tier uses. They come from one source tree and differ only in what they do during the trial, which is the whole subject, so the difference you have to understand is a single Kconfig choice rather than a diff between five directories.
+
+Signing a release also publishes it, and your device installs whatever is published. The service is still stopped, so sign all four now, and choose what the device is offered afterwards:
 
 ```text
 ./course build firmware --tier 05 --variant healthy
 ./course release sign --tier 05 --variant healthy
 ```
+
+Run the same two commands with `--variant hang`, `--variant fail-health` and `--variant timeout-health`.
 
 Read `firmware/tier-05-recovery/src/main.c` and `health_gate.c` before you run anything. Four things in them are worth finding yourself.
 
@@ -136,7 +154,24 @@ Read `firmware/tier-05-recovery/src/main.c` and `health_gate.c` before you run a
 
 **The progress record is written after the bytes it describes.** The record may lag the flash. It may never lead it. There is one rule underneath the whole download path and it is worth memorizing: *the record may never describe more than the flash holds.*
 
-Now install a release that works, onto a device running something else.
+One more step comes before the trial, and it is easy to miss. The application that installs an update decides how it is installed, and your device is still running Tier 4, which only knows a permanent swap. So the first Tier 5 release has to go in the old way. Give it one to stand on:
+
+```text
+./course service start --https
+./course release assign --tier 05 --variant hang
+```
+
+```text
+ota.upgrade requested a permanent swap, no test boot, no rollback
+...
+Running release: tier-05-hang
+boot.state running image is confirmed
+recovery.state trial no release is being tried
+```
+
+The `hang` release does not hang here. Its trial behaviour runs only while the image is on trial, and a permanent swap confirms the image straight away, so nothing is on trial. From now on a Tier 5 image does the installing.
+
+Now install a release that works:
 
 ```text
 ./course release assign --tier 05 --variant healthy
@@ -176,11 +211,12 @@ Run them one at a time and read the device between each.
 
 ```text
 trial.crash faulting deliberately before the health gate starts
-
+...
  mcause: 3, Breakpoint
   mtval: 9002
 ...
-rst:0x7 (TG0_WDT_HPSYS)
+rst:0x7 (TG0_WDT_HPSYS),boot:0xc (SPI_FAST_FLASH_BOOT)
+...
 I: Image index: 0, Swap type: revert
 ```
 
@@ -190,7 +226,8 @@ The exception is printed, and then nothing happens for twenty seconds until the 
 
 ```text
 trial.hang stopping here, in the thread that feeds the watchdog
-rst:0x7 (TG0_WDT_HPSYS)
+rst:0x7 (TG0_WDT_HPSYS),boot:0xc (SPI_FAST_FLASH_BOOT)
+...
 I: Image index: 0, Swap type: revert
 ```
 
@@ -287,8 +324,8 @@ Make the service answer badly on purpose:
 The service begins answering correctly and drops the connection after 200000 bytes. The device keeps what it has:
 
 ```text
-ota.progress 196608 of 740041 bytes are in the slot
-ota.request failed url=/v1/firmware/tier-05-timeout-health.bin err=-113
+ota.progress 196608 of 740883 bytes are in the slot
+ota.request failed url=/v1/firmware/tier-05-timeout-health.bin err=-77
 ota.install interrupted with 200000 bytes in the slot; the record
 ota.install survives and the next poll resumes from there
 ```
@@ -296,9 +333,10 @@ ota.install survives and the next poll resumes from there
 and picks up where it left off:
 
 ```text
-ota.resume 196608 of 740041 bytes are already in the slot
+ota.resume 196608 of 740883 bytes are already in the slot
 ota.resume the manifest was fetched and verified again before this record
-ota.resume was allowed to matter. The record says where to resume, never what to believe.
+ota.resume was allowed to matter. The record says where to resume, never what
+ota.resume to believe.
 ota.resume requesting Range: bytes=196608-
 ```
 
@@ -332,7 +370,9 @@ A server that ignores `Range` and answers `200` with the whole body is the failu
 ota.resume requesting Range: bytes=393216-
 ota.resume refused status=200, expected 206 Partial Content
 ota.discard the response was refused before any write
-ota.discard the progress record was cleared before the slot was erased
+ota.discard the progress record was cleared before the slot was erased,
+ota.discard so a power cut here leaves no record rather than one pointing
+ota.discard into an erased slot
 ```
 
 Note the discard order: record first, then slot. That is the reverse of the write order, and for the same reason. Writing lags so the record can only under-claim; discarding leads so a power cut in the middle leaves no record rather than one pointing into an erased slot.
@@ -364,10 +404,10 @@ health.gate every check passed, holding for 60 seconds
 health.gate passed
 trial.confirm this image is now the one the device falls back to
 event.queued update.confirmed release_id=tier-05-healthy detail=health gate passed
-ota.tls refused the connection to 192.168.68.81:8443 errno=104
+ota.tls refused the connection to 192.168.68.77:8443 errno=104
 ```
 
-The image confirms. The device then reports a failed connection every poll and carries on running. Network loss alone did not fail the gate and did not cause a revert loop, which is what section 6 requires.
+The image confirms. The device then reports a failed connection every poll and carries on running. Start the service again, and the queued `update.confirmed` reaches it on the next poll. Network loss alone did not fail the gate and did not cause a revert loop, which is what section 6 requires.
 
 ## Say what happened, once there is somewhere to say it
 
@@ -375,7 +415,7 @@ That `event.queued` line is worth following, because it is a consequence of the 
 
 The health gate runs before `net_link_connect()`. That is what makes the constraint you just tested structural: a gate that has not connected cannot be failed by a connection. It also means the device reaches its verdict with no way to tell anyone, and the verdicts are exactly the events section 7 asks it to report.
 
-So the device writes the event down and sends it when there is a link:
+So the device writes the event down, and it tries to send it on every poll until the service has taken it. A link that is up is not a service that answers, so one attempt when Wi-Fi comes up is not enough:
 
 ```text
 event.queued update.reverted release_id=tier-05-healthy detail=tier-05-fail-health update-client-ready
@@ -406,7 +446,7 @@ If you predicted that the network loss would fail the gate, that is the answer m
 
 | Weakness | Result after this tier | Status | Evidence or next action |
 | --- | --- | --- | --- |
-| T0-W-07 | Closed. Every install is a trial, the device judges itself, and the fallback path that has existed since Tier 0 is finally used | Closed | The four reverts, observed on hardware, on the earlier nanoESP32-C6 1.0 |
+| T0-W-07 | Closed. Every install is a trial, the device judges itself, and the fallback path that has existed since Tier 0 is finally used | Closed | The four reverts, observed on hardware |
 | T0-W-02 | Unchanged | Open | Tier 6 and Tier 7 |
 | T2-W-09 | Unchanged | Open | Tier 8 |
 | T3-W-10 | Unchanged | Open | Advanced Tier A |
@@ -435,7 +475,7 @@ Delivery that survives a device being offline needs the service to acknowledge w
 
 It becomes **partly supported**.
 
-Supported against the failures this tier can demonstrate: a release that crashes, hangs, fails a health check or stalls during the window is reverted to the last confirmed image, and a download interrupted by a dropped connection or a reset resumes and completes. All of this was observed on the board the course used before, a nanoESP32-C6 1.0, and none of it has been repeated yet on the ESP32-C6-DevKitC-1 this course now targets.
+Supported against the failures this tier can demonstrate: a release that crashes, hangs, fails a health check or stalls during the window is reverted to the last confirmed image, and a download interrupted by a dropped connection or a reset resumes and completes.
 
 The revert path itself is not blocked by the anti-rollback control, observed with a trial image at counter 4 reverting to a confirmed image at counter 3.
 

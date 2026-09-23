@@ -75,8 +75,6 @@ Your fingerprint will differ. It is generated for your Course environment and no
 
 Setup keeps an existing authority rather than replacing it. That matters more than it looks: the authority becomes part of every firmware image you build, so replacing it silently would leave a flashed board refusing a service it used to trust, with no obvious reason. If you ever do need a new one, ask for it by name with `--replace-certificate-authority`, and rebuild and reflash every board afterwards.
 
-One note about the device output quoted in this module. Every serial line in it was recorded on the board the course used before, a nanoESP32-C6 1.0, and no tier has yet been run on the ESP32-C6-DevKitC-1 this course now targets. Treat the quoted lines as what to expect rather than as a result on your board, record what you actually see, and raise any difference with a Mentor instead of editing your observation to match the page.
-
 All seven Tier 0 weaknesses are still present when this tier starts. This tier closes two of them.
 
 ## Weakness ledger before the work
@@ -241,10 +239,10 @@ Build the image:
 Expected result:
 
 ```text
-Result: built baseline release tier-02-baseline, 663292 bytes
+Result: built baseline release tier-02-baseline, 663820 bytes
 ```
 
-Your size will be close to that rather than identical, because the Wi-Fi network name is compiled into the image and yours is a different length from the one this was measured on. Compare it with Tier 0's 590428 from the same environment: TLS costs about seventy thousand bytes of flash on this target, and takes static RAM from roughly 37 percent to roughly 50 percent. That is not free, it fits the existing flash map with room to spare, and it is worth knowing the number rather than guessing it.
+Your size will be close to that rather than identical, because the Wi-Fi network name is compiled into the image and yours is a different length from the one this was measured on. Compare it with Tier 0's 590956 from the same environment: TLS costs about seventy thousand bytes of flash on this target, and takes static RAM from roughly 37 percent to roughly 50 percent. That is not free, it fits the existing flash map with room to spare, and it is worth knowing the number rather than guessing it.
 
 Then flash it and watch it start:
 
@@ -263,13 +261,13 @@ Board: esp32c6_devkitc/esp32c6/hpcore
 Tier 2 boot mode: unsigned MCUboot, swap using offset, no test boot, no rollback
 Tier 2 protects the connection. It does not make an image authentic.
 Synthetic shared device identifier: beacon-development-shared
-OTA service: https://ota.course.example:8443 at address 192.168.68.81
+OTA service: https://ota.course.example:8443 at address 192.168.68.77
 Trust anchor: 9287bc8a7ad1339e
 ```
 
 Two lines there are worth a second look.
 
-The service line names both: `ota.course.example` is what the certificate must say, and `192.168.68.81` is where the socket goes. They are different things and this device needs both.
+The service line names both: `ota.course.example` is what the certificate must say, and `192.168.68.77` is where the socket goes. They are different things and this device needs both.
 
 The trust anchor line is the fingerprint of the authority compiled into this image. Compare it with the one `./course service certificate` printed. If they ever differ, the board was built against a different Course environment, and every connection will fail for a reason that otherwise looks like a broken network.
 
@@ -391,8 +389,8 @@ With the service running normally, watch the board:
 Expected result:
 
 ```text
-ota.tls verified ota.course.example at 192.168.68.81:8443, connection established
-ota.tls verified ota.course.example at 192.168.68.81:8443, connection established
+ota.tls verified ota.course.example at 192.168.68.77:8443, connection established
+ota.tls verified ota.course.example at 192.168.68.77:8443, connection established
 ota.assignment release_id=tier-02-baseline version=0.2.0-authenticated image=tier-02-baseline.bin
 ota.assignment matches the running release, nothing to install
 ```
@@ -438,7 +436,7 @@ The course can make the service present the wrong certificate on purpose. Stop i
 Within one poll interval the board says exactly which check refused it:
 
 ```text
-ota.tls refused the connection to 192.168.68.81:8443 errno=113
+ota.tls refused the connection to 192.168.68.77:8443 errno=113
 ota.tls required name ota.course.example issued by the trust anchor in this image
 ota.tls verification flags 0x00000008
 ota.tls  the certificate was not issued by the trust anchor in this image
@@ -454,7 +452,7 @@ Then the other half:
 ```
 
 ```text
-ota.tls refused the connection to 192.168.68.81:8443 errno=113
+ota.tls refused the connection to 192.168.68.77:8443 errno=113
 ota.tls required name ota.course.example issued by the trust anchor in this image
 ota.tls verification flags 0x00000004
 ota.tls  the certificate does not carry the name this device requires

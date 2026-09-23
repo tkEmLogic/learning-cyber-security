@@ -1547,7 +1547,7 @@ func (a *app) provisionExport(args []string) error {
 			strings.Contains(line, "was exportable")
 	})
 	if err != nil {
-		return fmt.Errorf("the board did not answer; is the shell open? hold BOOT at reset and try again: %w", err)
+		return fmt.Errorf("the board did not answer; is the shell open? hold BOOT for ten seconds, no reset, and try again: %w", err)
 	}
 	refused := false
 	for _, line := range lines {
@@ -1590,7 +1590,7 @@ func (a *app) provisionEraseDevice(args []string) error {
 			strings.Contains(line, "provision.erase failed")
 	})
 	if err != nil {
-		return fmt.Errorf("the board did not answer; is the shell open? hold BOOT at reset and try again: %w", err)
+		return fmt.Errorf("the board did not answer; is the shell open? hold BOOT for ten seconds, no reset, and try again: %w", err)
 	}
 	for _, line := range lines {
 		if strings.HasPrefix(line, "provision.erase") || strings.HasPrefix(line, "identity.erase") {

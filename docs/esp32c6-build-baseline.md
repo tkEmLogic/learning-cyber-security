@@ -12,17 +12,15 @@ MCUboot runs in swap-using-offset mode, which is the mode the whole course uses.
 
 The course targets the Espressif ESP32-C6-DevKitC-1.
 
-The Zephyr board target stays `esp32c6_devkitc/esp32c6/hpcore`, because that is the upstream target for this kit. The course already used this target while it ran on a third-party ESP32-C6 board, so moving to the official kit changes no build or flash command.
+The Zephyr board target is `esp32c6_devkitc/esp32c6/hpcore`, because that is the upstream target for this kit.
 
 | Item | ESP32-C6-DevKitC-1 |
 | --- | --- |
 | Flash | 8 MiB on the module. The course keeps its 4 MiB partition contract, described under Flash map. |
 | Onboard LED | One addressable RGB LED on `GPIO8`. See LED hardware mapping. |
-| BOOT button | `GPIO9`, the ESP32-C6 strapping pin. Same pin as on the earlier board, so button behavior is unchanged. |
+| BOOT button | `GPIO9`, the ESP32-C6 strapping pin. |
 | USB | Two USB Type-C ports. One is the chip's native USB-Serial/JTAG. The other is behind a separate USB-to-UART bridge chip. The course uses the native one. |
 | Headers | Two 16-pin rows, `J1` and `J3`. The course uses no header pins, so the footprint does not matter to it. |
-
-The course ran on a nanoESP32-C6 1.0 board (Muse Lab) before this. Every hardware result recorded further down was observed on that earlier board, and each one says so where it appears. Those results have not yet been repeated on the ESP32-C6-DevKitC-1.
 
 ## External workspace
 
@@ -145,41 +143,22 @@ Flashing this baseline writes normal flash only. Do not run any eFuse, secure bo
 
 ### Validated on physical hardware
 
-This validation was run before the course moved to the ESP32-C6-DevKitC-1. It
-is kept exactly as it was observed. It has not been repeated on the
-ESP32-C6-DevKitC-1 yet.
+Validated in the Tier 0 run (#224) using the repo's dev container
+(`.devcontainer/`, Podman) against an **ESP32-C6-DevKitC-1**. esptool
+identifies the chip as an ESP32-C6 (QFN40, chip revision v0.2) with 8 MB of
+flash. The board was connected over the chip's native USB-Serial/JTAG port at
+a stable path under `/dev/serial/by-id/`.
 
-Validated using the repo's dev container (`.devcontainer/`, Podman) against a
-**nanoESP32-C6 1.0 board (Muse Lab)**, identified by esptool as an ESP32-C6
-(QFN40, chip revision v0.1), connected over its onboard USB-Serial/JTAG
-adapter at a stable path under `/dev/serial/by-id/` (host-specific serial
-number redacted).
+Build and flash used exactly the two commands shown above, run from
+`ZEPHYR_WORKSPACE=/opt/zephyr-workspace` inside the container, after an
+erase of the whole flash. esptool wrote MCUboot at offset `0x000000` and the
+application at `0x020000`, and verified the hash of each.
 
-Build and flash commands were exactly the two shown above, run from
-`ZEPHYR_WORKSPACE=/opt/zephyr-workspace` inside the container. Both MCUboot
-(64 KiB at offset `0x000000`) and the application (at `0x020000`) were
-written and verified by esptool.
+The bootloader image header says 4 MB, so the application logs that it
+detected 8192k of flash and uses the 4096k from the header. The 4 MiB
+partition contract holds, and the other 4 MiB is unused.
 
-Serial capture after a board reset showed the expected boot sequence:
-
-```
-ESP-ROM:esp32c6-20220919
-...
-I (soc_init): MCUboot 2nd stage bootloader
-...
-I: Starting bootloader
-I: Bootloader chainload address offset: 0x20000
-I: Jumping to the first image slot
-*** Booting Zephyr OS build v4.4.2 ***
-ESP32-C6 Reference product: intentionally unsecured Tier 0
-Image label: baseline
-Running release: tier-00-baseline
-Board: esp32c6_devkitc/esp32c6/hpcore
-Tier 0 boot mode: unsigned MCUboot, swap using offset, no test boot, no rollback
-Synthetic shared device identifier: beacon-development-shared
-OTA service: http://192.168.68.81:8080
-Beacon state: steady, toggle period: 0 ms
-```
+The Tier 0 module quotes the boot sequence captured from this board.
 
 **Console fix required.** The `esp32c6_devkitc/esp32c6/hpcore` board's
 default console is the physical `uart0` pins, which are not wired to the
@@ -193,10 +172,9 @@ routes `zephyr,console`/`zephyr,shell-uart` to it, so logs are visible on the
 same connector already used to build and flash. No extra USB-UART adapter is
 needed.
 
-The overlay keeps the console on the native USB-Serial/JTAG port on the
-ESP32-C6-DevKitC-1 as well. That kit's second USB Type-C port is behind a
-USB-to-UART bridge chip, and the course does not use it, so one connector
-still carries flashing, logs, and debugging.
+On the ESP32-C6-DevKitC-1 the `uart0` pins go to the second USB Type-C port,
+which is behind a USB-to-UART bridge chip. The course does not use that port,
+so one connector carries flashing, logs, and debugging.
 
 MCUboot needed the same treatment separately
 (`firmware/reference-product-baseline/sysbuild/mcuboot-console.overlay`,
@@ -207,48 +185,28 @@ bootloader stops, which is exactly when they are needed.
 
 ## Validated network and update behavior
 
-The following was observed on the same nanoESP32-C6 1.0 board, with the local
-OTA service bound to the host's private address on the same Wi-Fi network.
+The following was observed on the ESP32-C6-DevKitC-1 in the Tier 0 run (#224),
+with the local OTA service bound to the host's private address on the same
+Wi-Fi network.
 
 | Behavior | Result |
 | --- | --- |
 | Wi-Fi station association, WPA2-PSK, 2.4 GHz | Observed |
 | DHCP address assignment | Observed |
-| `POST /v1/devices/<id>/events` accepted by the service | Observed |
+| `POST /v1/devices/<id>/events` stored by the service | Observed |
 | `GET /v1/releases/current` read and parsed | Observed |
-| `GET /v1/firmware/<name>` written to the secondary slot | Observed, 590,396 bytes |
-| MCUboot installing the downloaded image | Observed |
+| `GET /v1/firmware/<name>` written to the secondary slot | Observed, 590,940 bytes |
+| MCUboot installing the downloaded image | Observed, `Swap type: perm` |
 | Altered image running after the install | Observed |
 | Downgrade back to the baseline release | Observed |
-| Onboard LED | Not available on the nanoESP32-C6 board used for this run |
+| Onboard LED | Observed. See LED hardware mapping. |
 
 The device joined a 2.4 GHz WPA2 network. The ESP32-C6 radio does not support
 5 GHz. A network that publishes the same name on both bands works, because the
 driver scans every channel and associates on the band it can use.
 
-A complete update looked like this on the console:
-
-```
-ota.assignment release_id=tier-00-altered version=0.0.0-altered image=tier-00-altered.bin
-ota.assignment differs from running release tier-00-baseline, installing without any check
-ota.install starting release_id=tier-00-altered version=0.0.0-altered size=590412
-ota.install declared_sha256=... (Tier 0 does not check it)
-ota.install wrote 590412 bytes to the secondary slot
-ota.upgrade requested a permanent swap, no test boot, no rollback
-Rebooting into the newly installed image
-...
-I: Image index: 0, Swap type: perm
-I: Primary image: magic=good, swap_type=0x3, copy_done=0x1, image_ok=0x1
-I: Secondary image: magic=good, swap_type=0x3, copy_done=0x3, image_ok=0x1
-I: Boot source: none
-I: Starting swap using offset algorithm.
-I: Bootloader chainload address offset: 0x20000
-I: Jumping to the first image slot
-...
-Image label: altered
-Running release: tier-00-altered
-Beacon state: fast, toggle period: 200 ms
-```
+The Tier 0 module quotes a complete update as the console showed it on this
+board.
 
 The device accepted firmware from an unauthenticated service with no
 signature and no publisher identity. That is the Tier 0 weakness `T0-W-04`.
@@ -295,8 +253,8 @@ them was broken: the reset was.
 
 The baseline first shipped on overwrite-only because it was the simplest mode
 and matched the Tier 0 posture. It moved to swap-using-offset once the course
-needed one upgrade mode for every tier, and the move was validated on the board
-rather than assumed: the altered-image install was run end to end, MCUboot
+needed one upgrade mode for every tier. The Tier 0 run on the
+ESP32-C6-DevKitC-1 (#224) ran the altered-image install end to end: MCUboot
 printed `Starting swap using offset algorithm.`, the altered image booted, and
 the fixture reset swapped the baseline back.
 
@@ -354,14 +312,10 @@ WS2812-style device driven over a single data line, not a plain GPIO output,
 so the firmware drives it through an addressable LED driver instead of
 toggling a pin.
 
-The earlier nanoESP32-C6 1.0 board could not do this at all. Its onboard RGB
-LED is wired to the 3V3 rail instead of 5V on that board revision, so it did
-not light regardless of firmware, which is why the hardware run recorded above
-lists the onboard LED as not available. That was a board wiring limitation,
-not something a Zephyr driver or devicetree overlay could fix.
-
-The beacon LED behavior is therefore possible on the ESP32-C6-DevKitC-1, and
-the firmware for it is tracked separately. This document records no observed
-LED behavior until the LED has been seen working on the board. The Reference
-product reports its simulated machine state on the serial console, and that
-console output stays the primary record either way.
+On the ESP32-C6-DevKitC-1 the LED was watched during the Tier 0 run (#224).
+It showed solid green for steady, red blinking fast for the fast state, and red
+blinking slowly for the slow state, so the colour order in the driver is right.
+The board boots normally with `GPIO8`, a strapping pin, driving the LED.
+Channel value 24 was too bright to look at comfortably, and 8 is now the
+default. The Reference product reports its simulated machine state on the
+serial console as well, and that console output stays the primary record.

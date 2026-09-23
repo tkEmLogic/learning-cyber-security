@@ -14,7 +14,7 @@ You need to be comfortable building embedded software. You do not need any secur
 
 Every tier works on the same device, called the Reference product.
 
-It is an industrial equipment status beacon built around an ESP32-C6. It shows a simulated machine state with one monochrome LED. On means normal operation. Off means the device is off. Fast and slow blinking show two fictional error states.
+It is an industrial equipment status beacon built around an ESP32-C6. It shows a simulated machine state with one RGB LED. Solid green means normal operation. Off means the device is off. Red blinking, fast or slow, shows two fictional error states.
 
 The device reports its status over Wi-Fi and receives software updates over Wi-Fi. Those two paths are where almost every attack in this course happens.
 
@@ -142,7 +142,7 @@ You do not build the container image. The course publishes it, and your machine 
 
 You can build the firmware, run the local update service, and run every Tier 0 attack on Linux, macOS, and Windows.
 
-The board this course targets is one development kit, the Espressif ESP32-C6-DevKitC-1. No tier has been validated on it yet: the hardware results `course.yml` records were observed on the board the course used before, a nanoESP32-C6 1.0, and they are owed a run on the DevKitC-1. The Zephyr board target is `esp32c6_devkitc/esp32c6/hpcore`, which is the target the earlier board used as well, so the firmware is built the same way for both.
+The board this course targets is one development kit, the Espressif ESP32-C6-DevKitC-1. Tiers 0, 2, 3, 4, 5 and 6 are validated on it, and Tier 7 is pending two of its hardware results. `course.yml` records each result. The Zephyr board target is `esp32c6_devkitc/esp32c6/hpcore`.
 
 Flashing a physical ESP32-C6 and reading its serial output need a Linux machine. macOS cannot pass a USB device into the Podman virtual machine, and Windows would need extra tooling that this course has not tested.
 

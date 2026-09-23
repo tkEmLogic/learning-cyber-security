@@ -69,12 +69,15 @@ static const struct device *const beacon_led = DEVICE_DT_GET(DT_ALIAS(led_strip)
  */
 static bool beacon_led_running;
 
-/* The product in the course story has one monochrome indicator: on means
- * running, and the two error states are told apart by how fast it blinks, not
- * by colour. The DevKitC-1's LED is an RGB part, but the beacon keeps the
- * monochrome meaning by driving the three channels equally, which gives white.
- * Inventing a colour per state here would quietly change what the course asks
- * the Learner to observe.
+/* The state this LED shows, set once by beacon_led_start() before the blink
+ * thread exists, so the thread only ever reads it.
+ */
+static enum beacon_state beacon_led_state;
+
+/* The product in the course story has one RGB indicator: solid green means
+ * normal operation, and red means one of the two fictional error states. The
+ * two error states are both red, and they are told apart by how fast the LED
+ * blinks. Colour says "healthy or not"; the blink rate says which error.
  *
  * The pixel is built fresh on the stack for every write. led_strip_update_rgb()
  * is documented as being allowed to overwrite the buffer it is given, so a
@@ -83,9 +86,16 @@ static bool beacon_led_running;
 static void beacon_led_write(bool lit)
 {
 	uint8_t level = lit ? CONFIG_COURSE_BEACON_LED_BRIGHTNESS : 0;
-	struct led_rgb pixel = { .r = level, .g = level, .b = level };
-	int err = led_strip_update_rgb(beacon_led, &pixel, 1);
+	struct led_rgb pixel = { 0 };
+	int err;
 
+	if (beacon_led_state == BEACON_STEADY) {
+		pixel.g = level;
+	} else {
+		pixel.r = level;
+	}
+
+	err = led_strip_update_rgb(beacon_led, &pixel, 1);
 	if (err != 0) {
 		/* Reported on every failed write rather than latched once,
 		 * because a write that starts failing partway through a run is
@@ -123,6 +133,7 @@ void beacon_led_start(enum beacon_state state)
 	}
 
 	beacon_led_running = true;
+	beacon_led_state = state;
 
 	/* The LED starts lit in every state. A blinking state then goes dark
 	 * one period later, so the first thing a Learner sees is the same for

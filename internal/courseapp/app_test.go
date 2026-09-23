@@ -319,8 +319,8 @@ func TestEnvironmentJSONShape(t *testing.T) {
 // why the matcher names the interface it wants instead of the ones it does not.
 func TestNativeSerialJTAGMatchesOnlyTheChipsOwnInterface(t *testing.T) {
 	for name, want := range map[string]bool{
-		"usb-Espressif_USB_JTAG_serial_debug_unit_40:4C:CA:FF:FE:12:34:56-if00":         true,
-		"usb-Espressif_USB_JTAG_serial_debug_unit_40:4C:CA:FF:FE:12:34:56-if02":         false,
+		"usb-Espressif_USB_JTAG_serial_debug_unit_20:6E:F1:17:0D:64-if00":               true,
+		"usb-Espressif_USB_JTAG_serial_debug_unit_20:6E:F1:17:0D:64-if02":               false,
 		"usb-Silicon_Labs_CP2102N_USB_to_UART_Bridge_Controller_9a7c1f-if00-port0":      false,
 		"usb-Espressif_Systems_CP2102N_USB_to_UART_Bridge_Controller_9a7c1f-if00-port0": false,
 		"usb-FTDI_FT232R_USB_UART_A50285BI-if00-port0":                                  false,
@@ -335,7 +335,7 @@ func TestNativeSerialJTAGMatchesOnlyTheChipsOwnInterface(t *testing.T) {
 // bridge would flash nothing and print nothing, so this asserts the chip's own
 // interface wins without the Learner detaching anything.
 func TestSelectSerialDeviceTakesTheChipPortWhenBothAreAttached(t *testing.T) {
-	const native = "usb-Espressif_USB_JTAG_serial_debug_unit_40:4C:CA:FF:FE:12:34:56-if00"
+	const native = "usb-Espressif_USB_JTAG_serial_debug_unit_20:6E:F1:17:0D:64-if00"
 	a, dir := testSerialApp(t, native,
 		"usb-Silicon_Labs_CP2102N_USB_to_UART_Bridge_Controller_9a7c1f-if00-port0")
 
@@ -353,8 +353,8 @@ func TestSelectSerialDeviceTakesTheChipPortWhenBothAreAttached(t *testing.T) {
 // a second board that is only the DevKitC-1's second port.
 func TestSelectSerialDeviceReportsTwoBoardsRatherThanTwoPorts(t *testing.T) {
 	a, _ := testSerialApp(t,
-		"usb-Espressif_USB_JTAG_serial_debug_unit_40:4C:CA:FF:FE:12:34:56-if00",
-		"usb-Espressif_USB_JTAG_serial_debug_unit_40:4C:CA:FF:FE:65:43:21-if00")
+		"usb-Espressif_USB_JTAG_serial_debug_unit_20:6E:F1:17:0D:64-if00",
+		"usb-Espressif_USB_JTAG_serial_debug_unit_20:6E:F1:17:0D:65-if00")
 
 	_, err := a.selectSerialDevice()
 	if err == nil {

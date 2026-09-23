@@ -31,7 +31,7 @@ Eleven core tiers and two advanced tiers are planned. [The course page](course-m
 
 A physical ESP32-C6 development kit is optional for most work and required for flashing, serial output, Wi-Fi behavior, and anything the device itself must prove.
 
-The course's board is the Espressif ESP32-C6-DevKitC-1. No tier is validated on it yet: every hardware result in `course.yml` is pending until someone observes it on that board.
+The course's board is the Espressif ESP32-C6-DevKitC-1. Tiers 0, 2, 3, 4, 5 and 6 are validated on it: every hardware result those tiers recorded was observed again on this board. Tier 7 is pending, because two of its hardware results have not yet been repeated on this board. Tier 1 is analysis only and has no hardware results.
 
 `course.yml` records each hardware result. A skipped hardware check never supports a hardware claim.
 

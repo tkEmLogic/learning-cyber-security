@@ -57,8 +57,6 @@ Check that the service and the board are where you left them:
 
 You should see the Tier 3 banner and a verified connection. If you do not, finish Tier 3 before starting this tier.
 
-One note about the device output quoted in this module. Every serial line in it was recorded on the board the course used before, a nanoESP32-C6 1.0, and no tier has yet been run on the ESP32-C6-DevKitC-1 this course now targets. Treat the quoted lines as what to expect rather than as a result on your board, record what you actually see, and raise any difference with a Mentor instead of editing your observation to match the page.
-
 One thing to carry in clearly, because this tier is built on it. Tier 3 told you, in as many words, that the application checks nothing about the bytes it downloads. It writes whatever it is handed and says so on every install, and only the bootloader looks, and only at the last moment. That is still true when you start, and it is the weakness this tier closes.
 
 ## Weakness ledger before the work
@@ -116,7 +114,7 @@ Step 1. Read the release the service is offering now.
      Its manifest is signed by your key and carries security_counter 2.
 
 Step 2. Find an older release this environment actually produced.
-  <- tier-04-baseline, security_counter 1, signed 2026-09-14T15:02:48Z
+  <- tier-04-baseline, security_counter 1, signed 2026-09-23T19:37:16Z
      Its signature verifies. Nothing about this release is forged, edited, or expired,
 ```
 
@@ -194,8 +192,8 @@ Signing with the release key, fingerprint 2f5fe5123abe8715ecde8cde2cac0e734969e5
 + .../imgtool.py sign --version 0.4.0+0 --header-size 0x20 --slot-size 1835008 --align 4 --security-counter 1 --key .course-secrets/signing/release.pem ...
 + signed 487 manifest bytes with ECDSA P-256 over SHA-256
   manifest:  artifacts/generated/releases/tier-04-baseline.manifest.json
-  signature: artifacts/generated/releases/tier-04-baseline.manifest.sig, 71 bytes of ASN.1 DER
-  digest:    1c21fe03565e71066f47891ad6002da509622769a98be6c40daffacc88a378e1
+  signature: artifacts/generated/releases/tier-04-baseline.manifest.sig, 72 bytes of ASN.1 DER
+  digest:    68c83806e4ad297b9df9b77730e1abda9599e6e3dc13d3530a94ec85c1451b68
   counter:   1, in the image TLV and in the manifest
 The signature covers these exact bytes. Reformatting the file breaks it,
 which is why the device verifies the bytes before it parses them.
@@ -233,7 +231,7 @@ Running release: tier-04-baseline
 Security counter of the running image: 1
 Release channel this device follows: stable
 Board: esp32c6_devkitc/esp32c6/hpcore
-Silicon revision read from eFuse: v0.1
+Silicon revision read from eFuse: v0.2
 Product hardware revision asserted by this build: 1
 The first is read from the chip. The second is asserted and signed, because
 nothing on this part reports which product a board was built into.
@@ -241,7 +239,7 @@ Tier 4 boot mode: signed MCUboot images, swap using offset, permanent upgrade
 Tier 4 downgrade prevention: by security counter, enforced by the bootloader
 ```
 
-Those two hardware lines are worth a careful look. The silicon revision is real and readable: `efuse_hal_chip_revision()` asks the chip and it answers `v0.1`. The product hardware revision is not readable at all, on this part or any other, because nothing in the silicon knows which board it was soldered into. So it is asserted by the build and signed into the manifest.
+Those two hardware lines are worth a careful look. The silicon revision is real and readable: `efuse_hal_chip_revision()` asks the chip and it answers `v0.2`. The product hardware revision is not readable at all, on this part or any other, because nothing in the silicon knows which board it was soldered into. So it is asserted by the build and signed into the manifest.
 
 That is the general shape of product identity. It is something you assert and then protect, not something you read. A device that trusted a hardware revision it discovered at runtime would be trusting whatever could set it.
 
@@ -249,7 +247,7 @@ Then watch what the device now says about the assignment it is offered:
 
 ```text
 ota.assignment release_id=tier-04-baseline version=0.4.0-release-policy image=tier-04-baseline.bin
-ota.assignment it also claims size=668744 sha256=1c21fe03565e71066f47891ad6002da509622769a98be6c40daffacc88a378e1
+ota.assignment it also claims size=734806 sha256=68c83806e4ad297b9df9b77730e1abda9599e6e3dc13d3530a94ec85c1451b68
 ota.assignment this device believes neither; they are the service's claims
 ota.assignment about itself. Only release_id is used, to know what to ask about.
 ```
@@ -269,26 +267,26 @@ That one carries `counter: 2`. Watch the device install it, because this is the 
 
 ```text
 ota.assignment release_id=tier-04-security-fix version=0.4.1-security-fix image=tier-04-security-fix.bin
-ota.assignment it also claims size=668744 sha256=39fd5cd269121163873ce22762e6fcd1c697ddd03702353f8e5fcfdf219fac30
+ota.assignment it also claims size=734823 sha256=5c580da1c5ac81a13f7aa14cbe403afdd50feb27d32d14b56977fe9565c09268
 ota.assignment this device believes neither; they are the service's claims
 ota.assignment about itself. Only release_id is used, to know what to ask about.
 ota.assignment offers tier-04-security-fix instead of the running tier-04-baseline; asking for its signed manifest
-ota.manifest fetched 493 manifest bytes and a 71 byte detached signature
+ota.manifest fetched 493 manifest bytes and a 72 byte detached signature
 release.verified signature over 493 manifest bytes, ECDSA P-256 over SHA-256
 release.verified nothing has parsed these bytes yet; that is the point
 release.admitted release_id=tier-04-security-fix version=0.4.1-security-fix counter=2 channel=stable
 release.admitted board=esp32c6_devkitc/esp32c6/hpcore hardware_revision 1..1 covers this product's 1
-release.admitted created_at=2026-09-14T20:23:49Z supported_until=2031-09-14T20:23:49Z, carried and signed, not checked: this device has no clock
-ota.install starting release_id=tier-04-security-fix version=0.4.1-security-fix size=668744
+release.admitted created_at=2026-09-23T19:39:03Z supported_until=2031-09-23T19:39:03Z, carried and signed, not checked: this device has no clock
+ota.install starting release_id=tier-04-security-fix version=0.4.1-security-fix size=734823
 ota.install every value above came from the signed manifest
-release.accepted sha256=39fd5cd269121163873ce22762e6fcd1c697ddd03702353f8e5fcfdf219fac30 matches the signed manifest
-ota.install wrote 668744 bytes to the secondary slot
+release.accepted sha256=5c580da1c5ac81a13f7aa14cbe403afdd50feb27d32d14b56977fe9565c09268 matches the signed manifest
+ota.install wrote 734823 bytes to the secondary slot
 ota.install six checks ran and none refused
 ota.upgrade requested a permanent swap, no test boot, no rollback
 ota.upgrade the bootloader now checks the signature and the security counter itself, and its refusal is the one that stops a downgrade
 Rebooting into the newly installed image
 I: course: slot=secondary header=ok tlv=ok signature=present key=match counter=2
-I: course: slot=primary   header=ok tlv=ok signature=present key=match counter=2
+I: course: slot=primary header=ok tlv=ok signature=present key=match counter=2
 ```
 
 Four lines in there hold the whole of this tier.
@@ -384,21 +382,21 @@ release.refused   consequence: no image bytes were requested, and the running im
 
 ```text
 release.refused check=image-size
-release.refused   compared: the length this transfer declared before any byte was written, 668758 bytes, against the manifest's signed image_size of 668694 bytes
+release.refused   compared: the length this transfer declared before any byte was written, 734823 bytes, against the manifest's signed image_size of 734759 bytes
 release.refused   rejected: an image that is not the size the signed manifest declared, for release tier-04-hostile-size
 release.refused   consequence: no image bytes were requested, and the running image is unchanged
 ```
 
 ```text
 release.refused check=image-digest
-release.refused   compared: SHA-256 of the delivered bytes, 97827ac8260fb8a8bf7950e986a521453d942f054a3841a57a5bf6afcb313e53, against the manifest's signed image_sha256
-release.refused   rejected: bytes that are not the image the manifest describes; it declared 478507be8e2c4f45570a7c5126355dddebc256937618b7e3a7d93a7adf4804ba
+release.refused   compared: SHA-256 of the delivered bytes, 5c580da1c5ac81a13f7aa14cbe403afdd50feb27d32d14b56977fe9565c09268, against the manifest's signed image_sha256
+release.refused   rejected: bytes that are not the image the manifest describes; it declared a4a089e44455a27d08c9a50d064d814447dbb5ce358906d4cbbf165eb2e8d753
 release.refused   consequence: no upgrade was requested, so the bytes in the secondary slot are never booted, and the running image is unchanged
 ```
 
 Read the last consequence line against the other three. This is the one honest limit in the tier's install path, and the module will not pretend otherwise.
 
-The first five checks all happen before a byte reaches flash. The digest cannot. The image is 668 kilobytes and streams into a 1.75 megabyte slot through a device that cannot hold it in memory, so the digest is accumulated as the bytes pass and checked once they have all arrived. The write happens, and then the refusal happens, and the upgrade is never requested, so the bytes in the secondary slot are never selected and never booted.
+The first five checks all happen before a byte reaches flash. The digest cannot. The image is 734 kilobytes and streams into a 1.75 megabyte slot through a device that cannot hold it in memory, so the digest is accumulated as the bytes pass and checked once they have all arrived. The write happens, and then the refusal happens, and the upgrade is never requested, so the bytes in the secondary slot are never selected and never booted.
 
 That is why the size is checked twice: once against the declared length before anything is written, and once against the delivered count afterwards. The first protects the write. The second protects the upgrade.
 
@@ -411,6 +409,7 @@ release.refused check=security-counter
 release.refused   compared: the manifest's security_counter 1 against the counter 2 this running image was built with
 release.refused   rejected: a release that would take this device backwards, version 0.4.0-release-policy
 release.refused   consequence: no image bytes were requested, and the running image is unchanged
+release.refused   note: the bootloader refuses this too, and its refusal is the one that counts
 ```
 
 Nothing was forged. The signature verified. The device refused on policy alone, which is the whole reason the counter exists and the reason it is separate from the human readable version.
@@ -428,10 +427,10 @@ What it points at is the image of the older release, whose own security counter 
 ```
 
 ```text
-ota.install starting release_id=tier-04-hostile-counter-mismatch version=0.4.1-security-fix size=668744
+ota.install starting release_id=tier-04-hostile-counter-mismatch version=0.4.1-security-fix size=734806
 ota.install every value above came from the signed manifest
-release.accepted sha256=1c21fe03565e71066f47891ad6002da509622769a98be6c40daffacc88a378e1 matches the signed manifest
-ota.install wrote 668744 bytes to the secondary slot
+release.accepted sha256=68c83806e4ad297b9df9b77730e1abda9599e6e3dc13d3530a94ec85c1451b68 matches the signed manifest
+ota.install wrote 734806 bytes to the secondary slot
 ota.install six checks ran and none refused
 ota.upgrade the bootloader now checks the signature and the security counter itself, and its refusal is the one that stops a downgrade
 ```
@@ -441,7 +440,7 @@ Then the device reboots, and the bootloader answers:
 ```text
 I: course: slot=secondary header=ok tlv=ok signature=present key=match counter=1
 I: Image 0 in slot 1 erased due to downgrade prevention
-I: course: slot=primary   header=ok tlv=ok signature=present key=match counter=2
+I: course: slot=primary header=ok tlv=ok signature=present key=match counter=2
 ```
 
 Every field on the candidate says the image is genuine, because it is. `signature=present key=match` is the same thing Tier 3 printed for a good image. It was refused for what it claims about itself, not for who signed it.
@@ -506,7 +505,7 @@ Two of the three new rows are limits rather than achievements. `T4-W-13` is the 
 
 You wrote this in Tier 1 and recorded it as `unsupported`. This is the tier that moves it.
 
-It becomes **partly supported**. Supported against anyone who can reach or own the update service: they cannot forge a release the device accepts, and they cannot replay an older one. That was observed on the board the course used before, a nanoESP32-C6 1.0, and it is owed a run on the ESP32-C6-DevKitC-1 this course now targets. Not supported against an attacker with physical access, because the counter the bootloader compares against lives in flash that such an attacker can rewrite, which is `T4-W-13`. Not supported for the first install after the transition, which is `T4-W-12`.
+It becomes **partly supported**. Supported against anyone who can reach or own the update service: they cannot forge a release the device accepts, and they cannot replay an older one. Not supported against an attacker with physical access, because the counter the bootloader compares against lives in flash that such an attacker can rewrite, which is `T4-W-13`. Not supported for the first install after the transition, which is `T4-W-12`.
 
 The claim needs two controls, and a Learner who sees only the first has understood half of it:
 
