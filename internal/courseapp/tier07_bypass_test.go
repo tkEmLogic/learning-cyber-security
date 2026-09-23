@@ -32,7 +32,7 @@ import (
 // ownership-context row forges against a device somebody else has claimed,
 // and in an ordinary lab that is this one.
 const (
-	testBoardID    = "beacon-remfg-404cca5ea9fc"
+	testBoardID    = "beacon-remfg-206ef1170d64"
 	testBoardOwner = "northwind"
 	testBoardSeria = "81985529216486895"
 )

@@ -224,8 +224,6 @@ Pass the sysbuild top-level build directory, the one containing
 `domains.yaml`, not the nested per-domain directory. Passing the wrong one
 silently skips flashing MCUboot. See `docs/esp32c6-build-baseline.md` for the
 full flash map, the safety notes (unsigned MCUboot only; no eFuse, secure boot,
-or flash-encryption commands), and the board-specific findings. Those findings
-come from validating this setup end to end on a nanoESP32-C6 1.0 (Muse Lab)
-board, which is the board the course used before it moved to the
-ESP32-C6-DevKitC-1. The container, the toolchain, and the Zephyr board target
-`esp32c6_devkitc/esp32c6/hpcore` are the same for both boards.
+or flash-encryption commands), and the board-specific findings for the
+ESP32-C6-DevKitC-1, whose Zephyr board target is
+`esp32c6_devkitc/esp32c6/hpcore`.
