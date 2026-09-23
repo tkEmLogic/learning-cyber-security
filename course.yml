@@ -460,15 +460,20 @@ verification:
       # Every row below is observed through the real OTA path: published by
       # the genuine service over the verified connection, judged by the
       # application before the write, and judged by MCUboot on the next boot.
-      signed_release_installed: pending
-      modified_manifest_refused: pending
-      wrong_key_manifest_refused: pending
-      incompatible_hardware_refused: pending
-      wrong_channel_refused: pending
-      unexpected_size_refused: pending
-      digest_mismatch_refused: pending
-      replayed_lower_counter_refused: pending
-      running_release_preserved_after_refusal: pending
+      # Issue #227: security-fix installed at counter 2; the seven hostile
+      # releases and the replay were each refused at their own check, and the
+      # counter-mismatch image was accepted by the application and erased by
+      # MCUboot, counter=1 in the secondary slot against counter=2 in the
+      # primary.
+      signed_release_installed: validated
+      modified_manifest_refused: validated
+      wrong_key_manifest_refused: validated
+      incompatible_hardware_refused: validated
+      wrong_channel_refused: validated
+      unexpected_size_refused: validated
+      digest_mismatch_refused: validated
+      replayed_lower_counter_refused: validated
+      running_release_preserved_after_refusal: validated
       # The one release the application accepts. Everything it can check is
       # true; the image it points at carries the older counter in its signed
       # TLV, which only MCUboot reads. The row needs the application accepting,
@@ -476,8 +481,8 @@ verification:
       # "Image 0 in slot 1 erased due to downgrade prevention", the hook
       # reporting the lower counter in the secondary slot against the higher
       # one in the primary.
-      bootloader_refused_downgrade_independently: pending
-      security_counter_reported_by_bootloader_hook: pending
+      bootloader_refused_downgrade_independently: validated
+      security_counter_reported_by_bootloader_hook: validated
       # The manifest carries creation and support dates, and this device has no
       # clock. They are signed so they cannot be edited afterwards and reported
       # without being acted on. Same root as T2-W-09.

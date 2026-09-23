@@ -415,7 +415,7 @@ This section was added after Tier 3 was published. If you worked the tier before
 
 | Weakness | Result after this tier | Status | Evidence or next action |
 | --- | --- | --- | --- |
-| T0-W-04 | The device installs only images signed by the key its bootloader carries. Four kinds of bad image were refused on hardware, on the earlier nanoESP32-C6 1.0 | Closed | The four refusal observations and the good install |
+| T0-W-04 | The device installs only images signed by the key its bootloader carries. Four kinds of bad image were refused on hardware | Closed | The four refusal observations and the good install |
 | T0-W-05 | Unchanged. The release record is still mutable by anyone who can reach the service, and the device still believes what it says | Open | Tier 4 |
 | T0-W-06 | Unchanged. A correctly signed older release still installs over a newer one | Open | Tier 4 |
 | T0-W-07 | Unchanged. An installed image is still permanent, and the fallback path is still unused | Open | Tier 5 |
@@ -432,7 +432,7 @@ Two new rows, both about limits rather than achievements. A tier that only adds 
 
 You wrote this in Tier 1 and recorded it as `unsupported`. This is the tier that moves it.
 
-It becomes **partly supported**. Supported for the update path: an image that is unsigned, modified, signed by another key, or incomplete is refused by the bootloader, and the device continues running the release it already had. That was observed on the board the course used before, a nanoESP32-C6 1.0, and it is owed a run on the ESP32-C6-DevKitC-1 this course now targets. Not supported against an attacker with physical access, because the bootloader that holds the key is not itself verified by anything, and replacing it replaces the key. That gap is `T3-W-10`, it needs ESP32-C6 Secure Boot v2, and it is Advanced Tier A.
+It becomes **partly supported**. Supported for the update path: an image that is unsigned, modified, signed by another key, or incomplete is refused by the bootloader, and the device continues running the release it already had. Not supported against an attacker with physical access, because the bootloader that holds the key is not itself verified by anything, and replacing it replaces the key. That gap is `T3-W-10`, it needs ESP32-C6 Secure Boot v2, and it is Advanced Tier A.
 
 Tier 3 is the first tier in this course to carry two controls, because the claim needs both:
 
