@@ -26,8 +26,9 @@ _Avoid_: Instructor checkpoint, lesson review
 
 **Reference product**:
 An industrial equipment status beacon built around an ESP32-C6. It shows a
-simulated machine state with one monochrome LED. On means normal operation. Off
-means the device is off. Fast and slow blinking show two fictional error states.
+simulated machine state with one RGB LED. Solid green means normal operation.
+Off means the device is off. Red blinking, fast or slow, shows two fictional
+error states.
 The device reports status over Wi-Fi and receives software updates over Wi-Fi.
 _Avoid_: Demo app, blinky, access controller
 
