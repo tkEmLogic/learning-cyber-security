@@ -437,13 +437,17 @@ verification:
       # Every row below is observed through the real update path: published by
       # the genuine service, downloaded over the verified connection, written
       # to the secondary slot, and judged by the bootloader on the next boot.
-      signed_image_installed: pending
-      unsigned_image_refused: pending
-      modified_image_refused: pending
-      wrong_key_image_refused: pending
-      truncated_image_refused: pending
-      running_release_preserved_after_refusal: pending
-      trusted_key_reported_at_boot: pending
+      # Issue #226: the signed image was published as tier-03-signed-install
+      # and swapped in with key=match; the four hostile images were refused
+      # with key=other, signature=none, key=match, and tlv=truncated, and the
+      # board booted tier-03-baseline after each.
+      signed_image_installed: validated
+      unsigned_image_refused: validated
+      modified_image_refused: validated
+      wrong_key_image_refused: validated
+      truncated_image_refused: validated
+      running_release_preserved_after_refusal: validated
+      trusted_key_reported_at_boot: validated
       # Nothing authenticates the bootloader that holds the key. This is the
       # software chain the specification describes, recorded as T3-W-10, and it
       # needs Secure Boot v2 in Advanced Tier A.

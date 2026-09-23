@@ -61,8 +61,6 @@ Check that the service and the board are where you left them:
 
 You should see the Tier 2 banner and a verified connection. If you do not, finish Tier 2 before starting this tier.
 
-One note about the device output quoted in this module. Every serial line in it was recorded on the board the course used before, a nanoESP32-C6 1.0, and no tier has yet been run on the ESP32-C6-DevKitC-1 this course now targets. Treat the quoted lines as what to expect rather than as a result on your board, record what you actually see, and raise any difference with a Mentor instead of editing your observation to match the page.
-
 One thing to be clear about before you begin, because this tier is built on it. The Tier 2 product installs updates perfectly well. It downloads a firmware image over its verified connection, writes it to the secondary slot, and swaps it in, and its own log says what it is doing while it does it: `installing without any check`. Nothing on that path asks who produced the image. That is the weakness you still carry into this tier, and it is the one this tier closes.
 
 ## Weakness ledger before the work
@@ -192,8 +190,8 @@ Expected result:
 ```text
 Signing with the release key, fingerprint 2f5fe5123abe8715ecde8cde2cac0e734969e5c0110d71eb839a15ceebd6c1e4
 + imgtool.py sign --version 0.3.0+0 --header-size 0x20 --slot-size 1835008 --align 4 --key .course-secrets/signing/release.pem <image> artifacts/generated/releases/tier-03-baseline.bin
-  digest: 8a0b7e6b1961d77702dacd0114a4d0485f292c2273e13a96dc5afae58e1be1e9
-Result: published tier-03-baseline, 663611 bytes, signed
+  digest: 905fe0ac2411694fef420678b398f3c605069859c8500bf4c0601240b18db3ba
+Result: published tier-03-baseline, 664139 bytes, signed
 The device will run this one, because its bootloader holds the matching public key.
 ```
 
@@ -211,11 +209,16 @@ This is the only command in the course that names your private key. Note how sma
 Expected result:
 
 ```text
-I: course: slot=primary header=ok tlv=ok signature=present key=match
+I: course: slot=primary header=ok tlv=ok signature=present key=match counter=none
+I: Bootloader chainload address offset: 0x20000
 I: Image version: v0.3.0
 I: Jumping to the first image slot
+...
 *** Booting Zephyr OS build v4.4.2 ***
 ESP32-C6 Reference product: Tier 3, signed firmware images
+Image label: baseline
+Running release: tier-03-baseline
+Board: esp32c6_devkitc/esp32c6/hpcore
 Tier 3 boot mode: signed MCUboot images, swap using offset, no test boot, no rollback
 Image verification key this build trusted: 2f5fe5123abe8715ecde8cde2cac0e734969e5c0110d71eb839a15ceebd6c1e4
 That is the key the build used. This application cannot read what the bootloader holds.
@@ -239,10 +242,10 @@ It never says why. Inside MCUboot, the function that validates an image returns 
 It also means you cannot tell four different failures apart, which is no good for learning. So this course adds a small module that reports what it can see in an image before MCUboot judges it:
 
 ```text
-I: course: slot=primary header=ok tlv=ok signature=present key=match
+I: course: slot=primary header=ok tlv=ok signature=present key=match counter=none
 ```
 
-Four observable facts: does it have an image header, does it have a signature area, is there a signature in it, and does that signature name the key this bootloader was built with.
+Four observable facts: does it have an image header, does it have a signature area, is there a signature in it, and does that signature name the key this bootloader was built with. The line ends with a fifth field, `counter`. It stays `none` in this tier, because a Tier 3 image carries no security counter. Tier 4 adds one.
 
 Two things about that module are worth your attention as an engineer.
 
@@ -315,7 +318,7 @@ Step 2. Publish it through your own update service.
 
 Step 3. Confirm it comes back, the way the device will fetch it.
   -> GET https://ota.course.example:8443/v1/firmware/tier-03-hostile-wrong-key.bin
-  <- 663610 bytes, byte for byte what you published, over a connection the device verified.
+  <- 664138 bytes, byte for byte what you published, over a connection the device verified.
 
 Step 4. Stop. Nothing here can refuse this image.
      Every check Tier 2 added passed. The service is authentic, the connection is private,
@@ -328,19 +331,19 @@ That last step is the point of this tier. There is nothing on your computer that
 Then the board:
 
 ```text
-ota.tls verified ota.course.example at 10.32.32.253:8443, connection established
+ota.tls verified ota.course.example at 192.168.68.77:8443, connection established
 ota.assignment differs from running release tier-03-baseline, installing without any check
-ota.install wrote 663611 bytes to the secondary slot
+ota.install wrote 664138 bytes to the secondary slot
 I: Image index: 0, Swap type: perm
-I: course: slot=secondary header=ok tlv=ok signature=present key=other
+I: course: slot=secondary header=ok tlv=ok signature=present key=other counter=none
 E: Image in the secondary slot is not valid!
-I: course: slot=primary header=ok tlv=ok signature=present key=match
+I: course: slot=primary header=ok tlv=ok signature=present key=match counter=none
 I: Jumping to the first image slot
 ```
 
 Read those seven lines in order, because together they are the whole argument of Tier 3.
 
-The connection was verified. The service was genuine. The application downloaded the image without a complaint and wrote all 663,611 bytes to flash, announcing as it went that it was doing so without any check. The bootloader asked one question the rest of the system never asks, got the answer `key=other`, and refused. Then it verified the image already in the primary slot and started that instead.
+The connection was verified. The service was genuine. The application downloaded the image without a complaint and wrote all 664,138 bytes to flash, announcing as it went that it was doing so without any check. The bootloader asked one question the rest of the system never asks, got the answer `key=other`, and refused. Then it verified the image already in the primary slot and started that instead.
 
 The device is still running the release you approved. `REQ-01` does not ask the device to detect an attack. It asks the device to keep running what it was running, and that is what you just watched.
 
@@ -352,11 +355,11 @@ Here is what each one prints on the board:
 
 | Image | The bootloader's facts line | What it means |
 | --- | --- | --- |
-| unsigned | `header=ok tlv=ok signature=none key=n/a` | Nobody signed it at all |
-| truncated | `header=ok tlv=truncated signature=none key=n/a` | It never finished arriving |
-| wrong key | `header=ok tlv=ok signature=present key=other` | Signed properly, by somebody else |
-| modified | `header=ok tlv=ok signature=present key=match` | Everything looks right, and it is refused anyway |
-| your good image | `header=ok tlv=ok signature=present key=match` | The same line, followed by `Jumping to the first image slot` |
+| unsigned | `header=ok tlv=ok signature=none key=n/a counter=none` | Nobody signed it at all |
+| truncated | `header=ok tlv=truncated signature=none key=n/a counter=none` | It never finished arriving |
+| wrong key | `header=ok tlv=ok signature=present key=other counter=none` | Signed properly, by somebody else |
+| modified | `header=ok tlv=ok signature=present key=match counter=none` | Everything looks right, and it is refused anyway |
+| your good image | `header=ok tlv=ok signature=present key=match counter=none` | The same line, followed by `Jumping to the first image slot` |
 
 The last two rows are identical, and that is not a defect in the reporting.
 
@@ -401,7 +404,7 @@ What this tier can honestly claim is the thing you just watched: an operator wit
 Compare these against what you predicted.
 
 1. Before this tier, nothing stops it. The hostile-image fixture publishes through your own genuine service and its last step says so: `Stop. Nothing here can refuse this image.` Every check Tier 2 added passed, and the application announced on the board that it was installing `without any check`. After this tier one thing stops it, and only one: the bootloader, at the last moment before the code would run.
-2. The signature proves that this image was produced by whoever holds the private half of the key the bootloader carries. It proves nothing else. It does not say that the bytes are the release you meant to ship, that the release is the current one, or that the service that delivered it is honest. The `modified` image is the proof: it prints `header=ok tlv=ok signature=present key=match`, the same line your good image prints, and it is refused anyway, because the bytes no longer match what was signed.
+2. The signature proves that this image was produced by whoever holds the private half of the key the bootloader carries. It proves nothing else. It does not say that the bytes are the release you meant to ship, that the release is the current one, or that the service that delivered it is honest. The `modified` image is the proof: it prints `header=ok tlv=ok signature=present key=match counter=none`, the same line your good image prints, and it is refused anyway, because the bytes no longer match what was signed.
 3. Nothing about the keys themselves. `./course keys list` prints the answer in two lines: "Both keys are ECDSA P-256 and both are equally valid. Only the fingerprint compiled into the bootloader decides which one the device will run." Yours is the one whose fingerprint is compiled into your bootloader, and that is the whole difference. The attacker's key is refused with `key=other`, not because it is weaker, but because it is not that one.
 
 If you answered question 2 with something like "the image is safe" or "the image has not been tampered with", you are giving the answer most engineers give, and it is the one this tier is built to correct. Signing is not a property an image has. It is a relationship between an image and one specific key that one specific device was built to expect. That is why Bypass 2 defeats the control without touching the image at all: anyone who can flash a bootloader compiles in whatever key they like, and the device then runs firmware signed by that key. The honest sentence is the one in Bypass 2: this device runs only firmware signed by the key its bootloader carries, and the bootloader is trusted because it is there. That gap is `T3-W-10`, and it stays open.
