@@ -277,14 +277,20 @@ static void queue_revert(const char *failed_release, const char *reason)
 	queue_event("update.reverted", CONFIG_COURSE_RELEASE_ID, detail);
 }
 
+/* Called on every poll, and the event is let go only once the service has
+ * taken it. A link that is up is not a service that is reachable: an event
+ * sent once as soon as Wi-Fi came up was lost whenever the service was down,
+ * which is exactly the network loss this tier tells the Learner to test.
+ */
 static void flush_pending_event(const char *state_name)
 {
 	if (!pending_event.present) {
 		return;
 	}
-	pending_event.present = false;
-	(void)ota_client_report(pending_event.event, state_name,
-				pending_event.release_id, pending_event.detail);
+	if (ota_client_report(pending_event.event, state_name,
+			      pending_event.release_id, pending_event.detail) == 0) {
+		pending_event.present = false;
+	}
 }
 
 /* What the device woke up as.
@@ -605,13 +611,13 @@ int main(void)
 		printk("wifi.address %s assigned by DHCP\n", address);
 	}
 
-	flush_pending_event(beacon_state_name(state));
 
 	while (true) {
 		/* main is the thread the watchdog vouches for, so main is the
 		 * only thing that feeds it.
 		 */
 		health_gate_feed();
+		flush_pending_event(beacon_state_name(state));
 
 		/*
 		 * A live Claim window takes the thread.

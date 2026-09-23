@@ -20,6 +20,6 @@ Every tier from Tier 2 on builds `firmware/common` in, so every Tier 2 to Tier 5
 
 Tiers 2, 3 and 4 were revalidated on the ESP32-C6-DevKitC-1 with firmware that has the fix, in #225, #226 and #227. Every download in those runs went over the RNG-affected path, TLS. The Tier 2 run also saw the device refuse a certificate from an untrusted issuer and a certificate with the wrong name, and recover once the real certificate was back. The refusal rows of Tiers 3 and 4 were each observed through the real update path.
 
-Tier 5 is owed its run on the ESP32-C6-DevKitC-1 in #228. Nothing in the reasoning above depends on the board, because the fix is a clock enable in `firmware/common` and the refusal outcomes do not read a random value.
+Tier 5 was revalidated on the ESP32-C6-DevKitC-1 with the fix in #228, with TLS on every download, every revert, and every interrupted download. Nothing in the reasoning above depends on the board, because the fix is a clock enable in `firmware/common` and the refusal outcomes do not read a random value.
 
 The build is a revision-bound artifact, so a `./course verify N` receipt taken on the new revision is the durable record. This note is the written check #126 asked for; the upstream Zephyr report and the teaching of the finding in a module are separate owed items on that issue.
