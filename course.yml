@@ -575,6 +575,13 @@ verification:
     receipt: .course-state/receipts/tier-06.json
     revision_bound: true
     hardware:
+      # Issue #229, on the ESP32-C6-DevKitC-1 (MAC 20:6E:F1:17:0D:64). The
+      # device enrolled as beacon-206ef1170d64 and was remanufactured as
+      # beacon-remfg-206ef1170d64. E-6-05 decrypted both keys from one dump
+      # with SHA-256(MAC || 0x0000 || 01 06 00 80), each matching the public
+      # key its certificate recorded. The shared registration row waits on
+      # #237: the shared image's nonce signature does not verify on this board,
+      # though the host clone half was observed.
       # Nothing is claimed from a host result, with one named exception: the
       # five station-refusal bypass rows E-6-01, E-6-02, E-6-03, E-6-06 and
       # E-6-07 are witnessed by the provisioning station on the host by design
@@ -584,41 +591,41 @@ verification:
       # The device generates a P-256 key into PSA Secure Storage and it
       # survives a reboot. Decrypting the storage partition shows the live key
       # matching the public key in the certificate the station issued.
-      key_generated_on_device_survives_reboot: pending
+      key_generated_on_device_survives_reboot: validated
       # The certification request parses and carries the Bootstrap credential
       # inside the signature, which openssl req -verify confirms.
-      certification_request_carries_credential: pending
+      certification_request_carries_credential: validated
       # The station issues a certificate and consumes the credential in one
       # appended record, before anything reaches the device.
-      station_issues_and_consumes_in_one_append: pending
+      station_issues_and_consumes_in_one_append: validated
       # The device reports the identifier out of its own certificate, and the
       # service stores its events under that identifier rather than the shared
       # one.
-      device_reports_identifier_service_stores_it: pending
+      device_reports_identifier_service_stores_it: validated
       # The shell closes on enrollment and reopens on a deliberate BOOT-button
       # long press, in place, with no reset. #128 replaced reset-time sampling,
       # which could not work cleanly because sw0 is the GPIO9 strapping pin.
-      shell_closes_after_enrollment: pending
-      boot_button_reopens_shell: pending
+      shell_closes_after_enrollment: validated
+      boot_button_reopens_shell: validated
       # The factory image boots unprovisioned, opens the shell itself, and makes
       # no OTA contact: the poll is gated on holding an identity.
-      factory_boots_unprovisioned_no_ota_contact: pending
+      factory_boots_unprovisioned_no_ota_contact: validated
 
       # Section 11 bypass rows, decision #115: five refusals and two successes.
-      e6_01_replay_consumed_credential_refused: pending
-      e6_02_identifier_reuse_refused: pending
-      e6_03_bad_proof_of_possession_refused: pending
+      e6_01_replay_consumed_credential_refused: validated
+      e6_02_identifier_reuse_refused: validated
+      e6_03_bad_proof_of_possession_refused: validated
       # Witnessed by the device: provision export returns status=-133
       # (PSA_ERROR_NOT_PERMITTED). The key was generated with no export usage.
-      e6_04_export_refused_on_device: pending
+      e6_04_export_refused_on_device: validated
       # The one bypass that succeeds. ./course device dump reads the storage
       # partition and the P-256 private key is recovered by decrypting the ITS
       # record with SHA-256(MAC || 0x0000 || uid): a key derived only from the
       # public MAC and the uid, which is in clear as the settings entry name
       # its/2/601. The uid is packed little-endian 0x80000601.
-      e6_05_key_recovered_from_flash_dump: pending
-      e6_06_key_separation_both_refused: pending
-      e6_07_cloned_shared_credential_refused: pending
+      e6_05_key_recovered_from_flash_dump: validated
+      e6_06_key_separation_both_refused: validated
+      e6_07_cloned_shared_credential_refused: validated
 
       # The shared build registers as beacon-development-shared, and the clone
       # (host, no board) extracts the same fleet key and registers a second time
@@ -630,7 +637,7 @@ verification:
       # Bootstrap credential is issued, the device generates a new key, and the
       # station issues a new certificate. The old enrollment stands, because
       # the record is append only.
-      remanufacturing_issues_fresh_credential_appends_record: pending
+      remanufacturing_issues_fresh_credential_appends_record: validated
 
       # The RNG defect (#126) read on hardware. The live device key recovered
       # from the dump has no structure, while superseded keys still in the
@@ -641,7 +648,7 @@ verification:
       # NVS instance (#118, settles #120). This is the Tier 5 bug Tier 6 found
       # and fixed in its own tree: Tier 5 mounted a second instance on the same
       # partition, which only surfaced once Tier 6 also used it.
-      tier5_records_coexist_with_secure_storage: pending
+      tier5_records_coexist_with_secure_storage: validated
       # Not reached. The full interrupted-download resume has not been re-run
       # on the Tier 6 firmware; only the record coexistence above is a row.
       tier5_download_resume_rerun: not_reached
