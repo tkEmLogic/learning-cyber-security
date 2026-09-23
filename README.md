@@ -31,9 +31,9 @@ Eleven core tiers and two advanced tiers are planned. [The course page](course-m
 
 A physical ESP32-C6 development kit is optional for most work and required for flashing, serial output, Wi-Fi behavior, and anything the device itself must prove.
 
-No tier is validated on the ESP32-C6-DevKitC-1, which is the development kit this course now targets. Tier 0, Tier 2, Tier 3, Tier 4, Tier 5, Tier 6, and Tier 7 carry recorded hardware results, and every one of them was observed on the board the course used before, a nanoESP32-C6 1.0. Those results are real results on that earlier board. They are not results on the board the course now targets, so every one of them is awaiting revalidation.
+The course's board is the Espressif ESP32-C6-DevKitC-1. No tier is validated on it yet: every hardware result in `course.yml` is pending until someone observes it on that board.
 
-`course.yml` records each hardware result, the board it was observed on, and the revalidation it still owes. A skipped hardware check never supports a hardware claim, and a result from another board never supports one either.
+`course.yml` records each hardware result. A skipped hardware check never supports a hardware claim.
 
 Flashing needs a Linux machine. You can complete every other part of the course on macOS or Windows with the hardware results recorded as pending, which is a normal and honest state.
 

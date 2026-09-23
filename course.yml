@@ -381,58 +381,43 @@ checkpoints:
   publication_status: pending
 
 verification:
+  # The hardware rows below are the course's claims about physical behavior,
+  # and the ESP32-C6-DevKitC-1 is the only board they can be observed on. A
+  # row is validated only once it has been seen on that board. Until then it
+  # is pending, however the firmware or a host test behaves. Rows that were
+  # never reached, or that no control yet covers, keep a value that says why.
   tier_00:
     command: [./scripts/verify-tier-00.sh]
     receipt: .course-state/receipts/tier-00.json
     revision_bound: true
     hardware:
-      # Board of record for every row in this block. Each row keeps the value
-      # that was observed: every validated row below was seen on the
-      # nanoESP32-C6 1.0 the course used before, and none has been repeated on
-      # the ESP32-C6-DevKitC-1 the course now targets. Relabeling a row to
-      # name the new board would claim a result nobody has seen.
-      results_observed_on_board: nanoESP32-C6 1.0
-      results_revalidated_on_target_board: awaiting
-      flash: validated
-      serial: validated
-      wifi_association: validated
-      http_exchange: validated
-      ota_download: validated
-      altered_image_execution: validated
+      flash: pending
+      serial: pending
+      wifi_association: pending
+      http_exchange: pending
+      ota_download: pending
+      altered_image_execution: pending
       # firmware/common drives the DevKitC-1's WS2812 on GPIO8 behind
       # CONFIG_COURSE_BEACON_LED, and every tier builds with it. No one has
-      # yet seen it light, so the timing, the color order, the GPIO8 pinmux
-      # and the brightness are all unobserved. Implemented is not validated.
+      # yet seen it light, so the timing, the color, the GPIO8 pinmux and the
+      # brightness are all unobserved. Implemented is not validated.
       led_behavior: not_observed_firmware_drives_it
   tier_02:
     command: [./scripts/verify-tier-00.sh]
     receipt: .course-state/receipts/tier-02.json
     revision_bound: true
-    # Rebuilt with the #126 RNG-clock fix in firmware/common, reflashed, and
-    # re-observed on the board: TLS verified and the load-bearing outcome held.
-    # The RNG-independent refusal and recovery rows are rebound by that rebuild;
-    # a frozen generator could not affect them. See docs/rng-revalidation-tier-2-5.md.
     hardware:
-      # Board of record for every row in this block. Each row keeps the value
-      # that was observed: every validated row below was seen on the
-      # nanoESP32-C6 1.0 the course used before, and none has been repeated on
-      # the ESP32-C6-DevKitC-1 the course now targets. Relabeling a row to
-      # name the new board would claim a result nobody has seen.
-      results_observed_on_board: nanoESP32-C6 1.0
-      results_revalidated_on_target_board: awaiting
-      tls_handshake_verified: validated
-      untrusted_certificate_refused: validated
-      wrong_name_certificate_refused: validated
-      recovery_after_refusal: validated
+      tls_handshake_verified: pending
+      untrusted_certificate_refused: pending
+      wrong_name_certificate_refused: pending
+      recovery_after_refusal: pending
       certificate_dates_checked: not_checked_no_clock
-      # Issue #62. The application's TLS buffer was sized for the small JSON
-      # Tier 2 fetches, so a firmware image in full sized records was refused
-      # before a byte reached the flash writer. Raised to 16384 and observed on
-      # the nanoESP32-C6: a 663292 byte image published under a fresh release
-      # identifier was downloaded over the verified connection, written to the
-      # secondary slot, swapped in by MCUboot, and run.
-      ota_download_over_tls: validated
-      ota_install_completed: validated
+      # Issue #62. The application's TLS buffer must hold a firmware image in
+      # full sized records, not only the small JSON that Tier 2 fetches. The
+      # row needs a full image downloaded over the verified connection,
+      # written to the secondary slot, swapped in by MCUboot, and run.
+      ota_download_over_tls: pending
+      ota_install_completed: pending
       # Tier 2 installs whatever the verified service names. The device says so
       # itself while doing it: "installing without any check". Tier 3 is where
       # that closes.
@@ -441,28 +426,17 @@ verification:
     command: [./scripts/verify-tier-00.sh]
     receipt: .course-state/receipts/tier-03.json
     revision_bound: true
-    # Rebuilt with the #126 RNG-clock fix in firmware/common, reflashed, and
-    # re-observed on the board: TLS verified and the load-bearing outcome held.
-    # The RNG-independent refusal and recovery rows are rebound by that rebuild;
-    # a frozen generator could not affect them. See docs/rng-revalidation-tier-2-5.md.
     hardware:
-      # Board of record for every row in this block. Each row keeps the value
-      # that was observed: every validated row below was seen on the
-      # nanoESP32-C6 1.0 the course used before, and none has been repeated on
-      # the ESP32-C6-DevKitC-1 the course now targets. Relabeling a row to
-      # name the new board would claim a result nobody has seen.
-      results_observed_on_board: nanoESP32-C6 1.0
-      results_revalidated_on_target_board: awaiting
-      # Every row below was observed through the real update path: published by
+      # Every row below is observed through the real update path: published by
       # the genuine service, downloaded over the verified connection, written
       # to the secondary slot, and judged by the bootloader on the next boot.
-      signed_image_installed: validated
-      unsigned_image_refused: validated
-      modified_image_refused: validated
-      wrong_key_image_refused: validated
-      truncated_image_refused: validated
-      running_release_preserved_after_refusal: validated
-      trusted_key_reported_at_boot: validated
+      signed_image_installed: pending
+      unsigned_image_refused: pending
+      modified_image_refused: pending
+      wrong_key_image_refused: pending
+      truncated_image_refused: pending
+      running_release_preserved_after_refusal: pending
+      trusted_key_reported_at_boot: pending
       # Nothing authenticates the bootloader that holds the key. This is the
       # software chain the specification describes, recorded as T3-W-10, and it
       # needs Secure Boot v2 in Advanced Tier A.
@@ -471,40 +445,28 @@ verification:
     command: [./scripts/verify-tier-00.sh]
     receipt: .course-state/receipts/tier-04.json
     revision_bound: true
-    # Rebuilt with the #126 RNG-clock fix in firmware/common, reflashed, and
-    # re-observed on the board: TLS verified and the load-bearing outcome held.
-    # The RNG-independent refusal and recovery rows are rebound by that rebuild;
-    # a frozen generator could not affect them. See docs/rng-revalidation-tier-2-5.md.
     hardware:
-      # Board of record for every row in this block. Each row keeps the value
-      # that was observed: every validated row below was seen on the
-      # nanoESP32-C6 1.0 the course used before, and none has been repeated on
-      # the ESP32-C6-DevKitC-1 the course now targets. Relabeling a row to
-      # name the new board would claim a result nobody has seen.
-      results_observed_on_board: nanoESP32-C6 1.0
-      results_revalidated_on_target_board: awaiting
-      # Every row below was observed on the nanoESP32-C6 through the real OTA
-      # path: published by the genuine service over the verified connection,
-      # judged by the application before the write, and judged by MCUboot on
-      # the next boot.
-      signed_release_installed: validated
-      modified_manifest_refused: validated
-      wrong_key_manifest_refused: validated
-      incompatible_hardware_refused: validated
-      wrong_channel_refused: validated
-      unexpected_size_refused: validated
-      digest_mismatch_refused: validated
-      replayed_lower_counter_refused: validated
-      running_release_preserved_after_refusal: validated
+      # Every row below is observed through the real OTA path: published by
+      # the genuine service over the verified connection, judged by the
+      # application before the write, and judged by MCUboot on the next boot.
+      signed_release_installed: pending
+      modified_manifest_refused: pending
+      wrong_key_manifest_refused: pending
+      incompatible_hardware_refused: pending
+      wrong_channel_refused: pending
+      unexpected_size_refused: pending
+      digest_mismatch_refused: pending
+      replayed_lower_counter_refused: pending
+      running_release_preserved_after_refusal: pending
       # The one release the application accepts. Everything it can check is
       # true; the image it points at carries the older counter in its signed
-      # TLV, which only MCUboot reads. Observed as the application accepting,
+      # TLV, which only MCUboot reads. The row needs the application accepting,
       # the bytes being written, and the bootloader erasing the slot with
       # "Image 0 in slot 1 erased due to downgrade prevention", the hook
-      # reporting counter=1 in the secondary slot against counter=2 in the
-      # primary.
-      bootloader_refused_downgrade_independently: validated
-      security_counter_reported_by_bootloader_hook: validated
+      # reporting the lower counter in the secondary slot against the higher
+      # one in the primary.
+      bootloader_refused_downgrade_independently: pending
+      security_counter_reported_by_bootloader_hook: pending
       # The manifest carries creation and support dates, and this device has no
       # clock. They are signed so they cannot be edited afterwards and reported
       # without being acted on. Same root as T2-W-09.
@@ -521,83 +483,63 @@ verification:
     command: [./scripts/verify-tier-00.sh]
     receipt: .course-state/receipts/tier-05.json
     revision_bound: true
-    # Rebuilt with the #126 RNG-clock fix in firmware/common, reflashed, and
-    # re-observed on the board: TLS verified and the load-bearing outcome held.
-    # The RNG-independent refusal and recovery rows are rebound by that rebuild;
-    # a frozen generator could not affect them. See docs/rng-revalidation-tier-2-5.md.
     hardware:
-      # Board of record for every row in this block. Each row keeps the value
-      # that was observed: every validated row below was seen on the
-      # nanoESP32-C6 1.0 the course used before, and none has been repeated on
-      # the ESP32-C6-DevKitC-1 the course now targets. Relabeling a row to
-      # name the new board would claim a result nobody has seen.
-      results_observed_on_board: nanoESP32-C6 1.0
-      results_revalidated_on_target_board: awaiting
-      # Every row below was seen on the physical nanoESP32-C6, over the real
-      # OTA path, with releases signed by the Learner's own key.
-      test_upgrade_requested_not_permanent: validated
-      healthy_release_confirms: validated
-      crashing_release_reverts: validated
-      hung_release_reset_by_watchdog_and_reverts: validated
-      failed_health_release_reverts: validated
-      health_window_stall_reverts: validated
-      revert_restores_last_confirmed_image: validated
-      failure_reason_replayed_after_revert: validated
+      # Every row below is observed over the real OTA path, with releases
+      # signed by the Learner's own key.
+      test_upgrade_requested_not_permanent: pending
+      healthy_release_confirms: pending
+      crashing_release_reverts: pending
+      hung_release_reset_by_watchdog_and_reverts: pending
+      failed_health_release_reverts: pending
+      health_window_stall_reverts: pending
+      revert_restores_last_confirmed_image: pending
+      failure_reason_replayed_after_revert: pending
       # A crash and a hang leave no written reason, because neither reaches the
       # code that could record one. The device says so rather than inventing a
       # cause, and the module teaches the asymmetry.
-      crash_and_hang_leave_no_reason: validated
-      interrupted_download_resumes: validated
+      crash_and_hang_leave_no_reason: pending
+      interrupted_download_resumes: pending
       # The strongest result of the tier. A hard reset partway through a
-      # download loses every byte of RAM; the progress record in NVS survived
-      # it, and the device resumed from exactly the recorded offset and
-      # finished.
-      download_resumes_after_hard_reset: validated
-      digest_computed_by_reading_slot_back: validated
-      invalid_range_response_refused: validated
-      invalid_range_response_discards_partial_download: validated
-      changed_release_discards_partial_download: validated
-      already_confirmed_image_refused: validated
-      bounded_retry_stops_repeated_failure: validated
-      network_loss_does_not_fail_health_gate: validated
-      network_loss_causes_no_revert_loop: validated
+      # download loses every byte of RAM; the progress record in NVS must
+      # survive it, and the device must resume from exactly the recorded
+      # offset and finish.
+      download_resumes_after_hard_reset: pending
+      digest_computed_by_reading_slot_back: pending
+      invalid_range_response_refused: pending
+      invalid_range_response_discards_partial_download: pending
+      changed_release_discards_partial_download: pending
+      already_confirmed_image_refused: pending
+      bounded_retry_stops_repeated_failure: pending
+      network_loss_does_not_fail_health_gate: pending
+      network_loss_causes_no_revert_loop: pending
       # The trial reaches its verdict with no network, by design, so the event
-      # is queued and sent once the link is up. Both were observed reaching the
-      # service, and a revert names the running release with the failed one in
-      # the detail rather than the other way round.
-      confirmation_reported_after_link_returns: validated
-      revert_reported_after_link_returns: validated
-      revert_without_reason_still_reported: validated
-      # Observed on the ESP32-C6-DevKitC-1 rather than the nanoESP32-C6 1.0
-      # this block is otherwise labelled for, because the defect it covers was
-      # found in Tier 7 and fixed here: #175. Named explicitly so the row does
-      # not inherit the block's board and claim a result nobody saw there.
+      # is queued and sent once the link is up. Both must reach the service,
+      # and a revert names the running release with the failed one in the
+      # detail rather than the other way round.
+      confirmation_reported_after_link_returns: pending
+      revert_reported_after_link_returns: pending
+      revert_without_reason_still_reported: pending
+      # The defect behind these two was found in Tier 7 and fixed here: #175.
+      # Each revert must produce exactly one update.reverted event, naming the
+      # release that actually failed and the check it failed at. A later boot
+      # of the confirmed image, holding the trial record for a release it is
+      # not running, must queue nothing.
+      one_revert_reports_exactly_one_event: pending
+      # The reason the fix marks the record rather than clearing it. After the
+      # third revert the board must still refuse the release at
+      # check=trial-limit, so silencing the duplicate report does not cost the
+      # bound that stops a revert loop.
+      reported_flag_does_not_disturb_the_trial_limit: pending
+      # Section 6's claim, checked in MCUboot's source during charting:
+      # check_downgrade_prevention() runs only for TEST and PERM swaps, so a
+      # revert never passes through it.
       #
-      # Three reverts of tier-05-fail-health produced exactly three
-      # update.reverted events, at 20:19:50Z, 20:21:44Z and 20:23:42Z, each
-      # naming the release that actually failed and the check it failed at
-      # rather than reason-unrecorded. Each new trial re-armed the report,
-      # because recovery_trial_begin() rewrites the whole record. A later
-      # boot of the confirmed image, holding the trial record for a release
-      # it is not running, queued nothing at all, which before the fix was
-      # the condition that reported forever.
-      one_revert_reports_exactly_one_event: validated
-      # The reason the fix marks the record rather than clearing it. After
-      # the third revert the board still refused the release at
-      # check=trial-limit with attempts=3 of 3, so silencing the duplicate
-      # report did not cost the bound that stops a revert loop.
-      reported_flag_does_not_disturb_the_trial_limit: validated
-      # Section 6's claim, checked in MCUboot's source during charting and then
-      # on the board: check_downgrade_prevention() runs only for TEST and PERM
-      # swaps, so a revert never passes through it.
-      #
-      # Observed with the crash release at counter 4 reverting to a confirmed
-      # image at counter 3, three times. Equal counters would not have tested
-      # anything: prevention refuses only when the primary counter is strictly
-      # greater, so at 3 against 3 it would not fire even if a revert did pass
-      # through it.
-      revert_not_blocked_by_downgrade_prevention: validated
-      reset_during_swap_recovers: validated
+      # The crash release must carry a higher counter than the confirmed image
+      # it reverts to. Equal counters would not test anything: prevention
+      # refuses only when the primary counter is strictly greater, so it would
+      # not fire even if a revert did pass through it.
+      revert_not_blocked_by_downgrade_prevention: pending
+      reset_during_swap_recovers: pending
       # Not reached. See the resolution on issue #97 for what was and was not
       # covered, and why these are honest gaps rather than passing rows.
       reset_during_trailer_update: not_reached
@@ -610,102 +552,75 @@ verification:
     receipt: .course-state/receipts/tier-06.json
     revision_bound: true
     hardware:
-      # Board of record for every row in this block. Each row keeps the value
-      # that was observed: every validated device row below was seen on the
-      # nanoESP32-C6 1.0 the course used before, and none has been repeated on
-      # the ESP32-C6-DevKitC-1 the course now targets. Relabeling a row to
-      # name the new board would claim a result nobody has seen. The rows that
-      # are host-witnessed by design are named in the note under this one.
-      results_observed_on_board: nanoESP32-C6 1.0
-      results_revalidated_on_target_board: awaiting
-      # Every row was observed on the physical nanoESP32-C6, MAC
-      # 40:4c:ca:5e:a9:fc. Rows quoted from the #118 board run say so; the rest
-      # were seen in the #124 board session. Nothing is claimed from a host
-      # result, with one named exception: the five station-refusal bypass rows
-      # E-6-01, E-6-02, E-6-03, E-6-06 and E-6-07 are witnessed by the
-      # provisioning station on the host by design (decision #115). The refusal
-      # is a station decision and no device is involved, so the host is the
-      # witness the tier intends.
+      # Nothing is claimed from a host result, with one named exception: the
+      # five station-refusal bypass rows E-6-01, E-6-02, E-6-03, E-6-06 and
+      # E-6-07 are witnessed by the provisioning station on the host by design
+      # (decision #115). The refusal is a station decision and no device is
+      # involved, so the host is the witness the tier intends.
 
-      # The device generates a P-256 key into PSA Secure Storage and it survives
-      # a reboot. Seen in #118, and confirmed again in #124 by decrypting the
-      # storage partition: the live key recovered from flash matches the public
-      # key in the certificate the station issued.
-      key_generated_on_device_survives_reboot: validated
+      # The device generates a P-256 key into PSA Secure Storage and it
+      # survives a reboot. Decrypting the storage partition shows the live key
+      # matching the public key in the certificate the station issued.
+      key_generated_on_device_survives_reboot: pending
       # The certification request parses and carries the Bootstrap credential
-      # inside the signature. #118 verified it with openssl req -verify; the
-      # #124 remanufacture enrollment returned a 326 byte request the station
-      # accepted.
-      certification_request_carries_credential: validated
+      # inside the signature, which openssl req -verify confirms.
+      certification_request_carries_credential: pending
       # The station issues a certificate and consumes the credential in one
       # appended record, before anything reaches the device.
-      station_issues_and_consumes_in_one_append: validated
-      # The device reports the identifier out of its own certificate; the
-      # service stored it, 9 events under the identifier against the shared one
-      # (#118), and the manufacturing record stored the #124 remanufacture id.
-      device_reports_identifier_service_stores_it: validated
+      station_issues_and_consumes_in_one_append: pending
+      # The device reports the identifier out of its own certificate, and the
+      # service stores its events under that identifier rather than the shared
+      # one.
+      device_reports_identifier_service_stores_it: pending
       # The shell closes on enrollment and reopens on a deliberate BOOT-button
       # long press, in place, with no reset. #128 replaced reset-time sampling,
       # which could not work cleanly because sw0 is the GPIO9 strapping pin.
-      # Validated on the rebuilt firmware: a ten second hold on the provisioned
-      # board reopened the interface, and provision export then answered on a
-      # board that says nothing until it is reopened.
-      shell_closes_after_enrollment: validated
-      boot_button_reopens_shell: validated
+      shell_closes_after_enrollment: pending
+      boot_button_reopens_shell: pending
       # The factory image boots unprovisioned, opens the shell itself, and makes
-      # no OTA contact: the poll is gated on holding an identity (#118, after
-      # the fix that closed an unprovisioned board still fetching an
-      # assignment). Re-seen in #124 the moment the device was erased.
-      factory_boots_unprovisioned_no_ota_contact: validated
+      # no OTA contact: the poll is gated on holding an identity.
+      factory_boots_unprovisioned_no_ota_contact: pending
 
       # Section 11 bypass rows, decision #115: five refusals and two successes.
-      # The " station" rows are host-witnessed station refusals, by design.
-      e6_01_replay_consumed_credential_refused: validated
-      e6_02_identifier_reuse_refused: validated
-      e6_03_bad_proof_of_possession_refused: validated
+      e6_01_replay_consumed_credential_refused: pending
+      e6_02_identifier_reuse_refused: pending
+      e6_03_bad_proof_of_possession_refused: pending
       # Witnessed by the device: provision export returns status=-133
       # (PSA_ERROR_NOT_PERMITTED). The key was generated with no export usage.
-      e6_04_export_refused_on_device: validated
+      e6_04_export_refused_on_device: pending
       # The one bypass that succeeds. ./course device dump reads the storage
       # partition and the P-256 private key is recovered by decrypting the ITS
       # record with SHA-256(MAC || 0x0000 || uid): a key derived only from the
       # public MAC and the uid, which is in clear as the settings entry name
-      # its/2/601. The uid is packed little-endian 0x80000601. This settles the
-      # two facts the storage-guarantees research left owed to a board run: the
-      # uid byte order and the exact settings entry name.
-      e6_05_key_recovered_from_flash_dump: validated
-      e6_06_key_separation_both_refused: validated
-      e6_07_cloned_shared_credential_refused: validated
+      # its/2/601. The uid is packed little-endian 0x80000601.
+      e6_05_key_recovered_from_flash_dump: pending
+      e6_06_key_separation_both_refused: pending
+      e6_07_cloned_shared_credential_refused: pending
 
       # The shared build registers as beacon-development-shared, and the clone
       # (host, no board) extracts the same fleet key and registers a second time
-      # under that identifier: two entries under one fingerprint
-      # sha256:d07fb116..., plus three never-manufactured phantoms. The clone
+      # under that identifier: two entries under one fingerprint. The clone
       # runs on the host by design; a copied credential does not need the
       # hardware it was copied from.
-      shared_identity_registers_and_clone_duplicates_it: validated
-      # Remanufacturing: the device erased its key and certificate, a fresh
-      # Bootstrap credential was issued, the device generated a new key, and the
-      # station issued a new certificate (beacon-remfg-404cca5ea9fc). The old
-      # beacon-404cca5ea9fc enrollment stands, because the record is append only.
-      remanufacturing_issues_fresh_credential_appends_record: validated
+      shared_identity_registers_and_clone_duplicates_it: pending
+      # Remanufacturing: the device erases its key and certificate, a fresh
+      # Bootstrap credential is issued, the device generates a new key, and the
+      # station issues a new certificate. The old enrollment stands, because
+      # the record is append only.
+      remanufacturing_issues_fresh_credential_appends_record: pending
 
       # The RNG defect (#126) read on hardware. The live device key recovered
-      # from the dump has no structure, while two superseded keys still in the
-      # same partition do, one of them exactly the key #126 recorded from the
-      # unfixed build. Every key the board has ever held is still in flash,
-      # because NVS appends and garbage collects later.
-      rng_fixed_key_has_no_structure_old_keys_remain: validated
+      # from the dump has no structure, while superseded keys still in the
+      # same partition remain, because NVS appends and garbage collects later.
+      rng_fixed_key_has_no_structure_old_keys_remain: pending
 
       # Tier 5's records coexist with Secure Storage in the one shared settings
       # NVS instance (#118, settles #120). This is the Tier 5 bug Tier 6 found
       # and fixed in its own tree: Tier 5 mounted a second instance on the same
       # partition, which only surfaced once Tier 6 also used it.
-      tier5_records_coexist_with_secure_storage: validated
-      # Not reached. The full interrupted-download resume was not re-run on the
-      # Tier 6 firmware; only the record coexistence above was observed. #126
-      # already owes Tiers 2 to 5 a board run after the RNG rebuild, and this
-      # resume run belongs with that.
+      tier5_records_coexist_with_secure_storage: pending
+      # Not reached. The full interrupted-download resume has not been re-run
+      # on the Tier 6 firmware; only the record coexistence above is a row.
       tier5_download_resume_rerun: not_reached
 
   tier_07:
@@ -713,144 +628,105 @@ verification:
     receipt: .course-state/receipts/tier-07.json
     revision_bound: true
     hardware:
-      # Board of record for every row in this block. The campaign ran on the
-      # Muse Lab nanoESP32-C6 1.0, MAC 40:4c:ca:5e:a9:fc, because it is the
-      # only board in the lab: no ESP32-C6-DevKitC-1 has been flashed yet.
-      # Tier 7 therefore joins Tiers 0 to 6 in owing #170 a run on the board
-      # the course now targets. The results below are real results on real
-      # hardware; they are not results on the targeted board.
-      results_observed_on_board: nanoESP32-C6 1.0
-      results_revalidated_on_target_board: awaiting
-      # Device of record: the campaign ran under three successive Factory
-      # identities. beacon-remfg-404cca5ea9fc carried the first claim, which
-      # the first defect below lost; beacon-t07-404cca5ea9fc carried the
-      # second, which the second defect lost; beacon-t07b-404cca5ea9fc holds
-      # the claim that stands. Each is a genuine remanufacture appended to the
-      # record, because ownership is first come and the service had already
-      # recorded a claim it could not take back. Nothing was rewritten.
-
-      # Two defects were found on the board in #151, both in the claim path,
-      # both invisible to every host test, and both fixed in that session.
-      # They are named here because a row that says "validated" after a fix is
-      # only honest if it says what it was validated against.
+      # Two defects in the claim path were found on a board in #151, and both
+      # were invisible to every host test. The rows below that cover the claim
+      # are only honest against firmware that carries both fixes.
       #
       # 1. claim.c read the issued certificate through JSON_TOK_STRING, which
       #    in Zephyr 4.4.2 does not unescape: only JSON_TOK_STRING_BUF does.
       #    The PEM arrived with its newlines still spelled "\n" and
-      #    base64_decode refused the backslash. The service was correct and
-      #    the board threw away the certificate it had just earned.
+      #    base64_decode refused the backslash.
       # 2. identity.c copied the pending Operational key into its persistent
       #    slot with psa_copy_key() and an unset target policy, believing a
       #    copy inherits the source's. It intersects instead, so the key
       #    landed permitted to do nothing and the first handshake that asked
-      #    it to sign failed inside CertificateVerify. #157's spike could not
-      #    have caught it: that key was generated with its own policy and
-      #    never copied.
+      #    it to sign failed inside CertificateVerify.
 
       # The Tier 7 image boots and reads its Factory identity out of Secure
       # Storage, key 0x00000601, rather than trusting the build-time
       # identifier compiled into it.
-      tier7_firmware_boots_reads_factory_identity: validated
+      tier7_firmware_boots_reads_factory_identity: pending
       # A device holding no Operational certificate opens no connection to a
       # restricted endpoint, says so, and does not fall back to its Factory
       # identity. This is the tier's sharpest line and the board draws it.
-      unclaimed_device_refuses_restricted_endpoints: validated
-      # The physical act generates: a ten second BOOT hold produced a volatile
-      # P-256 key in RAM, a 224 byte certification request, and a 24 character
+      unclaimed_device_refuses_restricted_endpoints: pending
+      # The physical act generates: a ten second BOOT hold produces a volatile
+      # P-256 key in RAM, a certification request, and a 24 character
       # Crockford base32 nonce in six groups of four, printed immediately.
-      boot_hold_opens_claim_window_generates_key_prints_nonce: validated
+      boot_hold_opens_claim_window_generates_key_prints_nonce: pending
       # The device half reaches the mutual-TLS listener presenting the Factory
       # certificate signed by PSA key 0x00000601, and polls on a fresh
       # connection every five seconds.
-      device_half_reaches_mutual_tls_on_factory_certificate: validated
+      device_half_reaches_mutual_tls_on_factory_certificate: pending
 
       # E-7-01. The whole claim, both halves, on the board: BOOT hold, nonce
       # read off the console, operator approval carrying an Owner credential
-      # on the server-authenticated listener, and the certificate stored.
-      # The pending key was copied into persistent slot 0x00000701 and the
-      # certificate into settings. Validated on the fixed firmware.
-      e7_01_claim_completes_certificate_stored: validated
+      # on the server-authenticated listener, and the certificate stored. The
+      # pending key is copied into persistent slot 0x00000701 and the
+      # certificate into settings.
+      e7_01_claim_completes_certificate_stored: pending
       # The stored Operational identity survives a reboot: after a reset the
-      # board read it back out of Secure Storage, printed its fingerprint and
-      # owner, and signed a fresh handshake with key 0x00000701.
-      operational_identity_survives_reboot: validated
-      # E-7-02. The device reached the restricted endpoints on its Operational
-      # identity: it fetched its assignment and the service recorded a
+      # board reads it back out of Secure Storage, prints its fingerprint and
+      # owner, and signs a fresh handshake with key 0x00000701.
+      operational_identity_survives_reboot: pending
+      # E-7-02. The device reaches the restricted endpoints on its Operational
+      # identity: it fetches its assignment and the service records a
       # status.observed whose accepted_from is client_certificate, with
       # certificate_device_id, path_device_id and accepted_device_id all
       # agreeing. That agreement is the property the tier exists to show.
-      e7_02_assignment_and_status_event_on_operational_identity: validated
-      # A whole signed image crossed the opaque-key socket. 740,408 bytes of
-      # tier-05-fail-health were fetched over mutual TLS on the Operational
-      # identity in 23 seconds, hashed back out of the secondary slot, and
-      # matched the signed digest. The service recorded update.installed with
-      # accepted_from client_certificate.
+      e7_02_assignment_and_status_event_on_operational_identity: pending
+      # A whole signed image crosses the opaque-key socket: fetched over mutual
+      # TLS on the Operational identity, hashed back out of the secondary
+      # slot, and matching the signed digest. The service records
+      # update.installed with accepted_from client_certificate.
       #
-      # Getting a second release needed no second Tier 7 variant. The device
-      # compares only release_id against its own (ota_client.c, the
-      # already-confirmed control), so any release the board is not running is
-      # downloadable, and the course already publishes several at security
-      # counter 3 for this board. The board must be on Tier 7 to hold an
-      # Operational identity at all, so the only image it can be offered is an
-      # earlier tier's: within a tier this course can never demonstrate an OTA
-      # update, and every OTA it does demonstrate crosses a tier boundary.
-      # tier-05-fail-health was chosen because it returns the board to itself.
-      e7_02_image_body_transferred_over_mutual_tls: validated
+      # A second release needs no second Tier 7 variant. The device compares
+      # only release_id against its own (ota_client.c, the already-confirmed
+      # control), so any release the board is not running is downloadable.
+      # The board must be on Tier 7 to hold an Operational identity at all, so
+      # the only image it can be offered is an earlier tier's: within a tier
+      # this course can never demonstrate an OTA update, and every OTA it does
+      # demonstrate crosses a tier boundary. tier-05-fail-health suits it
+      # because it returns the board to itself.
+      e7_02_image_body_transferred_over_mutual_tls: pending
       # The two hard cases in the poll implementation, counted over a real
-      # image rather than #158's 64 KiB spike. First transfer: 54 polls
-      # forwarded, 677 answered from plaintext mbedTLS already held, 1447
-      # partial records. Resumed transfer: 38, 437 and 936. Forwarding alone
-      # would not have carried this download.
-      opaque_socket_poll_cases_counted_over_a_full_image: validated
+      # image rather than #158's 64 KiB spike: polls forwarded, polls answered
+      # from plaintext mbedTLS already held, and partial records.
+      opaque_socket_poll_cases_counted_over_a_full_image: pending
       # The interrupted-download resume, re-run on the Tier 7 stack, which is
       # a different question from Tier 5's because the socket underneath it is
-      # this tier's own. ./course device reset pulsed RTS at 262,144 of
-      # 740,408 bytes. The next poll read its progress record, sent
-      # "Range: bytes=262144-", and completed; the device refuses anything but
-      # 206 Partial Content once it is resuming, so completion is the evidence
-      # the range response was honoured. The digest is taken by reading the
-      # slot back, so both halves were verified as one image.
-      tier5_download_resume_rerun_on_tier7_stack: validated
+      # this tier's own. ./course device reset interrupts the download, the
+      # next poll reads its progress record and sends a Range request, and the
+      # download completes; the device refuses anything but 206 Partial
+      # Content once it is resuming, so completion is the evidence the range
+      # response was honoured. The digest is taken by reading the slot back,
+      # so both halves are verified as one image.
+      tier5_download_resume_rerun_on_tier7_stack: pending
       # The full Tier 5 recovery cycle on the Tier 7 stack: TEST swap, trial
       # boot, health gate refused at update-client-ready, and MCUboot putting
-      # the confirmed Tier 7 image back without being asked. Run twice. The
-      # board ends the campaign exactly where it started, still
-      # beacon-t07b-404cca5ea9fc, with no remanufacture.
-      trial_revert_to_tier7_after_failed_health_gate: validated
-      # The Operational identity survived two image swaps and four reverts.
-      # After them the board read back device_id beacon-t07b-404cca5ea9fc,
-      # Factory key 0x00000601, Operational key 0x00000701 and owner
-      # field-owner, and signed fresh handshakes with it. It survived more
-      # than an image swap: the Tier 5 trial image mounts its own three
-      # sector NVS instance on the storage partition that Tiers 6 and 7 share
-      # with PSA Secure Storage as eight sectors, which is the #118/#120
-      # hazard exercised live, and the identity came through it. Settings NVS
-      # reported 27,024 bytes free afterwards.
-      operational_identity_survives_image_swap_and_revert: validated
-      # Fixed by #175 and re-observed on the ESP32-C6-DevKitC-1. The defect
-      # was that nothing cleared the trial record after a revert, so main.c
-      # reported one from that stale record on every subsequent boot. The
-      # record could not simply be cleared: the same count is the bound that
-      # stops a revert loop, so it now carries a reported flag instead.
-      #
-      # Reproduced on this board before the fix and quiet after it. The
-      # pre-fix boot emitted "release tier-05-healthy was tried 1 times and
-      # is not what is running" followed by update.reverted, for a release
-      # this board never tried; events.jsonl holds that one at 20:05:36Z as
-      # the last of its kind. After the fix the same board boots to
-      # "recovery.state trial no release is being tried" and queues nothing.
-      #
-      # Later in the same session the board read a trial record a Tier 5
-      # image had genuinely written, tier-05-fail-health attempts=3 of 3
-      # reported=yes, and still queued nothing. That is the reported flag
-      # surviving across the two NVS instances of the #118/#120 hazard, which
-      # is the exact shape the original false report took.
-      stale_trial_record_reports_a_revert_on_every_boot: fixed_and_validated
-      # The Tier 5 trial image queued its own update.reverted, naming
-      # tier-05-fail-health and update-client-ready, and could not deliver it:
-      # it holds no Operational identity, and the device listener refused it.
+      # the confirmed Tier 7 image back without being asked. The board ends
+      # where it started, with the same identity and no remanufacture.
+      trial_revert_to_tier7_after_failed_health_gate: pending
+      # The Operational identity survives image swaps and reverts: the board
+      # reads back its device_id, Factory key 0x00000601, Operational key
+      # 0x00000701 and owner, and signs fresh handshakes with it. The Tier 5
+      # trial image mounts its own three sector NVS instance on the storage
+      # partition that Tiers 6 and 7 share with PSA Secure Storage as eight
+      # sectors, which is the #118/#120 hazard exercised live.
+      operational_identity_survives_image_swap_and_revert: pending
+      # Fixed by #175. Nothing cleared the trial record after a revert, so
+      # main.c reported one from that stale record on every subsequent boot.
+      # The record could not simply be cleared: the same count is the bound
+      # that stops a revert loop, so it now carries a reported flag instead.
+      # After the fix the board boots to "recovery.state trial no release is
+      # being tried" and queues nothing, including when it reads a trial
+      # record a Tier 5 image genuinely wrote with reported=yes.
+      stale_trial_record_reports_a_revert_on_every_boot: pending
+      # The Tier 5 trial image queues its own update.reverted, naming
+      # tier-05-fail-health and update-client-ready, and cannot deliver it:
+      # it holds no Operational identity, and the device listener refuses it.
       # The tier's restriction read from the other side, on the board.
-      tier5_trial_image_cannot_report_over_mutual_tls: validated
+      tier5_trial_image_cannot_report_over_mutual_tls: pending
 
       # Section 11 bypass rows. Thirteen of the fifteen are host runners by
       # design and say so in their own output; E-7-01 and E-7-02 above are the
@@ -858,26 +734,25 @@ verification:
       # the refusal is read on the host, and a board is what makes the row
       # possible. E-7-10 is the clearest case, forging against the claim the
       # Learner's own board holds.
-      e7_03_factory_certificate_at_download_refused: validated
-      e7_04_operational_certificate_at_claim_refused: validated
-      e7_05_expired_certificate_refused: validated
-      e7_06_revoked_certificate_refused: validated
-      e7_07_never_issued_certificate_refused: validated
-      e7_08_forged_serial_unclaimed_device_refused: validated
-      e7_09_identifier_mismatch_refused: validated
-      e7_10_ownership_context_refused: validated
-      e7_11_replayed_nonce_refused: validated
-      e7_12_closed_window_refused: validated
-      e7_13_wrong_nonce_refused: validated
-      e7_14_already_claimed_device_refused: validated
-      e7_15_foreign_issuer_handshake_closed: validated
+      e7_03_factory_certificate_at_download_refused: pending
+      e7_04_operational_certificate_at_claim_refused: pending
+      e7_05_expired_certificate_refused: pending
+      e7_06_revoked_certificate_refused: pending
+      e7_07_never_issued_certificate_refused: pending
+      e7_08_forged_serial_unclaimed_device_refused: pending
+      e7_09_identifier_mismatch_refused: pending
+      e7_10_ownership_context_refused: pending
+      e7_11_replayed_nonce_refused: pending
+      e7_12_closed_window_refused: pending
+      e7_13_wrong_nonce_refused: pending
+      e7_14_already_claimed_device_refused: pending
+      e7_15_foreign_issuer_handshake_closed: pending
 
-      # Observed on the board and not on any row's list: a claim window opened
-      # before a remanufacture submitted a request naming the old identifier
-      # while the Factory certificate named the new one, and the service
-      # refused it at identifier-consistent with both names in the reason.
-      # The device half of that check had no planned board witness.
-      identifier_consistent_refused_on_device: validated
+      # Not on any row's list: a claim window opened before a remanufacture
+      # submits a request naming the old identifier while the Factory
+      # certificate names the new one, and the service refuses it at
+      # identifier-consistent with both names in the reason.
+      identifier_consistent_refused_on_device: pending
 
       # Not checked. The board can be asked to export its Factory key, which
       # is E-6-04, but no command asks it to export the Operational key, so
@@ -886,59 +761,50 @@ verification:
       # flags named in the copy and from the intersection with a source that
       # never had PSA_KEY_USAGE_EXPORT, but construction is not observation.
       operational_key_export_refused_on_device: not_checked_no_command
-      # Not reached. E-6-04 was not re-run against the Tier 7 image in this
-      # session; it needs the provisioning shell open, which is another
-      # physical hold, and the Factory key path is untouched by both fixes.
+      # Not reached. E-6-04 has not been re-run against the Tier 7 image; it
+      # needs the provisioning shell open, which is another physical hold.
       e6_04_export_refusal_rerun_on_tier7_image: not_reached
 
-      # Written while the Tier 7 module was being written (#152), on the same
-      # nanoESP32-C6. The module quotes this campaign's console output, so the
-      # rows it rests on are recorded here rather than left in a branch.
-      #
-      # The board now holds a fourth Factory identity,
-      # beacon-t07c-404cca5ea9fc. It was remanufactured once more so the
-      # module could quote a claim succeeding end to end rather than describe
-      # one: ownership is first come and the service had already recorded
-      # beacon-t07b-404cca5ea9fc's claim, which it cannot take back. Every
-      # identity is an appended record and nothing was rewritten.
+      # The rows the Tier 7 module's quoted console output rests on. The
+      # module quotes a claim succeeding end to end, and ownership is first
+      # come, so a board that has already been claimed must be remanufactured
+      # to a fresh Factory identity first. Every identity is an appended
+      # record and nothing is rewritten.
 
-      # The whole claim again, both halves, driven this time by the new
-      # ./course claim approve command rather than by hand: BOOT hold, volatile
-      # pending key, 225 byte request, 24 character nonce, operator approval
-      # carrying an Owner credential on the operator listener, and the
-      # certificate copied into persistent slot 0x00000701.
-      e7_01_claim_completes_through_the_claim_approve_command: validated
-      # E-7-02 again on the new identity: the service recorded status.observed
+      # The whole claim again, both halves, driven by the ./course claim
+      # approve command rather than by hand: BOOT hold, volatile pending key,
+      # certification request, 24 character nonce, operator approval carrying
+      # an Owner credential on the operator listener, and the certificate
+      # copied into persistent slot 0x00000701.
+      e7_01_claim_completes_through_the_claim_approve_command: pending
+      # E-7-02 again on the new identity: the service records status.observed
       # with accepted_from client_certificate and certificate_device_id,
-      # path_device_id and accepted_device_id all naming
-      # beacon-t07c-404cca5ea9fc.
-      e7_02_status_event_on_operational_identity_after_remanufacture: validated
+      # path_device_id and accepted_device_id all naming it.
+      e7_02_status_event_on_operational_identity_after_remanufacture: pending
       # An erased board refuses to open a restricted connection and says so,
-      # re-observed after the erase rather than inherited from the earlier run.
-      unclaimed_device_refuses_restricted_endpoints_after_erase: validated
-      # E-7-14 witnessed by the board rather than by the fixture. A press on
-      # the still-claimed beacon-t07b-404cca5ea9fc generated a pending key and
-      # a nonce, the Learner's own owner approved it, and the service refused
-      # at device-unowned without touching the issued identity. The fixture's
-      # own E-7-14 uses a synthetic device; this one used the board.
-      e7_14_device_unowned_refused_on_the_board: validated
-      # The operator half arriving before the device half. The approval was
-      # sent four seconds before the board's first submit reached the service
-      # and was refused at claim-window-open, which is the ordering #135
-      # specifies, observed rather than reasoned about. It is in the module's
-      # troubleshooting table for that reason.
-      operator_half_before_device_half_refused_on_the_board: validated
-      # E-7-06 witnessed by the board. ./course claim revoke marked the
-      # board's own Operational certificate revoked and the board was refused
-      # at certificate-active on its next request. The board's account of that
+      # observed after the erase rather than inherited from an earlier run.
+      unclaimed_device_refuses_restricted_endpoints_after_erase: pending
+      # E-7-14 witnessed by the board rather than by the fixture. A press on a
+      # still-claimed identity generates a pending key and a nonce, the
+      # Learner's own owner approves it, and the service refuses at
+      # device-unowned without touching the issued identity. The fixture's
+      # own E-7-14 uses a synthetic device; this one uses the board.
+      e7_14_device_unowned_refused_on_the_board: pending
+      # The operator half arriving before the device half is refused at
+      # claim-window-open, which is the ordering #135 specifies. It is in the
+      # module's troubleshooting table for that reason.
+      operator_half_before_device_half_refused_on_the_board: pending
+      # E-7-06 witnessed by the board. ./course claim revoke marks the board's
+      # own Operational certificate revoked and the board is refused at
+      # certificate-active on its next request. The board's account of that
       # refusal is the module's prepared Mentor failure, because it is
       # genuinely misleading: the handshake succeeds and says so, and the
       # assignment path never reads the 403 before parsing, so a correct
       # authorization decision reaches the console as
-      # "ota.assignment missing release_id or image_path". The revocation was
-      # removed afterwards and the board was observed reaching the service on
-      # its Operational identity again.
-      e7_06_revoked_certificate_refused_on_the_board: validated
+      # "ota.assignment missing release_id or image_path". Removing the
+      # revocation lets the board reach the service on its Operational
+      # identity again.
+      e7_06_revoked_certificate_refused_on_the_board: pending
 
 tiers:
   "00":
