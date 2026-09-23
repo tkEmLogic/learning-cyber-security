@@ -360,8 +360,10 @@ not light regardless of firmware, which is why the hardware run recorded above
 lists the onboard LED as not available. That was a board wiring limitation,
 not something a Zephyr driver or devicetree overlay could fix.
 
-The beacon LED behavior is therefore possible on the ESP32-C6-DevKitC-1, and
-the firmware for it is tracked separately. This document records no observed
-LED behavior until the LED has been seen working on the board. The Reference
-product reports its simulated machine state on the serial console, and that
-console output stays the primary record either way.
+On the ESP32-C6-DevKitC-1 the LED was watched during the Tier 0 run (#224).
+It showed solid green for steady, red blinking fast for the fast state, and red
+blinking slowly for the slow state, so the colour order in the driver is right.
+The board boots normally with `GPIO8`, a strapping pin, driving the LED.
+Channel value 24 was too bright to look at comfortably, and 8 is now the
+default. The Reference product reports its simulated machine state on the
+serial console as well, and that console output stays the primary record.

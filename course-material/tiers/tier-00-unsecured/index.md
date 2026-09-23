@@ -67,8 +67,6 @@ The pinned toolchain is Zephyr 4.4.2, MCUboot 2.4.0, and Zephyr SDK 1.0.1. The c
 
 A physical ESP32-C6 is optional for the host work and required for flash, serial, LED, Wi-Fi, and altered-image execution evidence. A board needs a Linux machine.
 
-One note about the device output quoted in this module. Every serial line in it was recorded on the board the course used before, a nanoESP32-C6 1.0, and no tier has yet been run on the ESP32-C6-DevKitC-1 this course now targets. Treat the quoted lines as what to expect rather than as a result on your board, record what you actually see, and raise any difference with a Mentor instead of editing your observation to match the page.
-
 ## Weakness ledger before the work
 
 | Identifier | Weakness | Attack vector | Expected Tier 0 result | Planned tier |
@@ -173,7 +171,7 @@ Expected result:
 ```text
 Generated: .course-state/firmware/tier-00-baseline.conf for 192.168.0.10:8080, network "course-lab"
 + COURSE_FIRMWARE_CONF=<path> ZEPHYR_BUILD_DIR=<path> ./scripts/build-zephyr-baseline.sh
-Result: built baseline release tier-00-baseline, 590428 bytes
+Result: built baseline release tier-00-baseline, 590956 bytes
 ```
 
 Your byte count will be close to that rather than equal to it. The Wi-Fi network name and the service address are compiled into the image, so a longer network name makes a slightly larger image. A difference of a few tens of bytes is normal and means nothing is wrong.
@@ -182,7 +180,7 @@ Your byte count will be close to that rather than equal to it. The Wi-Fi network
 
 The build copies the finished image to `artifacts/generated/releases/tier-00-baseline.bin` and makes it the release the service assigns.
 
-The firmware models steady, fast-blink, and slow-blink states and reports the state on the serial console. It also drives the onboard RGB LED of the ESP32-C6-DevKitC-1, on `GPIO8`: solid green for steady, and red blinking at the state's own rate for the two error states. Nobody has yet watched that LED light, so the course claims nothing about it, and the serial console stays the record this tier collects.
+The firmware models steady, fast-blink, and slow-blink states and reports the state on the serial console. It also drives the onboard RGB LED of the ESP32-C6-DevKitC-1, on `GPIO8`: solid green for steady, and red blinking at the state's own rate for the two error states. The serial console reports the same state, and it stays the record this tier collects.
 
 The firmware joins the Wi-Fi network, reports its status over plain HTTP, reads its update assignment, and installs any release the service names.
 
@@ -210,12 +208,18 @@ Watch the device:
 ./course device logs
 ```
 
-Press the board's reset button. Expected result:
+Press the board's reset button. The RGB LED lights solid green. Expected result:
 
 ```text
 ESP32-C6 Reference product: intentionally unsecured Tier 0
 Image label: baseline
 Running release: tier-00-baseline
+Board: esp32c6_devkitc/esp32c6/hpcore
+Tier 0 boot mode: unsigned MCUboot, swap using offset, no test boot, no rollback
+Synthetic shared device identifier: beacon-development-shared
+OTA service: http://192.168.0.10:8080
+Beacon state: steady, toggle period: 0 ms
+Hardware note: the onboard RGB LED on GPIO8 shows the same beacon state as the console
 wifi.connecting ssid=course-lab security=wpa2-psk band=2.4GHz
 wifi.association succeeded ssid=course-lab
 wifi.address 192.168.0.34 assigned by DHCP
@@ -392,9 +396,9 @@ Within one poll interval the device reads the new assignment and installs it. Ex
 ```text
 ota.assignment release_id=tier-00-altered version=0.0.0-altered image=tier-00-altered.bin
 ota.assignment differs from running release tier-00-baseline, installing without any check
-ota.install starting release_id=tier-00-altered version=0.0.0-altered size=590412
+ota.install starting release_id=tier-00-altered version=0.0.0-altered size=590940
 ota.install declared_sha256=... (Tier 0 does not check it)
-ota.install wrote 590412 bytes to the secondary slot
+ota.install wrote 590940 bytes to the secondary slot
 ota.upgrade requested a permanent swap, no test boot, no rollback
 Rebooting into the newly installed image
 ```
@@ -404,11 +408,18 @@ MCUboot then swaps the downloaded image into the primary slot:
 ```text
 I: Starting bootloader
 I: Image index: 0, Swap type: perm
-I: Primary image: magic=good, swap_type=0x3, copy_done=0x1, image_ok=0x1
+I: Primary image: magic=unset, swap_type=0x1, copy_done=0x3, image_ok=0x3
 I: Secondary image: magic=good, swap_type=0x3, copy_done=0x3, image_ok=0x1
 I: Boot source: none
+I: Image index: 0, Swap type: perm
+I: Image index: 0, Swap type: perm
+I: Image index: 0, Swap type: perm
 I: Starting swap using offset algorithm.
+I: Image index: 0, Swap type: none
+I: Image index: 0, Swap type: none
+I: Image index: 0, Swap type: none
 I: Bootloader chainload address offset: 0x20000
+I: Image version: v0.0.0
 I: Jumping to the first image slot
 ```
 
@@ -419,8 +430,15 @@ After the reboot the board runs the altered image:
 ```text
 Image label: altered
 Running release: tier-00-altered
+Board: esp32c6_devkitc/esp32c6/hpcore
+Tier 0 boot mode: unsigned MCUboot, swap using offset, no test boot, no rollback
+Synthetic shared device identifier: beacon-development-shared
+OTA service: http://192.168.0.10:8080
 Beacon state: fast, toggle period: 200 ms
+Hardware note: the onboard RGB LED on GPIO8 shows the same beacon state as the console
 ```
+
+The RGB LED now blinks red, fast. That is the altered image's machine state, and it is the only thing on the device a person on the factory floor would notice.
 
 The device accepted firmware from an unauthenticated service, with no signature and no publisher identity. Nothing in Tier 0 could have stopped it. That is `T0-W-04`.
 
@@ -436,7 +454,7 @@ The service assigns the baseline release again. The device installs it on its ne
 
 Notice what the reset just proved. The device accepted an older release over a newer one without complaint, because Tier 0 has no anti-rollback policy. That is `T0-W-06`, and you demonstrated it by undoing your own attack.
 
-Record what you observed in the accepted-image record. Set `device_flash`, `device_boot`, and `serial_record` to your observation. Set `led_behavior` to what the onboard LED did, and leave it pending if you did not watch it: the course has never seen this LED light, so there is no expected result here for you to match.
+Record what you observed in the accepted-image record. Set `device_flash`, `device_boot`, and `serial_record` to your observation. Set `led_behavior` to what the onboard LED did: solid green for the baseline, and red blinking fast for the altered image. Leave it pending if you did not watch it.
 
 ## Replay the original observation
 
@@ -502,7 +520,7 @@ The supported statement is limited to what you observed: the local service and f
 
 Without a board, the firmware build supports only a build claim for the pinned target. Physical flash, serial output, Wi-Fi behavior, and altered-image execution stay pending.
 
-With a board, you can record flash, serial output, Wi-Fi association, the HTTP exchange, the OTA download, and altered-image execution as observed. LED behavior is yours to record as well, from what the onboard LED did. The firmware drives that LED and the course has not yet watched it on hardware, so `course.yml` carries the row as not observed rather than as an expected result.
+With a board, you can record flash, serial output, Wi-Fi association, the HTTP exchange, the OTA download, and altered-image execution as observed. LED behavior is yours to record as well, from what the onboard LED did.
 
 Run `./course device status` to see which hardware results the course currently claims.
 
@@ -553,7 +571,7 @@ Learner Tier 0 evidence is complete and bound to the current revision and Course
 | A fixture stays blocked | Run `./course attack reset <fixture>` exactly as the fixture printed it |
 | The board never reaches the service | Confirm `./course setup --bind` used your machine's private address, not loopback |
 | No serial device exists | Keep hardware results pending |
-| The onboard LED stays dark | Record `led_behavior` as pending and write down what you saw. The course has not confirmed this LED on hardware, the serial console is the evidence this tier collects, and `CONFIG_COURSE_BEACON_LED=n` turns the LED off if you would rather not have it |
+| The onboard LED stays dark | Check that the boot banner says the RGB LED shows the beacon state. If it does, record `led_behavior` as pending and write down what you saw. The serial console is the evidence this tier collects, and `CONFIG_COURSE_BEACON_LED=n` turns the LED off if you would rather not have it |
 | The container refuses to start | Attach the board before opening the editor, or remove the `--device` line |
 
 ## Informal Mentor conversation

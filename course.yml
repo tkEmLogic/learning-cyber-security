@@ -391,17 +391,18 @@ verification:
     receipt: .course-state/receipts/tier-00.json
     revision_bound: true
     hardware:
-      flash: pending
-      serial: pending
-      wifi_association: pending
-      http_exchange: pending
-      ota_download: pending
-      altered_image_execution: pending
-      # firmware/common drives the DevKitC-1's WS2812 on GPIO8 behind
-      # CONFIG_COURSE_BEACON_LED, and every tier builds with it. No one has
-      # yet seen it light, so the timing, the color, the GPIO8 pinmux and the
-      # brightness are all unobserved. Implemented is not validated.
-      led_behavior: not_observed_firmware_drives_it
+      flash: validated
+      serial: validated
+      wifi_association: validated
+      http_exchange: validated
+      ota_download: validated
+      altered_image_execution: validated
+      # Issue #224. A person watched the WS2812 on GPIO8: solid green for the
+      # baseline, red blinking fast for the altered image, and red blinking
+      # slowly for a bench build with the slow state. The colour order is
+      # right, and the board boots normally with the strapping pin driven.
+      # Brightness 24 was too bright, so the default is now 8.
+      led_behavior: validated
   tier_02:
     command: [./scripts/verify-tier-00.sh]
     receipt: .course-state/receipts/tier-02.json

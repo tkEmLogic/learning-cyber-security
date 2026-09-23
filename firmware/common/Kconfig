@@ -97,15 +97,15 @@ config COURSE_BEACON_LED_BRIGHTNESS
 	int "Brightness of each LED channel, 1 to 255"
 	depends on COURSE_BEACON_LED
 	range 1 255
-	default 24
+	default 8
 	help
 	  How hard the LED's lit colour channel is driven. Steady lights the
 	  green channel alone, and the two blinking error states light the red
 	  channel alone, so only one channel is ever on at a time.
 
 	  A WS2812 at its full value of 255 is uncomfortably bright to sit
-	  beside on a desk, and it draws about twenty milliamps per channel. The
-	  default of 24 is easy to see indoors and easy to look at. Raise it if
-	  you are working in daylight.
+	  beside on a desk, and it draws about twenty milliamps per channel. On
+	  the DevKitC-1, 24 was still too bright to look at comfortably, and 8
+	  was easy to see indoors. Raise it if you are working in daylight.
 
 endmenu
