@@ -99,13 +99,12 @@ config COURSE_BEACON_LED_BRIGHTNESS
 	range 1 255
 	default 24
 	help
-	  How hard each of the LED's three colour channels is driven. All three
-	  are driven equally, which gives white, because the product in the
-	  course story has one monochrome indicator and tells its states apart
-	  by blink rate rather than by colour.
+	  How hard the LED's lit colour channel is driven. Steady lights the
+	  green channel alone, and the two blinking error states light the red
+	  channel alone, so only one channel is ever on at a time.
 
 	  A WS2812 at its full value of 255 is uncomfortably bright to sit
-	  beside on a desk, and it draws about sixty milliamps per channel. The
+	  beside on a desk, and it draws about twenty milliamps per channel. The
 	  default of 24 is easy to see indoors and easy to look at. Raise it if
 	  you are working in daylight.
 

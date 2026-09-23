@@ -79,16 +79,16 @@ Source: Wayfinder map [#1](https://github.com/tkEmLogic/learning-cyber-security/
 
 | Behavior | Detail |
 | --- | --- |
-| Indicator | One monochrome LED. |
-| Normal operation | Steady light. |
+| Indicator | One RGB LED. |
+| Normal operation | Steady green light. |
 | Device off | No light. |
-| Fictional error state 1 | Fast blinking. |
-| Fictional error state 2 | Slow blinking. |
+| Fictional error state 1 | Fast red blinking. |
+| Fictional error state 2 | Slow red blinking. |
 | State change | Caused by software logic or a test input. |
 | Status reporting | Over Wi-Fi to a service on the local network. |
 | Software updates | Received over Wi-Fi. |
 
-The Indicator row describes the fictional product, not the development kit. The ESP32-C6-DevKitC-1 carries one addressable RGB LED, and the course drives it in a single color, so the observable behavior is exactly the steady, fast-blinking, and slow-blinking states above. The product stays specified as one monochrome indicator, because no color in this product carries meaning. Adding color would change the fictional product rather than describe the hardware.
+The ESP32-C6-DevKitC-1 carries one addressable RGB LED, and the course drives it exactly as the table says. Color tells the observer whether the machine is healthy: green is normal and red is an error. The blink rate tells the two error states apart. The kit also has a red power LED that firmware cannot control, and it is not the indicator.
 
 ### Protected assets
 

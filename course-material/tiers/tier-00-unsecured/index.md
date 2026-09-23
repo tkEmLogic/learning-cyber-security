@@ -182,7 +182,7 @@ Your byte count will be close to that rather than equal to it. The Wi-Fi network
 
 The build copies the finished image to `artifacts/generated/releases/tier-00-baseline.bin` and makes it the release the service assigns.
 
-The firmware models steady, fast-blink, and slow-blink states and reports the state on the serial console. It also drives the onboard RGB LED of the ESP32-C6-DevKitC-1, on `GPIO8`, in a single color: lit for steady, and blinking at the state's own rate for the two error states. Nobody has yet watched that LED light, so the course claims nothing about it, and the serial console stays the record this tier collects.
+The firmware models steady, fast-blink, and slow-blink states and reports the state on the serial console. It also drives the onboard RGB LED of the ESP32-C6-DevKitC-1, on `GPIO8`: solid green for steady, and red blinking at the state's own rate for the two error states. Nobody has yet watched that LED light, so the course claims nothing about it, and the serial console stays the record this tier collects.
 
 The firmware joins the Wi-Fi network, reports its status over plain HTTP, reads its update assignment, and installs any release the service names.
 
@@ -191,6 +191,10 @@ Flash, serial logs, and OTA installation stay pending until you test them on a p
 ### Flash the board and watch it work
 
 This step needs a physical ESP32-C6 on a Linux machine. Skip it otherwise and keep the hardware fields pending.
+
+The kit has two USB-C connectors. Use the one marked **USB** on the board, not the one marked **UART**. On Linux the USB connector appears as `/dev/ttyACM0`, and the UART connector appears as `/dev/ttyUSB0`.
+
+A small red LED lights as soon as the kit has power. That is the power LED, and firmware cannot control it. It does not mean the beacon is in its steady state. The beacon's indicator is the separate RGB LED.
 
 Attach one board, then run:
 
