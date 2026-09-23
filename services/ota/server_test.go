@@ -618,7 +618,7 @@ func assertRefusal(t *testing.T, status int, body map[string]any, check string) 
 func TestFactoryIdentityIsRefusedAtTheDownloadEndpoint(t *testing.T) {
 	f := newMutualFixture(t)
 	now := time.Now()
-	factory, _ := f.manufacturer.issue(t, 4001, "beacon-remfg-404cca5ea9fc", "",
+	factory, _ := f.manufacturer.issue(t, 4001, "beacon-remfg-206ef1170d64", "",
 		now.Add(-time.Hour), now.Add(time.Hour))
 
 	status, body := f.refusalOf(t, present(t, f.manufacturer, factory,
@@ -637,12 +637,12 @@ func TestFactoryIdentityIsRefusedAtTheDownloadEndpoint(t *testing.T) {
 func TestOperationalIdentityIsRefusedAtTheClaimEndpoint(t *testing.T) {
 	f := newMutualFixture(t)
 	now := time.Now()
-	operational, _ := f.operational.issue(t, 7001, "beacon-remfg-404cca5ea9fc", "northwind",
+	operational, _ := f.operational.issue(t, 7001, "beacon-remfg-206ef1170d64", "northwind",
 		now.Add(-time.Hour), now.Add(90*24*time.Hour))
-	f.claim(t, "beacon-remfg-404cca5ea9fc", "northwind", 7001)
+	f.claim(t, "beacon-remfg-206ef1170d64", "northwind", 7001)
 
 	status, body := f.refusalOf(t, present(t, f.operational, operational, http.MethodPost,
-		"https://ota.course.example/v1/devices/beacon-remfg-404cca5ea9fc/claim", `{"nonce":"x"}`))
+		"https://ota.course.example/v1/devices/beacon-remfg-206ef1170d64/claim", `{"nonce":"x"}`))
 	assertRefusal(t, status, body, CheckIdentityFactory)
 }
 
@@ -651,9 +651,9 @@ func TestOperationalIdentityIsRefusedAtTheClaimEndpoint(t *testing.T) {
 func TestExpiredOperationalCertificateIsRefused(t *testing.T) {
 	f := newMutualFixture(t)
 	now := time.Now()
-	expired, _ := f.operational.issue(t, 7002, "beacon-remfg-404cca5ea9fc", "northwind",
+	expired, _ := f.operational.issue(t, 7002, "beacon-remfg-206ef1170d64", "northwind",
 		now.Add(-200*24*time.Hour), now.Add(-24*time.Hour))
-	f.claim(t, "beacon-remfg-404cca5ea9fc", "northwind", 7002)
+	f.claim(t, "beacon-remfg-206ef1170d64", "northwind", 7002)
 
 	status, body := f.refusalOf(t, present(t, f.operational, expired,
 		http.MethodGet, "https://ota.course.example/v1/releases/current", ""))
@@ -668,9 +668,9 @@ func TestExpiredOperationalCertificateIsRefused(t *testing.T) {
 func TestRevokedCertificateIsRefusedThoughUnexpired(t *testing.T) {
 	f := newMutualFixture(t)
 	now := time.Now()
-	cert, _ := f.operational.issue(t, 7003, "beacon-remfg-404cca5ea9fc", "northwind",
+	cert, _ := f.operational.issue(t, 7003, "beacon-remfg-206ef1170d64", "northwind",
 		now.Add(-time.Hour), now.Add(90*24*time.Hour))
-	f.claim(t, "beacon-remfg-404cca5ea9fc", "northwind", 7003)
+	f.claim(t, "beacon-remfg-206ef1170d64", "northwind", 7003)
 	f.revoke(t, 7003)
 
 	status, body := f.refusalOf(t, present(t, f.operational, cert,
@@ -687,9 +687,9 @@ func TestRevokedCertificateIsRefusedThoughUnexpired(t *testing.T) {
 func TestCertificateTheServiceNeverIssuedIsRefused(t *testing.T) {
 	f := newMutualFixture(t)
 	now := time.Now()
-	forged, _ := f.operational.issue(t, 9999, "beacon-remfg-404cca5ea9fc", "northwind",
+	forged, _ := f.operational.issue(t, 9999, "beacon-remfg-206ef1170d64", "northwind",
 		now.Add(-time.Hour), now.Add(90*24*time.Hour))
-	f.claim(t, "beacon-remfg-404cca5ea9fc", "northwind", 7004)
+	f.claim(t, "beacon-remfg-206ef1170d64", "northwind", 7004)
 
 	status, body := f.refusalOf(t, present(t, f.operational, forged,
 		http.MethodGet, "https://ota.course.example/v1/releases/baseline/manifest", ""))
@@ -723,8 +723,8 @@ func TestUnclaimedDeviceIsRefused(t *testing.T) {
 func TestWrongOwnerScopeIsRefused(t *testing.T) {
 	f := newMutualFixture(t)
 	now := time.Now()
-	f.claim(t, "beacon-remfg-404cca5ea9fc", "northwind", 7006)
-	forged, _ := f.operational.issue(t, 7006, "beacon-remfg-404cca5ea9fc", "rival-labs",
+	f.claim(t, "beacon-remfg-206ef1170d64", "northwind", 7006)
+	forged, _ := f.operational.issue(t, 7006, "beacon-remfg-206ef1170d64", "rival-labs",
 		now.Add(-time.Hour), now.Add(90*24*time.Hour))
 
 	status, body := f.refusalOf(t, present(t, f.operational, forged,
@@ -746,9 +746,9 @@ func TestWrongOwnerScopeIsRefused(t *testing.T) {
 func TestEventPathIdentifierMustMatchTheCertificate(t *testing.T) {
 	f := newMutualFixture(t)
 	now := time.Now()
-	cert, _ := f.operational.issue(t, 7007, "beacon-remfg-404cca5ea9fc", "northwind",
+	cert, _ := f.operational.issue(t, 7007, "beacon-remfg-206ef1170d64", "northwind",
 		now.Add(-time.Hour), now.Add(90*24*time.Hour))
-	f.claim(t, "beacon-remfg-404cca5ea9fc", "northwind", 7007)
+	f.claim(t, "beacon-remfg-206ef1170d64", "northwind", 7007)
 
 	status, body := f.refusalOf(t, present(t, f.operational, cert, http.MethodPost,
 		"https://ota.course.example/v1/devices/beacon-development-clone/events",
@@ -761,15 +761,15 @@ func TestEventPathIdentifierMustMatchTheCertificate(t *testing.T) {
 func TestEventBodyIdentifierMustMatchTheCertificate(t *testing.T) {
 	f := newMutualFixture(t)
 	now := time.Now()
-	cert, _ := f.operational.issue(t, 7008, "beacon-remfg-404cca5ea9fc", "northwind",
+	cert, _ := f.operational.issue(t, 7008, "beacon-remfg-206ef1170d64", "northwind",
 		now.Add(-time.Hour), now.Add(90*24*time.Hour))
-	f.claim(t, "beacon-remfg-404cca5ea9fc", "northwind", 7008)
+	f.claim(t, "beacon-remfg-206ef1170d64", "northwind", 7008)
 
 	status, body := f.refusalOf(t, present(t, f.operational, cert, http.MethodPost,
-		"https://ota.course.example/v1/devices/beacon-remfg-404cca5ea9fc/events",
+		"https://ota.course.example/v1/devices/beacon-remfg-206ef1170d64/events",
 		`{"device_id":"beacon-development-clone","event_type":"status.observed"}`))
 	assertRefusal(t, status, body, CheckIdentifierConsistent)
-	if body["device_id"] != "beacon-remfg-404cca5ea9fc" {
+	if body["device_id"] != "beacon-remfg-206ef1170d64" {
 		t.Fatalf("device_id = %v, want the certificate's, never the body's", body["device_id"])
 	}
 }
@@ -779,9 +779,9 @@ func TestEventBodyIdentifierMustMatchTheCertificate(t *testing.T) {
 func TestValidOperationalIdentityIsServed(t *testing.T) {
 	f := newMutualFixture(t)
 	now := time.Now()
-	cert, _ := f.operational.issue(t, 7009, "beacon-remfg-404cca5ea9fc", "northwind",
+	cert, _ := f.operational.issue(t, 7009, "beacon-remfg-206ef1170d64", "northwind",
 		now.Add(-time.Hour), now.Add(90*24*time.Hour))
-	f.claim(t, "beacon-remfg-404cca5ea9fc", "northwind", 7009)
+	f.claim(t, "beacon-remfg-206ef1170d64", "northwind", 7009)
 
 	recorder := httptest.NewRecorder()
 	f.server.DeviceHandler().ServeHTTP(recorder, present(t, f.operational, cert,
@@ -792,8 +792,8 @@ func TestValidOperationalIdentityIsServed(t *testing.T) {
 
 	recorder = httptest.NewRecorder()
 	f.server.DeviceHandler().ServeHTTP(recorder, present(t, f.operational, cert, http.MethodPost,
-		"https://ota.course.example/v1/devices/beacon-remfg-404cca5ea9fc/events",
-		`{"device_id":"beacon-remfg-404cca5ea9fc","event_type":"status.observed"}`))
+		"https://ota.course.example/v1/devices/beacon-remfg-206ef1170d64/events",
+		`{"device_id":"beacon-remfg-206ef1170d64","event_type":"status.observed"}`))
 	if recorder.Code != http.StatusAccepted {
 		t.Fatalf("event = %d, want 202: %s", recorder.Code, recorder.Body.String())
 	}
@@ -812,7 +812,7 @@ func TestValidOperationalIdentityIsServed(t *testing.T) {
 	if len(stored) != 1 {
 		t.Fatalf("stored %d event lines, want 1", len(stored))
 	}
-	if stored[0]["accepted_from"] != "client_certificate" || stored[0]["certificate_device_id"] != "beacon-remfg-404cca5ea9fc" {
+	if stored[0]["accepted_from"] != "client_certificate" || stored[0]["certificate_device_id"] != "beacon-remfg-206ef1170d64" {
 		t.Fatalf("the record must say which value the service believed and why: %#v", stored[0])
 	}
 	if _, old := stored[0]["tier_00_trust"]; old {
@@ -827,7 +827,7 @@ func TestValidOperationalIdentityIsServed(t *testing.T) {
 func TestRefusalsAreRecordedInTheServiceEventLog(t *testing.T) {
 	f := newMutualFixture(t)
 	now := time.Now()
-	factory, _ := f.manufacturer.issue(t, 4002, "beacon-remfg-404cca5ea9fc", "",
+	factory, _ := f.manufacturer.issue(t, 4002, "beacon-remfg-206ef1170d64", "",
 		now.Add(-time.Hour), now.Add(time.Hour))
 
 	status, _ := f.refusalOf(t, present(t, f.manufacturer, factory,
@@ -844,7 +844,7 @@ func TestRefusalsAreRecordedInTheServiceEventLog(t *testing.T) {
 	if row["source"] != "service" || row["check"] != CheckIdentityOperational {
 		t.Fatalf("refusal row = %#v", row)
 	}
-	if row["certificate_serial"] != "4002" || row["certificate_subject"] != "beacon-remfg-404cca5ea9fc" {
+	if row["certificate_serial"] != "4002" || row["certificate_subject"] != "beacon-remfg-206ef1170d64" {
 		t.Fatalf("the service's own trail keeps what the wire body withholds: %#v", row)
 	}
 	if _, asserted := row["device_id"]; asserted {
@@ -882,7 +882,7 @@ func TestForeignIssuerFailsAtTheHandshakeWithNoCheckName(t *testing.T) {
 	f := newMutualFixture(t)
 	foreign := newTestAuthority(t, "Learning Cyber Security Untrusted CA")
 	now := time.Now()
-	leaf, key := foreign.issue(t, 1, "beacon-remfg-404cca5ea9fc", "northwind",
+	leaf, key := foreign.issue(t, 1, "beacon-remfg-206ef1170d64", "northwind",
 		now.Add(-time.Hour), now.Add(time.Hour))
 
 	response, err := f.overTheWire(t, leaf, key, "/v1/releases/current")
@@ -908,9 +908,9 @@ func TestForeignIssuerFailsAtTheHandshakeWithNoCheckName(t *testing.T) {
 // never heard of your authority". Both rows now exist and they differ.
 func TestExpiredCertificateIsRefusedByACheckAndNotByTheHandshake(t *testing.T) {
 	f := newMutualFixture(t)
-	f.claim(t, "beacon-remfg-404cca5ea9fc", "northwind", 7101)
+	f.claim(t, "beacon-remfg-206ef1170d64", "northwind", 7101)
 	now := time.Now()
-	expired, key := f.operational.issue(t, 7101, "beacon-remfg-404cca5ea9fc", "northwind",
+	expired, key := f.operational.issue(t, 7101, "beacon-remfg-206ef1170d64", "northwind",
 		now.Add(-200*24*time.Hour), now.Add(-24*time.Hour))
 
 	response, err := f.overTheWire(t, expired, key, "/v1/releases/current")

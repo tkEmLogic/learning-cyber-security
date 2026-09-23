@@ -313,7 +313,7 @@ func TestDeviceIdentifiersAreValidated(t *testing.T) {
 			t.Fatalf("accepted device identifier %q", bad)
 		}
 	}
-	if err := validateDeviceID("beacon-404cca5ea9fc"); err != nil {
+	if err := validateDeviceID("beacon-206ef1170d64"); err != nil {
 		t.Fatalf("rejected a good identifier: %v", err)
 	}
 }

@@ -105,7 +105,7 @@ func (f *mutualFixture) claimable(t *testing.T, deviceID, owner, credential stri
 // same POST it opened the window with.
 func TestBothHalvesTogetherIssueAnOwnerScopedCertificate(t *testing.T) {
 	f := newMutualFixture(t)
-	device := "beacon-claim-404cca5ea9fc"
+	device := "beacon-claim-206ef1170d64"
 	factory := f.claimable(t, device, "northwind", "owner-secret")
 	csr := certificationRequest(t, device)
 
@@ -181,7 +181,7 @@ func TestBothHalvesTogetherIssueAnOwnerScopedCertificate(t *testing.T) {
 // fingerprint and never a secret.
 func TestNoClaimSecretIsEverWritten(t *testing.T) {
 	f := newMutualFixture(t)
-	device := "beacon-claim-404cca5ea9fd"
+	device := "beacon-claim-206ef1170d65"
 	factory := f.claimable(t, device, "northwind", "owner-secret")
 	f.deviceHalf(t, factory, device, testNonce, certificationRequest(t, device))
 	f.operatorHalf(t, "owner-secret", device, testNonce)
@@ -208,11 +208,11 @@ func TestNoClaimSecretIsEverWritten(t *testing.T) {
 // refused by the same rule as one naming a neighbour in a path.
 func TestTheCertificationRequestMustNameTheSameDevice(t *testing.T) {
 	f := newMutualFixture(t)
-	device := "beacon-claim-404cca5ea9fc"
+	device := "beacon-claim-206ef1170d64"
 	factory := f.claimable(t, device, "northwind", "owner-secret")
 
 	status, body := f.deviceHalf(t, factory, device, testNonce,
-		certificationRequest(t, "beacon-claim-404cca5ea9ff"))
+		certificationRequest(t, "beacon-claim-206ef1170d66"))
 	assertRefusal(t, status, body, CheckIdentifierConsistent)
 	if body["device_id"] != device {
 		t.Fatalf("device_id = %v, want %q: certificate-active has passed by here", body["device_id"], device)
@@ -223,7 +223,7 @@ func TestTheCertificationRequestMustNameTheSameDevice(t *testing.T) {
 // device that never called.
 func TestAnOperatorHalfWithNoDeviceHalfIsRefused(t *testing.T) {
 	f := newMutualFixture(t)
-	device := "beacon-claim-404cca5ea9fc"
+	device := "beacon-claim-206ef1170d64"
 	f.claimable(t, device, "northwind", "owner-secret")
 
 	status, body := f.operatorHalf(t, "owner-secret", device, testNonce)
@@ -237,7 +237,7 @@ func TestAnOperatorHalfWithNoDeviceHalfIsRefused(t *testing.T) {
 // The service is the only party that decides a claim is expired.
 func TestAnExpiredClaimWindowIsRefused(t *testing.T) {
 	f := newMutualFixture(t)
-	device := "beacon-claim-404cca5ea9fc"
+	device := "beacon-claim-206ef1170d64"
 	factory := f.claimable(t, device, "northwind", "owner-secret")
 	f.deviceHalf(t, factory, device, testNonce, certificationRequest(t, device))
 
@@ -251,7 +251,7 @@ func TestAnExpiredClaimWindowIsRefused(t *testing.T) {
 // Four backed-off attempts, and only a wrong nonce spends one.
 func TestOnlyNonceMatchSpendsAnAttemptAndFourClosesTheWindow(t *testing.T) {
 	f := newMutualFixture(t)
-	device := "beacon-claim-404cca5ea9fc"
+	device := "beacon-claim-206ef1170d64"
 	factory := f.claimable(t, device, "northwind", "owner-secret")
 	var delays []time.Duration
 	f.server.claimSleep = func(d time.Duration) { delays = append(delays, d) }
@@ -285,7 +285,7 @@ func TestOnlyNonceMatchSpendsAnAttemptAndFourClosesTheWindow(t *testing.T) {
 // closes a Learner's window without ever guessing.
 func TestARefusalThatIsNotNonceMatchSpendsNothing(t *testing.T) {
 	f := newMutualFixture(t)
-	device := "beacon-claim-404cca5ea9fc"
+	device := "beacon-claim-206ef1170d64"
 	factory := f.claimable(t, device, "northwind", "owner-secret")
 	f.deviceHalf(t, factory, device, testNonce, certificationRequest(t, device))
 
@@ -297,7 +297,7 @@ func TestARefusalThatIsNotNonceMatchSpendsNothing(t *testing.T) {
 		}
 	}
 	// A wrong device names no window of this one's.
-	f.operatorHalf(t, "owner-secret", "beacon-claim-404cca5ea9ff", testNonce)
+	f.operatorHalf(t, "owner-secret", "beacon-claim-206ef1170d66", testNonce)
 
 	status, answer := f.operatorHalf(t, "owner-secret", device, testNonce)
 	if status != http.StatusOK || answer["result"] != "claimed" {
@@ -314,7 +314,7 @@ func TestARefusalThatIsNotNonceMatchSpendsNothing(t *testing.T) {
 // to earn on its own rather than borrow from the fixture.
 func TestAReplayedNonceOnAnOwnedDeviceRefusesAtNonceUnspent(t *testing.T) {
 	f := newMutualFixture(t)
-	device := "beacon-claim-404cca5ea9fc"
+	device := "beacon-claim-206ef1170d64"
 	factory := f.claimable(t, device, "northwind", "owner-secret")
 	f.deviceHalf(t, factory, device, testNonce, certificationRequest(t, device))
 	if status, answer := f.operatorHalf(t, "owner-secret", device, testNonce); status != http.StatusOK {
@@ -334,7 +334,7 @@ func TestAReplayedNonceOnAnOwnedDeviceRefusesAtNonceUnspent(t *testing.T) {
 // the window is memory and the fact that a nonce was spent is not.
 func TestASpentNonceIsStillSpentAfterARestart(t *testing.T) {
 	f := newMutualFixture(t)
-	device := "beacon-claim-404cca5ea9fc"
+	device := "beacon-claim-206ef1170d64"
 	factory := f.claimable(t, device, "northwind", "owner-secret")
 	f.deviceHalf(t, factory, device, testNonce, certificationRequest(t, device))
 	f.operatorHalf(t, "owner-secret", device, testNonce)
@@ -364,7 +364,7 @@ func TestASpentNonceIsStillSpentAfterARestart(t *testing.T) {
 // when it opened its window. First come, and the refusal never says who.
 func TestASecondOwnerIsRefusedAtDeviceUnowned(t *testing.T) {
 	f := newMutualFixture(t)
-	device := "beacon-claim-404cca5ea9fc"
+	device := "beacon-claim-206ef1170d64"
 	factory := f.claimable(t, device, "northwind", "owner-secret")
 	f.addOwner(t, "rival-labs", "rival-secret", time.Now().Add(90*24*time.Hour))
 	f.deviceHalf(t, factory, device, testNonce, certificationRequest(t, device))
@@ -384,7 +384,7 @@ func TestASecondOwnerIsRefusedAtDeviceUnowned(t *testing.T) {
 // two ways in.
 func TestASecondWindowSupersedesTheFirst(t *testing.T) {
 	f := newMutualFixture(t)
-	device := "beacon-claim-404cca5ea9fc"
+	device := "beacon-claim-206ef1170d64"
 	factory := f.claimable(t, device, "northwind", "owner-secret")
 	f.deviceHalf(t, factory, device, testNonce, certificationRequest(t, device))
 	f.deviceHalf(t, factory, device, otherNonce, certificationRequest(t, device))
@@ -400,7 +400,7 @@ func TestASecondWindowSupersedesTheFirst(t *testing.T) {
 // The window's whole trail is in the service's own event log.
 func TestTheClaimWindowTrailIsRecorded(t *testing.T) {
 	f := newMutualFixture(t)
-	device := "beacon-claim-404cca5ea9fc"
+	device := "beacon-claim-206ef1170d64"
 	factory := f.claimable(t, device, "northwind", "owner-secret")
 	f.deviceHalf(t, factory, device, testNonce, certificationRequest(t, device))
 	f.operatorHalf(t, "owner-secret", device, otherNonce)
@@ -428,7 +428,7 @@ func TestTheClaimWindowTrailIsRecorded(t *testing.T) {
 // authorization check's name.
 func TestAMalformedClaimAnswersFourHundredWithNoCheck(t *testing.T) {
 	f := newMutualFixture(t)
-	device := "beacon-claim-404cca5ea9fc"
+	device := "beacon-claim-206ef1170d64"
 	factory := f.claimable(t, device, "northwind", "owner-secret")
 
 	for _, body := range []string{
@@ -453,7 +453,7 @@ func TestAMalformedClaimAnswersFourHundredWithNoCheck(t *testing.T) {
 // confusable-free alphabet only pays if both spellings hash the same.
 func TestANonceIsCanonicalisedBeforeItIsHashed(t *testing.T) {
 	f := newMutualFixture(t)
-	device := "beacon-claim-404cca5ea9fc"
+	device := "beacon-claim-206ef1170d64"
 	factory := f.claimable(t, device, "northwind", "owner-secret")
 	f.deviceHalf(t, factory, device, testNonce, certificationRequest(t, device))
 
@@ -466,7 +466,7 @@ func TestANonceIsCanonicalisedBeforeItIsHashed(t *testing.T) {
 // The three Owner credential checks, each 401, in their published order.
 func TestTheThreeOwnerCredentialChecks(t *testing.T) {
 	f := newMutualFixture(t)
-	device := "beacon-claim-404cca5ea9fc"
+	device := "beacon-claim-206ef1170d64"
 	f.claimable(t, device, "northwind", "owner-secret")
 	f.addOwner(t, "stale-owner", "expired-secret", time.Now().Add(-time.Hour))
 
@@ -505,7 +505,7 @@ func TestTheThreeOwnerCredentialChecks(t *testing.T) {
 // authenticates without a restart.
 func TestTheOwnerStoreIsReadLive(t *testing.T) {
 	f := newMutualFixture(t)
-	device := "beacon-claim-404cca5ea9fc"
+	device := "beacon-claim-206ef1170d64"
 	f.server.claimSleep = func(time.Duration) {}
 	status, body := f.operatorHalf(t, "late-secret", device, testNonce)
 	if status != http.StatusUnauthorized || body["check"] != CheckOwnerCredentialKnown {
@@ -526,7 +526,7 @@ func TestTheOwnerStoreIsReadLive(t *testing.T) {
 // and nothing had to be seeded by hand to make that true.
 func TestTheIssuedCertificateIsServedOnTheOrdinaryEndpoints(t *testing.T) {
 	f := newMutualFixture(t)
-	device := "beacon-claim-404cca5ea9fc"
+	device := "beacon-claim-206ef1170d64"
 	factory := f.claimable(t, device, "northwind", "owner-secret")
 	f.deviceHalf(t, factory, device, testNonce, certificationRequest(t, device))
 	f.operatorHalf(t, "owner-secret", device, testNonce)

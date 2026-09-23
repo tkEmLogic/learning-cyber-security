@@ -3,9 +3,10 @@
  * same reason the application does it. See
  * boards/esp32c6_devkitc_esp32c6_hpcore.overlay.
  *
- * Without this, MCUboot's own messages go to the physical uart0 pins, which
- * the DevKitC and nanoESP32-C6 connectors do not expose, so an update that
- * stalls inside the bootloader looks like silence.
+ * Without this, MCUboot's own messages go to the physical uart0 pins. On the
+ * ESP32-C6-DevKitC-1 those reach the USB-to-UART bridge port and the header
+ * pins, which the course does not use, so an update that stalls inside the
+ * bootloader looks like silence.
  *
  * scripts/build-zephyr-baseline.sh passes this file to the mcuboot image.
  */
