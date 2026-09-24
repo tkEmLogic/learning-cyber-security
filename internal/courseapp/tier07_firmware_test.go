@@ -40,8 +40,8 @@ func TestTierSevenSignsItsOwnImage(t *testing.T) {
 	if !tierSignsItsOwnImage("07") {
 		t.Fatal("Tier 7 must build its bootloader separately and sign afterwards")
 	}
-	if got := variantsForTier("07"); len(got) != 1 {
-		t.Fatalf("Tier 7 publishes one release, got %d", len(got))
+	if got := variantsForTier("07"); len(got) != 2 {
+		t.Fatalf("Tier 7 publishes two releases, got %d", len(got))
 	}
 }
 
@@ -50,8 +50,27 @@ func TestTierSevenSignsItsOwnImage(t *testing.T) {
 // uninstallable on a board that has run Tier 7, and re-running an earlier tier
 // on the same board is how this course checks a new tier broke nothing.
 func TestTierSevenCarriesTierSixesCounter(t *testing.T) {
-	if got := tier07Variants["baseline"].securityCounter; got != tier06SecurityCounter {
-		t.Errorf("Tier 7 counter %d should still be Tier 6's %d", got, tier06SecurityCounter)
+	for name, variant := range tier07Variants {
+		if variant.securityCounter != tier06SecurityCounter {
+			t.Errorf("Tier 7 %s counter %d should still be Tier 6's %d", name, variant.securityCounter, tier06SecurityCounter)
+		}
+	}
+}
+
+// Tier 7 shows an update and a failed one with its own releases, never an
+// earlier tier's (#239). The failing release has to be a distinct release
+// carrying the same identity model, or the device would either shrug it off as
+// the release it already runs or lose its identity to a different layout.
+func TestTierSevenFailingReleaseIsItsOwn(t *testing.T) {
+	baseline, failing := tier07Variants["baseline"], tier07Variants["fail-health"]
+	if failing.releaseID == "" || failing.releaseID == baseline.releaseID {
+		t.Fatalf("fail-health needs its own release id, got %q", failing.releaseID)
+	}
+	if failing.trialBehaviour != "fail-health" {
+		t.Errorf("fail-health trial behaviour is %q", failing.trialBehaviour)
+	}
+	if failing.identityModel != baseline.identityModel {
+		t.Errorf("fail-health identity model %q differs from baseline %q", failing.identityModel, baseline.identityModel)
 	}
 }
 

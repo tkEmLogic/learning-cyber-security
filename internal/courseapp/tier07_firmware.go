@@ -35,7 +35,7 @@ const tier07SecurityCounter = 3
 // tier07Version is what imgtool stamps into the image header.
 const tier07Version = "0.7.0+0"
 
-// tier07Variants is one image, and the count is the decision.
+// tier07Variants are the two releases Tier 7 publishes from one source tree.
 //
 // Tier 6 published two because where an identity comes from was its subject.
 // Tier 7's subject is what an identity authorizes, and it takes the per-device
@@ -43,10 +43,18 @@ const tier07Version = "0.7.0+0"
 // own, so it has nothing to claim with. The comparison stays Tier 6's, and
 // Tier 6 still publishes both halves of it.
 //
-// It is still a map with a named variant rather than a bare struct, because
-// every path through the build, the signing and the flash takes a variant
-// name, and a tier that was special there would be a tier a Learner has to
-// hold differently.
+// The second release exists so that Tier 7 can show an update, and a failed
+// one, without leaving Tier 7. An earlier version borrowed a Tier 5 release
+// for that, which offered a claimed device an older tier's image: one that
+// does not share Tier 7's storage layout, cannot record its own trial on it,
+// and so reverted without anyone being told and was offered again without a
+// bound (#239). A device in the field is only ever offered its own product's
+// releases, and the lab should look like that.
+//
+// fail-health is a real, correctly signed Tier 7 image that fails one named
+// health check on its trial boot. The device downloads it over mutual TLS on
+// its Operational identity, installs it on trial, and puts the confirmed image
+// back, and the image that comes back reports the revert on the same identity.
 var tier07Variants = map[string]firmwareVariant{
 	"baseline": {
 		releaseID:       "tier-07-operational-identity",
@@ -58,12 +66,22 @@ var tier07Variants = map[string]firmwareVariant{
 		trialBehaviour:  "healthy",
 		identityModel:   "factory",
 	},
+	"fail-health": {
+		releaseID:       "tier-07-fail-health",
+		label:           "fail-health",
+		beaconState:     "steady",
+		version:         "0.7.1-fail-health",
+		imageName:       "tier-07-fail-health.bin",
+		securityCounter: tier07SecurityCounter,
+		trialBehaviour:  "fail-health",
+		identityModel:   "factory",
+	},
 }
 
 func tier07Variant(name string) (firmwareVariant, error) {
 	variant, ok := tier07Variants[name]
 	if !ok {
-		return firmwareVariant{}, fmt.Errorf("unknown Tier 7 release %q; Tier 7 publishes one, called baseline", name)
+		return firmwareVariant{}, fmt.Errorf("unknown Tier 7 release %q; use baseline or fail-health", name)
 	}
 	return variant, nil
 }
@@ -76,7 +94,7 @@ func (a *app) tier07RawImage(variant firmwareVariant) string {
 	return filepath.Join(a.tier07BuildDir(variant), "tier-07-operational-identity", "zephyr", "zephyr.bin")
 }
 
-// releaseSignTier07 signs Tier 7's one release and publishes it.
+// releaseSignTier07 signs one Tier 7 release and publishes it.
 //
 // Tier 6's sequence unchanged, including the source-revision TLV: Tier 7 keeps
 // the whole recovery path, and a revert still leaves the device running an
@@ -160,5 +178,36 @@ func (a *app) releaseSignTier07(variantName string) error {
 	fmt.Fprintf(a.out, "Result: published %s, %d bytes\n", variant.releaseID, release["image_size"])
 	fmt.Fprintln(a.out, "This image holds a Factory identity and no owner. Who owns the device is")
 	fmt.Fprintln(a.out, "decided after it is running, by a claim, and it is the service that decides.")
+	return nil
+}
+
+// releaseAssignTier07 points the service at a Tier 7 release that is already
+// signed, so the Learner can go back to baseline after fail-health without
+// signing anything again. It is Tier 6's assign with Tier 7's releases.
+func (a *app) releaseAssignTier07(variantName string) error {
+	variant, err := tier07Variant(variantName)
+	if err != nil {
+		return err
+	}
+	data, err := os.ReadFile(a.manifestPath(variant.releaseID))
+	if err != nil {
+		return fmt.Errorf("no signed %s release yet; run ./course release sign --tier 07 --variant %s first",
+			variant.label, variant.label)
+	}
+	var manifest releaseManifest
+	if err := json.Unmarshal(data, &manifest); err != nil {
+		return fmt.Errorf("the stored %s manifest is unreadable: %w", variant.label, err)
+	}
+
+	release := a.assignmentFor(manifest)
+	state := filepath.Join(a.root, a.manifest.Paths.State, "ota")
+	if err := writeJSON(filepath.Join(state, "current-release.json"), release, 0o600); err != nil {
+		return err
+	}
+
+	fmt.Fprintf(a.out, "Result: the service now offers %s, version %s, counter %d\n",
+		manifest.ReleaseID, manifest.Version, manifest.SecurityCounter)
+	fmt.Fprintln(a.out, "Every value above came from that release's own signed manifest. This command")
+	fmt.Fprintln(a.out, "signs nothing and changes no stored release.")
 	return nil
 }
