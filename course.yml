@@ -662,7 +662,10 @@ verification:
       # because this one held synthetic devices an older fixture had stranded;
       # E-7-10 ran here against the claimed board. The Tier 5 image borrowed
       # for the transfer rows cannot mount storage on this board (#239), and
-      # the identifier-consistent device observation is owed a repeat (#240).
+      # identifier_consistent_refused_on_device was repeated in #240: a claim
+      # window opened as beacon-t07a-206ef1170d64, the board was erased and
+      # re-enrolled as beacon-t07b-206ef1170d64 inside it, and the device half
+      # was refused at identifier-consistent naming both.
       # Two defects in the claim path were found on a board in #151, and both
       # were invisible to every host test. The rows below that cover the claim
       # are only honest against firmware that carries both fixes.
@@ -787,7 +790,7 @@ verification:
       # submits a request naming the old identifier while the Factory
       # certificate names the new one, and the service refuses it at
       # identifier-consistent with both names in the reason.
-      identifier_consistent_refused_on_device: pending
+      identifier_consistent_refused_on_device: validated
 
       # Not checked. The board can be asked to export its Factory key, which
       # is E-6-04, but no command asks it to export the Operational key, so
