@@ -660,8 +660,8 @@ verification:
       # beacon-t07-206ef1170d64 and claimed again, over four BOOT presses.
       # The thirteen host bypass rows ran in a fresh Course environment,
       # because this one held synthetic devices an older fixture had stranded;
-      # E-7-10 ran here against the claimed board. The Tier 5 image borrowed
-      # for the transfer rows cannot mount storage on this board (#239), and
+      # E-7-10 ran here against the claimed board. The transfer and recovery
+      # rows use Tier 7's own fail-health release since #239, and
       # identifier_consistent_refused_on_device was repeated in #240: a claim
       # window opened as beacon-t07a-206ef1170d64, the board was erased and
       # re-enrolled as beacon-t07b-206ef1170d64 inside it, and the device half
@@ -718,14 +718,11 @@ verification:
       # slot, and matching the signed digest. The service records
       # update.installed with accepted_from client_certificate.
       #
-      # A second release needs no second Tier 7 variant. The device compares
-      # only release_id against its own (ota_client.c, the already-confirmed
-      # control), so any release the board is not running is downloadable.
-      # The board must be on Tier 7 to hold an Operational identity at all, so
-      # the only image it can be offered is an earlier tier's: within a tier
-      # this course can never demonstrate an OTA update, and every OTA it does
-      # demonstrate crosses a tier boundary. tier-05-fail-health suits it
-      # because it returns the board to itself.
+      # The image is Tier 7's own second release, tier-07-fail-health (#239).
+      # An earlier campaign borrowed a Tier 5 release instead, which offered a
+      # claimed device an older tier's image that could not record its own
+      # trial on Tier 7's storage layout. A device is only ever offered its
+      # own product's releases, and the lab now looks like that.
       e7_02_image_body_transferred_over_mutual_tls: validated
       # The two hard cases in the poll implementation, counted over a real
       # image rather than #158's 64 KiB spike: polls forwarded, polls answered
@@ -740,31 +737,30 @@ verification:
       # response was honoured. The digest is taken by reading the slot back,
       # so both halves are verified as one image.
       tier5_download_resume_rerun_on_tier7_stack: validated
-      # The full Tier 5 recovery cycle on the Tier 7 stack: TEST swap, trial
-      # boot, health gate refused at update-client-ready, and MCUboot putting
-      # the confirmed Tier 7 image back without being asked. The board ends
-      # where it started, with the same identity and no remanufacture.
+      # The full recovery cycle on the Tier 7 stack: TEST swap, trial boot of
+      # tier-07-fail-health, health gate refused at update-client-ready, and
+      # MCUboot putting the confirmed Tier 7 image back without being asked.
+      # The board ends where it started, with the same identity.
       trial_revert_to_tier7_after_failed_health_gate: validated
       # The Operational identity survives image swaps and reverts: the board
       # reads back its device_id, Factory key 0x00000601, Operational key
-      # 0x00000701 and owner, and signs fresh handshakes with it. The Tier 5
-      # trial image mounts its own three sector NVS instance on the storage
-      # partition that Tiers 6 and 7 share with PSA Secure Storage as eight
-      # sectors, which is the #118/#120 hazard exercised live.
+      # 0x00000701 and owner, and signs fresh handshakes with it.
       operational_identity_survives_image_swap_and_revert: validated
       # Fixed by #175. Nothing cleared the trial record after a revert, so
       # main.c reported one from that stale record on every subsequent boot.
       # The record could not simply be cleared: the same count is the bound
       # that stops a revert loop, so it now carries a reported flag instead.
       # After the fix the board boots to "recovery.state trial no release is
-      # being tried" and queues nothing, including when it reads a trial
-      # record a Tier 5 image genuinely wrote with reported=yes.
+      # being tried" and queues nothing.
       stale_trial_record_reports_a_revert_on_every_boot: fixed_and_validated
-      # The Tier 5 trial image queues its own update.reverted, naming
-      # tier-05-fail-health and update-client-ready, and cannot deliver it:
-      # it holds no Operational identity, and the device listener refuses it.
-      # The tier's restriction read from the other side, on the board.
-      tier5_trial_image_cannot_report_over_mutual_tls: pending
+      # #239. The confirmed Tier 7 image that comes back reports the revert on
+      # its Operational identity: exactly one update.reverted per revert,
+      # naming tier-07-fail-health and update-client-ready in the detail,
+      # accepted_from client_certificate. The trial is counted, so a re-offer
+      # begins attempt 2 of 3 rather than an unbounded loop. This replaces the
+      # old-board row tier5_trial_image_cannot_report_over_mutual_tls, which
+      # recorded a borrowed Tier 5 image failing to report.
+      revert_reported_on_operational_identity: validated
 
       # Section 11 bypass rows. Thirteen of the fifteen are host runners by
       # design and say so in their own output; E-7-01 and E-7-02 above are the

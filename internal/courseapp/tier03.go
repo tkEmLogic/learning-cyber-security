@@ -425,8 +425,10 @@ func (a *app) release(args []string) error {
 			return a.releaseAssignTier05(releaseVariantOption(args[1:]))
 		case "06":
 			return a.releaseAssignTier06(releaseVariantOption(args[1:]))
+		case "07":
+			return a.releaseAssignTier07(releaseVariantOption(args[1:]))
 		}
-		return errors.New("release assign needs a tier that has more than one release; pass --tier 05 or --tier 06")
+		return errors.New("release assign needs a tier that has more than one release; pass --tier 05, --tier 06 or --tier 07")
 	case "hostile":
 		if tier := releaseTierOption(args[1:]); tier == "04" {
 			return a.releaseHostileTier04()

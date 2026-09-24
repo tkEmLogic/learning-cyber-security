@@ -554,6 +554,42 @@ Compare it with the record from section 7, line by line, because this is the who
 
 Your board is reporting again, and this is `E-7-02`. Record this event, the handshake line from the console, and your claim record. Together they are the mutual TLS evidence your lab artifact asks for.
 
+### Watch an update arrive on the Operational identity
+
+A status event is the small half of what a device does. The large half is taking an update, and that now happens on the Operational identity as well. Tier 7 publishes a second release for this, built from the same tree, which fails one named health check on its trial boot so that you see a download, a trial and a revert without leaving Tier 7:
+
+```text
+./course build firmware --tier 07 --variant fail-health
+./course release sign --tier 07 --variant fail-health
+```
+
+The device fetches it over mutual TLS, on its own certificate, and checks it the way Tier 4 and Tier 5 taught it to:
+
+```text
+tls.identity presenting the Operational certificate, signed by PSA key 0x00000701
+release.digest hashed 758745 bytes read back out of the secondary slot
+ota.upgrade requested a TEST swap, not a permanent one
+I: Image index: 0, Swap type: test
+Running release: tier-07-fail-health
+health.check update-client-ready  FAIL
+trial.revert a health check failed at check update-client-ready
+```
+
+MCUboot puts the confirmed image back, and the image that comes back reports what happened, on the same identity:
+
+```text
+boot.state the previous boot gave up on release tier-07-fail-health at check update-client-ready
+event.queued update.reverted release_id=tier-07-operational-identity detail=tier-07-fail-health update-client-ready
+```
+
+In the service's trail that is one `update.reverted` event with `accepted_from` set to `client_certificate`. Your Operational identity survived the swap and the revert, because it lives in Secure Storage and not in the image. Put the assignment back when you have seen it:
+
+```text
+./course release assign --tier 07 --variant baseline
+```
+
+Tier 7 uses its own second release here, and never an earlier tier's. A device in the field is only offered its own product's releases. An older tier's image would not share this tier's storage layout, so it could not even record its own trial.
+
 ### Why the match has to be two-party
 
 Take either half away and ask what is left.
