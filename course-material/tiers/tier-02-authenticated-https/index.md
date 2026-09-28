@@ -499,7 +499,7 @@ Record an unexpected actual result before you troubleshoot it. Do not mark the S
 | T0-W-06 | Unchanged | Open | Tier 4 |
 | T0-W-07 | Unchanged | Open | Tier 5 |
 | T1-W-08 | Unchanged. The shared identifier is still readable from flash | Open | Tier 6, and Advanced Tier A |
-| T2-W-09 | New. The device does not check certificate validity dates, because it has no clock | Open | Residual risk with an owner. Tier 8 |
+| T2-W-09 | New. The device does not check certificate validity dates, because it has no clock | Open | Residual risk with an owner. Accepted for the core course: device time is evidence, not an authorization input (section 7), as RFC 8995 section 2.6.1 allows a clockless device |
 
 This table states the result you should expect to observe. `T0-W-01` is reduced rather than closed, and the difference matters: something is still readable, you know exactly what it is, and you chose it.
 
