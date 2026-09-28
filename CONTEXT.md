@@ -177,11 +177,27 @@ would be a suspension, and the course does not build one.
 _Avoid_: Disabling, suspension, certificate revocation
 
 **Remanufacture**:
-The manufacturer enrolling a board again with a new Factory identity, which
-returns its Device lifecycle state to `manufactured`. It is the only way out of
-`revoked`, and it is the manufacturer vouching for the board again rather than
-a loophole in revocation.
+The manufacturer enrolling a board again with a new Factory identity under a
+new identifier, which returns the board to `manufactured`. Its unit is the
+board, not the identifier: the old identifier stays retired. It is the only way
+out of `revoked` and of `decommissioned`, and it is the manufacturer vouching
+for the board again rather than a loophole in revocation.
 _Avoid_: Reset, re-enrollment, factory reset
+
+**Decommissioning**:
+The manufacturer retiring a board for good, so that no identifier on that board
+can claim, recover, renew, download or enroll again. The authority is the
+service's record, not the device: erasing the board is part of the procedure,
+but what stops re-entry is the record, and only Remanufacture lifts it. Nothing
+is deleted from the records.
+_Avoid_: Factory reset, wipe, retirement, device revocation
+
+**Factory loss**:
+A board enrolling again while the record still shows a live identity for it,
+which means the board lost its Factory identity without anyone recording why.
+It is observed and recorded, not refused, because the device cannot know what
+it lost and an accidental erase looks the same as a deliberate one.
+_Avoid_: Factory reset, re-enrollment
 
 **Residual risk**:
 A known security risk that remains after the selected controls are applied,
