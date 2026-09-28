@@ -39,7 +39,7 @@ For `CTL-06`, record what "held away" actually means on your machine, and what a
 | Risk | Why it remains | Owner | Treatment or acceptance | Revisit |
 | --- | --- | --- | --- | --- |
 | T3-W-10 | The bootloader is not itself verified. Whoever can flash a bootloader chooses the key |  |  | Advanced Tier A |
-| T3-W-11 | The Release signing key lives on the same machine as the build and the service |  |  | Tier 8 |
+| T3-W-11 | The Release signing key lives on the same machine as the build and the service |  |  | Advanced Tier A, for rotation. Custody is a limit of a one-machine lab |
 
 ## What this tier does not claim
 

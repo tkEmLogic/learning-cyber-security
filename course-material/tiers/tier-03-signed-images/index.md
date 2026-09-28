@@ -422,7 +422,7 @@ This section was added after Tier 3 was published. If you worked the tier before
 | T0-W-02 | Unchanged | Open | Tier 6 and Tier 7 |
 | T2-W-09 | Unchanged | Open | Tier 8 |
 | T3-W-10 | New. The bootloader is not itself verified by anything. Whoever can flash a bootloader chooses the key | Open | Residual risk with an owner. Advanced Tier A |
-| T3-W-11 | New. The Release signing key lives on the same machine as the build and the service. Its custody is a convention, not a control | Open | Residual risk with an owner. Tier 8 for lifecycle, and out of scope for the course otherwise |
+| T3-W-11 | New. The Release signing key lives on the same machine as the build and the service. Its custody is a convention, not a control | Open | Residual risk with an owner. Accepted for the core course: custody is a limit of a one-machine lab. Rotation in Advanced Tier A, section 6 |
 
 Two new rows, both about limits rather than achievements. A tier that only adds closed rows is usually a tier that was not read carefully.
 

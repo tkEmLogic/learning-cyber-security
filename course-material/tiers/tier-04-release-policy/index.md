@@ -71,7 +71,7 @@ This table is what you carry in from Tier 3. It is inherited context, not your o
 | T0-W-02 | The service trusts the device identifier in the request body | Claim to be another device | The service accepts it | Tier 6 and Tier 7 |
 | T2-W-09 | The device does not check certificate validity dates, because it has no clock | Present an expired certificate | It is accepted | Tier 8 |
 | T3-W-10 | The bootloader is not itself verified by anything | Flash a bootloader holding another key | The device runs firmware signed by that key | Advanced Tier A |
-| T3-W-11 | The Release signing key lives on the same machine as the build and the service | Take the key | Everything this tier adds is defeated | Tier 8 for lifecycle |
+| T3-W-11 | The Release signing key lives on the same machine as the build and the service | Take the key | Everything this tier adds is defeated | Accepted for the core course: custody is a limit of a one-machine lab. Rotation in Advanced Tier A, section 6 |
 
 Note the last row before you begin. Everything this tier builds rests on that key staying yours, and this tier does not improve its custody at all.
 
@@ -493,7 +493,7 @@ This is the result you should expect to observe. If you observed something else,
 | T0-W-02 | Unchanged | Open | Tier 6 and Tier 7 |
 | T2-W-09 | Unchanged, and now it has a second instance. The manifest carries creation and support dates that this device cannot check either | Open | Tier 8 |
 | T3-W-10 | Unchanged | Open | Advanced Tier A |
-| T3-W-11 | Unchanged, and this tier leans on it harder. The same key now signs two things, and taking it defeats both | Open | Tier 8 for lifecycle |
+| T3-W-11 | Unchanged, and this tier leans on it harder. The same key now signs two things, and taking it defeats both | Open | Accepted for the core course: custody is a limit of a one-machine lab. Rotation in Advanced Tier A, section 6 |
 | T4-W-12 | New. Downgrade prevention does not protect the first install, because MCUboot allows a swap when the primary image carries no counter | Open | Accepted for the core course. `E-4-06` |
 | T4-W-13 | New. The security counter is compared, never remembered. Both copies live in flash, and a physical attacker who can rewrite the primary slot chooses what the device thinks it is running | Open | Residual risk with an owner. Advanced Tier A |
 
