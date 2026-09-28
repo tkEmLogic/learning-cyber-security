@@ -439,8 +439,20 @@ _Avoid_: Reset, restore, re-provisioning, recovery key
 The owner's recorded statement that a device's Operational identity is lost. It
 revokes the current Operational certificate and allows one recovery within a
 bounded time on the service clock. Only the owner of record can give it, and it
-is spent by the certificate the recovery issues.
+is spent by the certificate the recovery issues, or voided when the device is
+given up in an Ownership transfer.
 _Avoid_: Recovery token, support override
+
+**Ownership transfer**:
+Moving a device from one owner to another in two acts. First the owner of
+record gives the device up, which revokes its Operational certificate and
+leaves it `transferred`, owned by no one and unable to reach the OTA service.
+Then a new owner claims it with an ordinary claim, press and all, and it
+becomes `claimed` again. Only the owner of record can give a device up, and the
+new owner is whoever holds it and presses the button. A transfer keeps the
+Factory identity, the Provisioning record and the anti-rollback state of the
+running image, and the new claim always generates a new Operational key.
+_Avoid_: Release, handover, resale, re-claim
 
 **Mutual TLS**:
 A TLS connection on which both ends present a certificate, so the service
