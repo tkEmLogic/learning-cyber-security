@@ -143,10 +143,45 @@ _Avoid_: Spec item, feature, user story
 
 **Security control**:
 The technical or procedural measure that meets one or more security
-requirements, identified as `CTL-<nn>` and carrying a lifecycle state of
-`planned`, `implemented`, or `verified`. A control names the technology a
-requirement must not.
+requirements, identified as `CTL-<nn>` and carrying a status of `planned`,
+`implemented`, or `verified`. A control names the technology a requirement must
+not. Its status is a workflow position and not a Device lifecycle state; the
+two words were the same word until issue #205 separated them.
 _Avoid_: Mitigation, countermeasure, safeguard
+
+**Device lifecycle state**:
+Where one physical device stands in its life, as the Provisioning record
+tells it: `manufactured`, `claimed`, `active`, `transferred`, `revoked`, or
+`decommissioned`. It is derived by replaying the record rather than stored, so
+the `lifecycle_state` field on a record line is a copy written for a reader and
+never the authority. A device is `claimed` once it holds an Operational
+identity and `active` once it has used one. It tracks what a device is
+authorized to do and not what it is holding, which is why renewal and recovery
+change no state at all.
+_Avoid_: Device state, provisioning state, status
+
+**Certificate revocation**:
+Stopping one certificate, named by its serial, so the OTA service refuses it
+on every route. The Owner revokes their own device's Operational certificates;
+the manufacturer revokes a Factory certificate. It stops a credential and not a
+device: a device whose Operational certificate is revoked can still recover
+through its Factory identity. It is one-way, and nothing cancels it.
+_Avoid_: CRL entry, blocklisting, suspension
+
+**Device revocation**:
+Stopping one device, so it can neither use nor obtain an Operational identity:
+it is refused on every route, including claim and recovery. Only the Owner can
+revoke their device. It moves the Device lifecycle state to `revoked`, is
+one-way, and is lifted only by Remanufacture. A block its own Owner could lift
+would be a suspension, and the course does not build one.
+_Avoid_: Disabling, suspension, certificate revocation
+
+**Remanufacture**:
+The manufacturer enrolling a board again with a new Factory identity, which
+returns its Device lifecycle state to `manufactured`. It is the only way out of
+`revoked`, and it is the manufacturer vouching for the board again rather than
+a loophole in revocation.
+_Avoid_: Reset, re-enrollment, factory reset
 
 **Residual risk**:
 A known security risk that remains after the selected controls are applied,
