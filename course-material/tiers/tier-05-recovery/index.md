@@ -455,7 +455,7 @@ If you predicted that the network loss would fail the gate, that is the answer m
 | T4-W-13 | Unchanged | Open | Advanced Tier A |
 | T5-W-14 | New. Anyone who can power-cycle the board during the sixty second health window forces a revert, with no key, no network and no credential. The device can never complete an update while someone keeps doing it | Open | Residual availability risk. Named in the lab artifact |
 | T5-W-15 | New. The watchdog catches a hung thread only because the driver's stage 0 handler fails to feed it, which it does because `wdt_esp32_isr()` does not disable write protection first. An upstream fix would change this silently | Open | Recorded limit. Recheck on any Zephyr upgrade |
-| T5-W-26 | New. A revert is reported once, to nobody in particular. The event is held in RAM and sent when the link returns, and nothing acknowledges it, so a board that reverts and never reaches the service does not tell the fleet it reverted | Open | Recorded limit. Tier 8 revisits delivery |
+| T5-W-26 | New. A revert is reported once, to nobody in particular. The event is held in RAM and sent when the link returns, and nothing acknowledges it, so a board that restarts before it reaches the service never reports that revert | Open | Recorded limit. No later tier builds acknowledged delivery |
 
 Three of the four changes are limits rather than achievements, which by now should be the expected shape of a control tier's ledger.
 
@@ -467,7 +467,7 @@ The device records that a release was put on trial, and a board that reverted re
 
 Marking it means the report happens once. The event is queued in RAM, sent when the link returns, and nobody acknowledges it, so if that boot cannot reach the service the revert is never reported at all. Before the mark existed, the report fired on every boot until something got through, which looks like a retry and is not one: it was the device unable to tell that it had already spoken, and left running long enough it would name a release it had never tried. A message repeated until it is wrong is not more reliable than a message sent once. It is less honest about what the device actually knows.
 
-Delivery that survives a device being offline needs the service to acknowledge what it received and the device to keep what has not been acknowledged. That is a queue with durable state on both ends, and it belongs with the other lifecycle operations in Tier 8.
+Delivery that survives a device being offline needs the service to acknowledge what it received and the device to keep what has not been acknowledged. That is a queue with durable state on both ends, and no later tier in this course builds it.
 
 ## Security claim and evidence status
 

@@ -76,7 +76,7 @@ Inherited from Tier 6. Not your own work yet.
 | T4-W-13 | The security counter is compared, never remembered | Rewrite the primary slot | The device forgets what it was running | Advanced Tier A |
 | T5-W-14 | A power cut during the health window forces a revert indefinitely | Power-cycle during the sixty second window | The device reverts each time | Residual availability risk |
 | T5-W-15 | The watchdog depends on a driver quirk an upstream fix would change | Upgrade Zephyr | The behavior changes silently | Recorded limit |
-| T5-W-26 | A revert is reported once and nothing acknowledges it | Revert while the service is unreachable | The revert is never reported | Tier 8 revisits delivery |
+| T5-W-26 | A revert is reported once and nothing acknowledges it, so a board that restarts before it reaches the service never reports that revert | Revert with the service stopped, then restart the board before you start the service | The service never receives the revert report | Recorded limit. No later tier builds acknowledged delivery |
 | T6-W-16 | The Secure Storage encryption key is a hash of public values | Dump the flash and run the published derivation | The private key is recovered | Advanced Tier B |
 | T6-W-17 | Stored records carry no freshness, so an older copy is accepted as authentic | Write back a superseded record from the same dump | The device accepts it | No tier on this course closes it |
 | T6-W-18 | The private key is protected at rest only | Privileged firmware, the application, or a debugger reads it | The key is reachable | Advanced Tier B |
