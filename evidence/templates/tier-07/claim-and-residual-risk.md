@@ -57,7 +57,7 @@ Every residual risk needs an owner and either a treatment or a recorded acceptan
 | ID | Residual risk | Owner | Treatment or acceptance | Revisit |
 | --- | --- | --- | --- | --- |
 | T7-W-20 | Authorization lifetime is enforced only by the service. The device cannot evaluate its own certificate's validity window, there is no revocation list and no OCSP |  |  | Tier 8, which reduces it with the Time floor. Accepted for the core course |
-| T7-W-21 | The Owner credential is a bearer token on a server-authenticated listener. Whoever holds it is the owner, with no rotation and no second factor |  |  | Tier 8 |
+| T7-W-21 | The Owner credential is a bearer token on a server-authenticated listener. Whoever holds it is the owner, with no second factor |  |  | Accepted for the core course: the operator is the lab host's user |
 | T7-W-22 | With mutual TLS the service holds a certificate authority signing key, so compromising the service mints devices |  |  |  |
 | T7-W-23 | The claim endpoint is an oracle. Distinguishable refusals reveal whether a device exists and whether it is owned |  |  | Accepted |
 | T7-W-24 | The Factory credential survives claiming permanently and reopens the claim path forever, by design |  |  | Accepted |

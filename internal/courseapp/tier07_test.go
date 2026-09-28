@@ -57,7 +57,7 @@ func TestOwnerStoreKeepsAVerifierAndNeverTheCredential(t *testing.T) {
 }
 
 // Re-minting supersedes rather than resets. A lost credential must not brick
-// the lab, and replacement is not revocation.
+// the lab, and superseding is the revocation.
 func TestReMintingAnOwnerSupersedesTheOlderCredential(t *testing.T) {
 	a, out := provisioningApp(t)
 	first := ownerCredentialFor(t, a, out, "northwind")
