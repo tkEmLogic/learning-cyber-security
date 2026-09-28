@@ -72,7 +72,7 @@ One thing to be clear about before you begin, because this tier is built on it. 
 | T0-W-06 | Nothing stops an older release being installed over a newer one | Open. Tier 4 |
 | T0-W-07 | An installed image is permanent. There is no trial boot and no way back | Open. Tier 5 |
 | T0-W-02 | The service believes the device identifier in a request body | Open. Tier 6 and Tier 7 |
-| T2-W-09 | The device does not check certificate validity dates, because it has no clock | Open. Tier 8 |
+| T2-W-09 | The device does not check certificate validity dates, because it has no clock | Open. Accepted for the core course: device time is evidence, not an authorization input (section 7), as RFC 8995 section 2.6.1 allows a clockless device |
 
 `T0-W-04` is the one this tier is about. Read its wording again before you start, because the rest of the tier is an argument about exactly what "accepts" means.
 
@@ -420,7 +420,7 @@ This section was added after Tier 3 was published. If you worked the tier before
 | T0-W-06 | Unchanged. A correctly signed older release still installs over a newer one | Open | Tier 4 |
 | T0-W-07 | Unchanged. An installed image is still permanent, and the fallback path is still unused | Open | Tier 5 |
 | T0-W-02 | Unchanged | Open | Tier 6 and Tier 7 |
-| T2-W-09 | Unchanged | Open | Tier 8 |
+| T2-W-09 | Unchanged | Open | Accepted for the core course: device time is evidence, not an authorization input (section 7), as RFC 8995 section 2.6.1 allows a clockless device |
 | T3-W-10 | New. The bootloader is not itself verified by anything. Whoever can flash a bootloader chooses the key | Open | Residual risk with an owner. Advanced Tier A |
 | T3-W-11 | New. The Release signing key lives on the same machine as the build and the service. Its custody is a convention, not a control | Open | Residual risk with an owner. Accepted for the core course: custody is a limit of a one-machine lab. Rotation in Advanced Tier A, section 6 |
 
