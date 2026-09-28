@@ -588,7 +588,7 @@ In the service's trail that is one `update.reverted` event with `accepted_from` 
 ./course release assign --tier 07 --variant baseline
 ```
 
-Tier 7 uses its own second release here, and never an earlier tier's. A device in the field is only offered its own product's releases. An older tier's image would not share this tier's storage layout, so it could not even record its own trial.
+Tier 7 uses its own second release here, and never an earlier tier's. Do not assign an earlier tier's release to this board, because nothing in this tier stops it from arriving. `./course release assign --tier 05` writes the same current release that this board asks for, and the service checks that the image file exists, not which tier built it. Tier 5 and Tier 7 both carry security counter 3, and both the release policy and MCUboot admit an equal counter, so the board installs the Tier 5 image. That image does not share this tier's storage layout. On its first boot it can erase the Factory identity and the Operational identity, and nothing records the loss. Tier 8 raises its own security counter to 4, so a Tier 8 board refuses Tier 5 and Tier 7 releases. A Tier 7 board stays exposed.
 
 ### Why the match has to be two-party
 
