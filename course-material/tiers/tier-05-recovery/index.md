@@ -65,7 +65,7 @@ Inherited from Tier 4. Not your own work yet.
 | T0-W-02 | The service trusts the device identifier in the request body | Any device can claim another's name | Tier 6 and Tier 7 |
 | T2-W-09 | The device has no clock and checks no dates | An expired certificate is accepted | Tier 8 |
 | T3-W-10 | The bootloader itself is unverified | Nothing checks MCUboot before it runs | Advanced Tier A |
-| T3-W-11 | One key signs the image and the manifest, so taking it defeats both | Sign anything with the release key | Tier 8 for lifecycle |
+| T3-W-11 | The Release signing key lives on the same machine as the build and the service. One key signs the image and the manifest, so taking it defeats both | Sign anything with the release key | Accepted for the core course: custody is a limit of a one-machine lab. Rotation in Advanced Tier A, section 6 |
 | T4-W-12 | Downgrade prevention does not protect the first install | Install onto a device whose primary image carries no counter | Accepted for the core course |
 | T4-W-13 | The security counter is compared, never remembered | Rewrite the primary slot and the device forgets what it was running | Advanced Tier A |
 
@@ -450,7 +450,7 @@ If you predicted that the network loss would fail the gate, that is the answer m
 | T0-W-02 | Unchanged | Open | Tier 6 and Tier 7 |
 | T2-W-09 | Unchanged | Open | Tier 8 |
 | T3-W-10 | Unchanged | Open | Advanced Tier A |
-| T3-W-11 | Unchanged | Open | Tier 8 for lifecycle |
+| T3-W-11 | Unchanged | Open | Accepted for the core course: custody is a limit of a one-machine lab. Rotation in Advanced Tier A, section 6 |
 | T4-W-12 | Unchanged, and now reachable more than once. A revert restores the previously confirmed image, and if that image predates the security counter the device returns to the state this row describes | Open | Advanced Tier A, with `T4-W-13` |
 | T4-W-13 | Unchanged | Open | Advanced Tier A |
 | T5-W-14 | New. Anyone who can power-cycle the board during the sixty second health window forces a revert, with no key, no network and no credential. The device can never complete an update while someone keeps doing it | Open | Residual availability risk. Named in the lab artifact |

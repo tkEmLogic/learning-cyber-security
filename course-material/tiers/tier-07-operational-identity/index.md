@@ -71,7 +71,7 @@ Inherited from Tier 6. Not your own work yet.
 | T1-W-08 | The device identifier can be read from flash or the serial console | Read the console, or dump the flash | The identifier is readable | Reduced by Tier 6, and this tier closes it |
 | T2-W-09 | The device has no clock and checks no dates | Present an expired certificate to the device | The device accepts it | Tier 8 |
 | T3-W-10 | The bootloader itself is unverified | Nothing checks MCUboot before it runs | The bootloader runs whatever is there | Advanced Tier A |
-| T3-W-11 | One key signs the image and the manifest, so taking it defeats both | Sign anything with the release key | Both verifiers accept it | Tier 8 for lifecycle |
+| T3-W-11 | The Release signing key lives on the same machine as the build and the service. One key signs the image and the manifest, so taking it defeats both | Sign anything with the release key | Both verifiers accept it | Accepted for the core course: custody is a limit of a one-machine lab. Rotation in Advanced Tier A, section 6 |
 | T4-W-12 | Downgrade prevention does not protect the first install | Install onto a device whose primary image carries no counter | The install is accepted | Accepted for the core course |
 | T4-W-13 | The security counter is compared, never remembered | Rewrite the primary slot | The device forgets what it was running | Advanced Tier A |
 | T5-W-14 | A power cut during the health window forces a revert indefinitely | Power-cycle during the sixty second window | The device reverts each time | Residual availability risk |
