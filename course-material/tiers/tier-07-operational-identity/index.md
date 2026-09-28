@@ -329,17 +329,17 @@ Minting one Owner credential. It authorizes a person, not a device, so
 it never rides the mutual-TLS listener: you present it as a bearer token
 on the operator port, and the store keeps only a verifier.
   owner:       field-owner
-  credential:  228c7c70-4bef-4ddd-bf2d-8e78703a9857
-  verifier:    sha256:a1edd38572a6ca76afed870e39985b2e621af37b651842d02824107ea9861cad
-  expires:     2026-12-18T18:37:21Z
+  credential:  eed2be51-a5a6-48e3-833c-5a644bbd29a4
+  verifier:    sha256:48ab118366f0b426450700e98bec198df7e02769b3c699bad173cb4b885fb7df
+  expires:     2026-12-27T23:08:36Z
   recorded in: .course-state/provisioning/owners.jsonl
 
 The credential itself is printed once and never stored. Run this command
 again for the same owner and the new credential supersedes this one: the
-old one stops matching. That is replacement, not revocation, and the
-difference is what Tier 8 is for.
+old one stops matching at once. That is how you rotate an Owner
+credential, and it is also how you revoke one.
 
-  43839de9d9b66a5aaf785c084200f597a6b99333e2161d5f266a8658a5de9353
+  fff4b7d03f21da65c4ea3daf958f55693fe762ab3c9f968f6bde41ece0e4e839
 ```
 
 Copy that last line somewhere you can reach for the next few minutes. It is thirty-two random bytes in hexadecimal and it is printed once. The store keeps only `sha256` of it, exactly as Tier 6's Bootstrap credential store does, so nothing on your disk can give it back to you.
@@ -457,7 +457,7 @@ Approve it, as the owner, from the machine holding your Owner credential:
 ```text
 ./course claim approve --device beacon-remfg-206ef1170d64 \
   --nonce DV7E-5CB8-NGYB-RD7F-YW5T-TNTM \
-  --credential 43839de9...
+  --credential fff4b7d0...
 ```
 
 ```text
@@ -836,7 +836,7 @@ This is the result you should expect to observe. Your own ledger lives in your w
 | T6-W-18 | Widened. The at-rest-only boundary now covers the credential that gates image download | Open | Advanced Tier B |
 | T6-W-19 | Note only. The Operational key is written during a claim, which needs the network, so that write is necessarily after the RF subsystem is up. The mitigation is structural for this key and still advisory for the Factory key | Open | Recheck on any Zephyr upgrade |
 | T7-W-20 | New. Authorization lifetime is enforced only by the service. The device cannot evaluate its own certificate's validity window, there is no revocation list and no OCSP, and a device cut off from the service cannot know it has lost authorization | Open | `E-7-05`, `E-7-06`. Accepted for the core course. Tier 8 reduces it with the Time floor |
-| T7-W-21 | New. The Owner credential is a bearer token on a server-authenticated listener. Whoever holds it is the owner, with no rotation and no second factor | Open | Tier 8 |
+| T7-W-21 | New. The Owner credential is a bearer token on a server-authenticated listener. Whoever holds it is the owner, with no second factor | Open | Accepted for the core course: the operator is the lab host's user |
 | T7-W-22 | New. With `--mutual-tls` the service holds a certificate authority signing key, so compromising the service mints devices | Open | Residual risk with an owner. Demonstrated by the four forging rows |
 | T7-W-23 | New. The claim endpoint is an oracle. Distinguishable refusals reveal whether a device exists and whether it is owned | Open | Accepted. The refusals must stay distinguishable, which is the tier's subject |
 | T7-W-24 | New. The Factory credential survives claiming permanently and reopens the claim path forever, by design | Open | Accepted. It is what a re-claim and a recovery need |
@@ -878,7 +878,7 @@ This claim is new and becomes **partly supported**.
 
 It is new because nothing in `SC-01` to `SC-06` is about ownership, and the specification's learning result for this tier names human authorization as one of the three things to separate. Tier 6 set the precedent: a new observation produces a new claim, which is how the register is supposed to grow.
 
-Supported for the first claim and for wrong-owner refusal, which are `E-7-01` and `E-7-10` with `E-7-14`. Not supported for what happens afterwards: revocation, transfer and decommissioning are Tier 8, and the Owner credential is a bearer token with no rotation, which is `T7-W-21`.
+Supported for the first claim and for wrong-owner refusal, which are `E-7-01` and `E-7-10` with `E-7-14`. Not supported for what happens afterwards: revocation, transfer and decommissioning are Tier 8, and the Owner credential is a bearer token with no second factor, which is `T7-W-21`.
 
 `SC-07` is new, and so is the requirement under it. `REQ-08` was not in Tier 1's table for the same reason `SC-07` was not: at Tier 1 no device had an owner, so nothing about ownership was observable. It reads in the form Tier 1 used.
 
@@ -1019,7 +1019,7 @@ Two questions to end on. The first is practical: where else does this firmware a
 
 ## Continue
 
-**Tier 8 operates the credential lifecycle.** Your device holds a certificate that expires in ninety days and cannot tell when that happens. Your owner holds a credential that never rotates. Nothing here can transfer a device to a new owner, retire one, or take an identity back once it is issued, and the first claim on an unclaimed device wins permanently.
+**Tier 8 operates the credential lifecycle.** Your device holds a certificate that expires in ninety days and cannot tell when that happens. Nothing here can transfer a device to a new owner, retire one, or take an identity back once it is issued, and the first claim on an unclaimed device wins permanently.
 
 Tier 8 builds the operations around the identities this tier issued: renewal before expiry, revocation that takes effect, ownership transfer, and decommissioning that a factory reset does not undo.
 

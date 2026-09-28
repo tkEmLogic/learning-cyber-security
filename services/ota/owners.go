@@ -78,7 +78,7 @@ func (s ownerStore) VerifyOwner(credential string) (string, *Refusal) {
 
 	// Re-minting supersedes rather than resets: the store is append only and
 	// the last credential for an owner is the one that authenticates. That is
-	// replacement, and it is deliberately not revocation, which is Tier 8.
+	// rotation, and it is also the revocation: there is no separate revoke.
 	current := matched
 	for i := range entries {
 		if entries[i].OwnerID == matched.OwnerID {
