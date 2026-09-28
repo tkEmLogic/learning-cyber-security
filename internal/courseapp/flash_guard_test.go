@@ -302,7 +302,7 @@ func TestDeviceFlashRefusesEnrolledBoardBeforeWriting(t *testing.T) {
 	a, out, calls := flashRig(t, enrolled)
 
 	err := a.deviceFlash([]string{"--tier", "05", "--variant", "healthy"})
-	if err == nil || !strings.Contains(err.Error(), "refused") {
+	if err == nil || !strings.Contains(err.Error(), "this board is enrolled") {
 		t.Fatalf("deviceFlash = %v, want a refusal\n%s", err, out)
 	}
 	log := esptoolCalls(t, calls)

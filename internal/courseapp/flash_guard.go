@@ -234,7 +234,7 @@ func (a *app) guardIdentity(tier string, destroy bool, read func() ([]byte, erro
 		fmt.Fprintln(a.out, "--destroy-identity was given. Flashing, and the first boot may destroy them.")
 		return nil
 	}
-	return fmt.Errorf("refused: this board is enrolled (%v), and a tier %s image can destroy that identity at its first boot with no record; nothing was written. Pass --destroy-identity to flash it anyway", found.Entries, tier)
+	return fmt.Errorf("this board is enrolled (%v), and a tier %s image can destroy that identity at its first boot with no record; nothing was written. Pass --destroy-identity to flash it anyway", found.Entries, tier)
 }
 
 // readStoragePartition reads the storage partition into a temporary file,
