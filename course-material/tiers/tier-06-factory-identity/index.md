@@ -36,6 +36,8 @@ Two steps touch the device in ways that do not undo:
 - `./course provision erase` **destroys the device's private key and deletes its certificate.** It is the device half of remanufacturing. The manufacturing record is append only, so nothing removes the record of the identity that was erased, and the device comes back under a new identifier. Read the step before you run it.
 - The flash dump reads **only the `storage` partition**. `./course device dump` takes no range for that reason: a dump that read the whole flash would read slot 0, which carries the real Wi-Fi credential the board was flashed with. Keep it bounded.
 
+An image from Tier 5 or earlier erases part of the `storage` partition at its first boot, not during the flash, and can destroy the Factory and Operational identities with no record, so `./course device flash` refuses to write one to an enrolled board unless you pass `--destroy-identity`.
+
 ## Starting state
 
 You need:

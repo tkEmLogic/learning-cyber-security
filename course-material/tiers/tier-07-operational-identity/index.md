@@ -46,6 +46,8 @@ The fixture also holds a second Owner account, `rival-labs`, and it is a real en
 
 `./course provision erase` destroys the device's private key and deletes its certificate, and there is no undo. You only need it if you choose to remanufacture. The manufacturing record is append only, so nothing removes the record of the identity that was erased, and the device comes back under a new identifier.
 
+An image from Tier 5 or earlier erases part of the `storage` partition at its first boot, not during the flash, and can destroy the Factory and Operational identities with no record, so `./course device flash` refuses to write one to an enrolled board unless you pass `--destroy-identity`.
+
 Two smaller rules. Your Claim nonce is a secret for the length of the window, so do not paste it anywhere outside your lab. Your Owner credential is printed once and never stored, so if you lose it you mint a new one, which supersedes the old one rather than recovering it.
 
 ## Starting state

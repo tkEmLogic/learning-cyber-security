@@ -1489,9 +1489,6 @@ func (a *app) deviceDump(args []string) error {
 	if err != nil {
 		return err
 	}
-	workspace := a.zephyrWorkspace()
-	esptool := filepath.Join(workspace, ".venv", "bin", "esptool")
-	board := a.manifest.Devices["reference_beacon"].Board
 
 	dumpDir := filepath.Join(a.root, a.manifest.Paths.GeneratedArtifacts, "dumps")
 	if err := os.MkdirAll(dumpDir, 0o700); err != nil {
@@ -1503,12 +1500,7 @@ func (a *app) deviceDump(args []string) error {
 	fmt.Fprintln(a.out, "This is the region that holds Secure Storage and the Tier 5 records. It is")
 	fmt.Fprintln(a.out, "not the whole flash: slot 0 carries the Wi-Fi PSK this board was flashed")
 	fmt.Fprintln(a.out, "with, and a course tool has no reason to read that back off the device.")
-	fmt.Fprintf(a.out, "+ %s --chip %s -p %s read-flash %s %s <out>\n", esptool, espChip(board), device, storagePartitionOffset, storagePartitionSize)
-
-	if err := runAttachedFrom(a.root, workspace, a.out, a.errOut,
-		[]string{"PATH=" + filepath.Join(workspace, ".venv", "bin") + string(os.PathListSeparator) + os.Getenv("PATH")},
-		esptool, "--chip", espChip(board), "-p", device, "read-flash",
-		storagePartitionOffset, storagePartitionSize, out); err != nil {
+	if err := a.esptoolReadStorage(device, out); err != nil {
 		return err
 	}
 
@@ -1522,6 +1514,20 @@ func (a *app) deviceDump(args []string) error {
 	// so the board is not left looking bricked.
 	fmt.Fprintln(a.out, "esptool leaves the chip in the ROM download loader. Pulsing RTS to restart it:")
 	return a.deviceReset()
+}
+
+// esptoolReadStorage reads exactly the storage partition into out. It is the
+// one read-flash the course makes, shared by ./course device dump and the
+// flash guard, and it takes no range.
+func (a *app) esptoolReadStorage(device, out string) error {
+	workspace := a.zephyrWorkspace()
+	esptool := filepath.Join(workspace, ".venv", "bin", "esptool")
+	board := a.manifest.Devices["reference_beacon"].Board
+	fmt.Fprintf(a.out, "+ %s --chip %s -p %s read-flash %s %s <out>\n", esptool, espChip(board), device, storagePartitionOffset, storagePartitionSize)
+	return runAttachedFrom(a.root, workspace, a.out, a.errOut,
+		[]string{"PATH=" + filepath.Join(workspace, ".venv", "bin") + string(os.PathListSeparator) + os.Getenv("PATH")},
+		esptool, "--chip", espChip(board), "-p", device, "read-flash",
+		storagePartitionOffset, storagePartitionSize, out)
 }
 
 // provisionExport runs E-6-04 over the board's console: it asks the device to
