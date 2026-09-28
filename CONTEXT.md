@@ -319,6 +319,16 @@ never overrides it. It is compared, never remembered: the bootloader reads the
 counter of the image in the primary slot and compares it with the candidate's.
 _Avoid_: Version, build number, rollback index
 
+**Time floor**:
+The latest moment the device has authenticated proof that the time has reached.
+It starts at a build time signed into the image and rises to the creation time
+of every Release manifest whose signature verifies. It only rises, except
+against someone who can rewrite flash. It is not the current time, only a
+lower bound on it, so it can prove a certificate expired but never that one is
+still valid. The device judges only its own Operational certificate against
+it, never its Factory certificate, and every lifecycle operation keeps it.
+_Avoid_: Clock, device time, monotonic counter, monotonic floor
+
 **Trial image**:
 An image MCUboot has swapped into the primary slot but not been told to keep.
 It is running, and it is one reboot away from being replaced by the image it
@@ -450,8 +460,9 @@ leaves it `transferred`, owned by no one and unable to reach the OTA service.
 Then a new owner claims it with an ordinary claim, press and all, and it
 becomes `claimed` again. Only the owner of record can give a device up, and the
 new owner is whoever holds it and presses the button. A transfer keeps the
-Factory identity, the Provisioning record and the anti-rollback state of the
-running image, and the new claim always generates a new Operational key.
+Factory identity, the Provisioning record, the anti-rollback state of the
+running image and the Time floor, and the new claim always generates a new
+Operational key.
 _Avoid_: Release, handover, resale, re-claim
 
 **Mutual TLS**:
