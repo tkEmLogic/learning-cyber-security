@@ -451,6 +451,23 @@ not contain it. It becomes the device's stored Operational key only when the
 issued certificate arrives.
 _Avoid_: Provisional certificate, temporary key, pending Operational identity
 
+**Renewal**:
+Replacing a device's Operational identity with one on a new key, before the old
+one expires, for the same owner. The current Operational identity authenticates
+it, so it is the one identity operation with no person in it. The service
+decides when it is due, and the device renews only when the service says so. The
+old certificate is revoked as superseded once the service has seen the new one
+used. A failed renewal leaves the device on the identity it already had.
+_Avoid_: Rotation, re-enrollment, refresh
+
+**Renewal candidate**:
+The new Operational key and certificate a device holds during a renewal, stored
+beside its current identity until the service has accepted a request made with
+them. It becomes the current identity only then. A candidate the service never
+sees used is revoked by the next renewal, so a device has at most two
+Operational certificates that the service accepts.
+_Avoid_: Next certificate, pending certificate, backup identity
+
 **Recovery**:
 Replacing a lost or corrupted Operational identity for a device's current owner.
 It is a claim, with the same press, nonce and Claim window, in which the owner of
