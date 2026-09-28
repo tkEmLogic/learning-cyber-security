@@ -1728,7 +1728,13 @@ func (a *app) fallbackSerialDevice(prefix string) (string, error) {
 func (a *app) deviceFlash(args []string) error {
 	name := "baseline"
 	tier := "00"
+	destroyIdentity := false
 	for len(args) > 0 {
+		if args[0] == "--destroy-identity" {
+			destroyIdentity = true
+			args = args[1:]
+			continue
+		}
 		if len(args) < 2 {
 			return fmt.Errorf("option %s requires a value", args[0])
 		}
@@ -1741,6 +1747,9 @@ func (a *app) deviceFlash(args []string) error {
 			return fmt.Errorf("unknown flash option %s", args[0])
 		}
 		args = args[2:]
+	}
+	if destroyIdentity && !tierErasesIdentity(tier) {
+		return fmt.Errorf("--destroy-identity applies only to images below Tier 6; a tier %s image keeps the storage partition", tier)
 	}
 	variants := variantsForTier(tier)
 	variant, ok := variants[name]
@@ -1759,6 +1768,17 @@ func (a *app) deviceFlash(args []string) error {
 	buildDir := filepath.Join(a.zephyrWorkspace(), "build", filepath.Base(appDir)+"-"+variant.label)
 	if _, err := os.Stat(filepath.Join(buildDir, "domains.yaml")); err != nil {
 		return fmt.Errorf("no sysbuild output for the tier %s %s image; run ./course build firmware --tier %s --variant %s first", tier, variant.label, tier, variant.label)
+	}
+
+	// An image older than Tier 6 erases part of the storage partition at its
+	// first boot. Ask the board before anything is written; every write below
+	// this line is reached only if the guard returns nil.
+	if tierErasesIdentity(tier) {
+		if err := a.guardIdentity(tier, destroyIdentity, func() ([]byte, error) {
+			return a.readStoragePartition(device)
+		}); err != nil {
+			return err
+		}
 	}
 
 	// From Tier 3 the two images come from two builds, so west flash cannot
