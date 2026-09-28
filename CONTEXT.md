@@ -390,6 +390,23 @@ not contain it. It becomes the device's stored Operational key only when the
 issued certificate arrives.
 _Avoid_: Provisional certificate, temporary key, pending Operational identity
 
+**Recovery**:
+Replacing a lost or corrupted Operational identity for a device's current owner.
+It is a claim, with the same press, nonce and Claim window, in which the owner of
+record passes where a first claim would require an unowned device. It needs
+physical presence, the Factory identity and a Recovery authorization. It always
+generates a new Operational key and never restores an old one, and it does not
+change the device's lifecycle state. Replacing a lost Factory identity is not
+recovery but remanufacture.
+_Avoid_: Reset, restore, re-provisioning, recovery key
+
+**Recovery authorization**:
+The owner's recorded statement that a device's Operational identity is lost. It
+revokes the current Operational certificate and allows one recovery within a
+bounded time on the service clock. Only the owner of record can give it, and it
+is spent by the certificate the recovery issues.
+_Avoid_: Recovery token, support override
+
 **Mutual TLS**:
 A TLS connection on which both ends present a certificate, so the service
 identifies the device while the device identifies the service. The service
