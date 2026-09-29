@@ -878,6 +878,108 @@ verification:
       # identity again.
       e7_06_revoked_certificate_refused_on_the_board: validated
 
+  tier_08:
+    command: [./scripts/verify-tier-00.sh]
+    receipt: .course-state/receipts/tier-08.json
+    revision_bound: true
+    hardware:
+      # Issue #258, on the ESP32-C6-DevKitC-1, 2026-09-29, over seven BOOT
+      # presses. The board started as the claimed Tier 7 device
+      # beacon-t07b-206ef1170d64, was transferred, recovered, revoked,
+      # remanufactured as beacon-t08a-206ef1170d64, decommissioned, erased to
+      # 0xFF across all 8 MB, and ended remanufactured as
+      # beacon-t08c-206ef1170d64, claimed by harbor-owner and active.
+      # Host rows E-8-01 to E-8-11 are host results by design and are not
+      # listed here.
+
+      # The Tier 7 board took Tier 8 over the air at counter 4 and kept both
+      # identity fingerprints; a Tier 7 layout reads as slot A (#256).
+      tier8_update_over_tier7_keeps_both_identities: validated
+      # The service wrote the device's first activation record on its first
+      # mutual-TLS use, so the derived state became active (#249).
+      first_use_writes_activation_record: validated
+
+      # Time floor (#217, #263). A verified manifest's created_at raised the
+      # floor before anything installed, it survived a trial revert, and an
+      # older manifest did not lower it.
+      time_floor_rises_on_a_verified_manifest: validated
+      time_floor_survives_a_trial_revert: validated
+      time_floor_not_lowered_by_an_older_manifest: validated
+      # The time-floor lab image, seeded past the certificate's valid_to,
+      # refused the device's own Operational certificate locally and stopped
+      # contacting the service. No future-dated manifest was used.
+      time_floor_refuses_the_own_certificate_locally: validated
+      # The Tier 8 fail-health release reverted and the confirmed image
+      # reported update.reverted on its Operational identity.
+      revert_reported_on_tier8: validated
+
+      # Renewal (#212). A forced renewal moved the identity to slot B, key
+      # 0x00000702. The new serial's activation record precedes the old
+      # serial's superseded line; the renewal.activated event line is stamped
+      # 52 microseconds after it, within the same request.
+      forced_renewal_activation_precedes_superseded: validated
+      renewed_identity_in_slot_b_survives_reboot: validated
+      # A reset between the candidate write and the pointer flip: the board
+      # booted with slot B still current, presented the held candidate first,
+      # and the service activated it after the reset.
+      reset_between_candidate_and_flip_activates_candidate: validated
+      # Not a board row: an unsolicited renewal at renewal-due is E-8-04 on the
+      # host, because this firmware never renews unasked.
+      unsolicited_renewal_refused_on_the_board: host_only
+
+      # Transfer (#215). The transferred board was refused at
+      # certificate-active on its own console, naming the revoked serial; the
+      # counter read 4 before, after and after the second owner's claim; and a
+      # counter-3 Tier 7 release was refused at security-counter with no image
+      # bytes requested.
+      transferred_board_refused_at_certificate_active: validated
+      transfer_leaves_the_counter_unchanged: validated
+      second_owner_claims_with_a_press: validated
+      counter3_release_refused_at_security_counter: validated
+
+      # Recovery (#214). provision operational corrupt, behind the BOOT gate,
+      # lost the certificate; after a reset the device held no Operational
+      # certificate and did not fall back to its Factory identity, while the
+      # service still said claimed. claim recover authorized, and the next
+      # press recovered with no lifecycle state change.
+      lab_fault_loses_the_operational_identity: validated
+      recovery_by_the_owner_of_record: validated
+
+      # Revocation (#213). A revoked device was refused at device-unrevoked on
+      # its own console. A revoked certificate at certificate-active is the
+      # transfer row above, which is the same clause 2.
+      revoked_device_refused_at_device_unrevoked: validated
+
+      # Decommissioning (#216, #209, #264).
+      # provision erase reported every key destroyed, and the storage dump
+      # still held the ITS record names with no live entry.
+      destroyed_key_is_still_in_flash: validated
+      identifier_mismatch_refused_at_identifier_matches_hardware: validated
+      enrollment_reads_the_board_mac: validated
+      # Found stale history: re-enrolling named beacon-t07-206ef1170d64, lost
+      # in the Tier 7 campaign with no record. It repeats on each re-enrol
+      # until a remanufacture is recorded, which was then done late.
+      unrecorded_erase_observed_as_factory_loss: validated
+      decommissioned_board_refused_at_device_in_service: validated
+      decommissioned_board_refused_at_hardware_in_service: validated
+      erase_flash_8mb_reads_back_ff: validated
+      remanufacture_ends_claimed: validated
+
+      # Flash guard (#241, #206). The guard refused a real Tier 5 build on an
+      # enrolled board, flashed a blank one, and flashed an enrolled one with
+      # --destroy-identity. That Tier 5 first boot printed "cannot mount the
+      # storage partition err=-45" and still left no live identity entry, with
+      # NVS sectors 4 to 7 erased: the EDEADLK branch #206 called harmless was
+      # not, on this board. Read from before and after dumps.
+      flash_guard_refuses_an_enrolled_board: validated
+      flash_guard_flashes_a_blank_board: validated
+      flash_guard_destroy_identity_flashes_an_enrolled_board: validated
+
+      # #244. A warm reset leaves the volatile pending key's public half, and
+      # both identity keys' public halves, readable in an SRAM dump over the
+      # USB cable. The private half was not searched for.
+      warm_reset_leaves_key_material_in_sram: validated
+
 tiers:
   "00":
     title: Build the unsecured reference product
