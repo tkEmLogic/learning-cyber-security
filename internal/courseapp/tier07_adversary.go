@@ -153,8 +153,8 @@ func (x *tier07Adversary) allowedIdentifier(deviceID string) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("device identifier %q is not in the manifest's bounded list for %s",
-		deviceID, tier07BypassKey)
+	return fmt.Errorf("device identifier %q is not in the manifest's bounded list for the Tier %s bypass",
+		deviceID, x.manifest.Tier)
 }
 
 // ------------------------------------------------------------------

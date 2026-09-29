@@ -63,6 +63,12 @@ type bypassRow struct {
 	// from an outsider attack.
 	forges bool
 
+	// holds names what the actor holds when it is not the CA key and not
+	// what an outsider could plausibly hold. Tier 8's rows set it, because
+	// there the adversary is the owner or the manufacturer of its own
+	// synthetic devices. Tier 7's rows leave it empty.
+	holds string
+
 	plan []string
 	run  func(*tier07Adversary) error
 }
@@ -246,7 +252,7 @@ func tier07Rows() []bypassRow {
 }
 
 func lookupBypassRow(id string) (bypassRow, bool) {
-	for _, row := range tier07Rows() {
+	for _, row := range append(tier07Rows(), tier08Rows()...) {
 		if row.id == id {
 			return row, true
 		}
@@ -265,6 +271,16 @@ func (a *app) serviceBypass(args []string) error {
 	id := strings.ToLower(args[0])
 	switch id {
 	case "list":
+		if tier, err := flagValue(args[1:], "--tier"); err == nil {
+			switch normalizeTier(tier) {
+			case "07":
+				return a.bypassList()
+			case tier08:
+				return a.bypassListTier08()
+			default:
+				return fmt.Errorf("no bypass rows for tier %s; the rows are Tier 7's and Tier 8's", tier)
+			}
+		}
 		return a.bypassList()
 	case "reset":
 		return a.bypassReset()
@@ -282,6 +298,15 @@ func (a *app) serviceBypass(args []string) error {
 		executeID = ""
 	}
 	return a.runBypassRow(row, executeID)
+}
+
+// bypassBlockKey is the manifest block, and the evidence directory, a row
+// belongs to.
+func bypassBlockKey(id string) string {
+	if strings.HasPrefix(id, "e-8-") {
+		return tier08BypassKey
+	}
+	return tier07BypassKey
 }
 
 func (a *app) bypassList() error {
@@ -320,7 +345,12 @@ func (a *app) bypassList() error {
 // Tier 6's extraction command was exempted from the handshake because it had
 // no target and opened no socket. Nothing in Tier 7 is in that position.
 func (a *app) runBypassRow(row bypassRow, executeID string) error {
-	adversary, err := a.newTier07Adversary(strings.ToUpper(row.id))
+	blockKey := bypassBlockKey(row.id)
+	newAdversary := a.newTier07Adversary
+	if blockKey == tier08BypassKey {
+		newAdversary = a.newTier08Adversary
+	}
+	adversary, err := newAdversary(strings.ToUpper(row.id))
 	if err != nil {
 		return err
 	}
@@ -352,6 +382,8 @@ func (a *app) runBypassRow(row bypassRow, executeID string) error {
 	if row.forges {
 		fmt.Fprintln(a.out, "Capability under test: a leaked Operational Device CA key. This row")
 		fmt.Fprintln(a.out, "  is what an insider holding the authority's private half can make.")
+	} else if row.holds != "" {
+		fmt.Fprintf(a.out, "Capability under test: %s\n", row.holds)
 	} else {
 		fmt.Fprintln(a.out, "Capability under test: what an outsider on the network could plausibly hold.")
 	}
@@ -402,7 +434,7 @@ func (a *app) runBypassRow(row bypassRow, executeID string) error {
 	if runErr != nil {
 		record["failure"] = runErr.Error()
 	}
-	evidencePath, evidenceErr := a.writeAttackEvidence(filepath.Join("tier-07", row.id), record)
+	evidencePath, evidenceErr := a.writeAttackEvidence(filepath.Join(blockKey, row.id), record)
 	if evidenceErr != nil {
 		return evidenceErr
 	}

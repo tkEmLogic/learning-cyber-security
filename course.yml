@@ -308,6 +308,44 @@ bypass:
       - .course-state/bypass/tier-07
       - artifacts/generated/attacks/tier-07
     reset: ./course service bypass reset
+  # Tier 8's rows, under the same command and driven by the same adversary:
+  # one owner account, one fixture state, one reset. Here the adversary is the
+  # owner or the manufacturer of its own synthetic devices. It withdraws an
+  # authority with a real Tier 8 operation and shows that the credential it
+  # kept is refused. It signs nothing with the Operational CA key. See
+  # docs/fixture-safety-contract.md, "Tier 8 fixtures".
+  tier-08:
+    tier: "08"
+    target: http://127.0.0.1:8080
+    interface: loopback
+    device_port: 8443
+    operator_port: 8444
+    service_name: ota.course.example
+    # The same single adversary owner as Tier 7. The runner refuses to start
+    # if the two blocks disagree.
+    adversary_owner: rival-labs
+    # The last two share a locally administered MAC suffix, 02000000e810, so
+    # the station keys them to one synthetic board. No real board carries it.
+    synthetic_ids:
+      - beacon-bypass-e8-01
+      - beacon-bypass-e8-02
+      - beacon-bypass-e8-03
+      - beacon-bypass-e8-04
+      - beacon-bypass-e8-05
+      - beacon-bypass-e8-06
+      - beacon-bypass-e8-07
+      - beacon-bypass-e8-08
+      - beacon-bypass-e8-09
+      - beacon-bypass-e8-10-02000000e810
+      - beacon-bypass-e8-10b-02000000e810
+    changes:
+      - .course-state/provisioning/records.jsonl
+      - .course-state/provisioning/owners.jsonl
+      - .course-state/provisioning/revoked.jsonl
+      - .course-state/ota/events.jsonl
+      - .course-state/bypass/tier-07
+      - artifacts/generated/attacks/tier-08
+    reset: ./course service bypass reset
 
 evidence:
   schema_version: 1
