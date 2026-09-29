@@ -39,6 +39,12 @@ const (
 	// and that is the name renewal needs for section 8's "proves the new
 	// identity works".
 	KindActivation = "activation"
+
+	// KindDecommission retires a board for good: it moves the device to
+	// decommissioned from any state, and only a later remanufacture record on
+	// the same board lifts it. No certificate serial is revoked, so the
+	// service's device-in-service check stays reachable over the wire.
+	KindDecommission = "decommission"
 )
 
 // Record is the subset of one record line the derivation reads. Every writer
@@ -128,6 +134,11 @@ func apply(devices map[string]Device, record Record) {
 		device.State = Active
 		device.Activated[record.CertSerial] = true
 		devices[record.DeviceID] = device
+	case KindDecommission:
+		// From any state, and the record is the whole authority. Replayed
+		// after it, a remanufacture line returns the device to manufactured,
+		// so the two kinds together are the only way in and the only way out.
+		devices[record.DeviceID] = Device{State: Decommissioned}
 	case KindRemanufacture:
 		devices[record.DeviceID] = Device{State: Manufactured}
 	}

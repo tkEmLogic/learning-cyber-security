@@ -31,6 +31,13 @@ func TestEachReachableStateIsDerivedFromTheLog(t *testing.T) {
 		{"remanufacture takes it back to manufactured",
 			[]Record{enrolled(), claimed("northwind", "7009"), activated("7009"),
 				{Kind: KindRemanufacture, DeviceID: device}}, Manufactured},
+		{"decommission retires it from any state",
+			[]Record{enrolled(), claimed("northwind", "7009"), activated("7009"),
+				{Kind: KindDecommission, DeviceID: device}}, Decommissioned},
+		{"remanufacture is the way back out of decommissioned",
+			[]Record{enrolled(), claimed("northwind", "7009"),
+				{Kind: KindDecommission, DeviceID: device},
+				{Kind: KindRemanufacture, DeviceID: device}}, Manufactured},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

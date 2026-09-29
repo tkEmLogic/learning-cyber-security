@@ -8,6 +8,8 @@ import (
 	"io"
 	"net/http"
 	"time"
+
+	"github.com/tkEmLogic/learning-cyber-security/internal/lifecycle"
 )
 
 // Tier 7 does not add authorization to the service's one listener. It splits
@@ -233,6 +235,18 @@ func (s *Server) authorizeDevice(route deviceRoute) http.Handler {
 		state := s.provisioningState()
 		if refusal := s.certificateActive(identity, state); refusal != nil {
 			s.Refuse(w, r, http.StatusForbidden, *refusal)
+			return
+		}
+
+		// device-in-service, on every route including claim: a decommissioned
+		// board is retired, and the record is the authority for that, not the
+		// device. It runs after certificate-active, so it may name the device.
+		if state.devices[identity.DeviceID].State == lifecycle.Decommissioned {
+			s.Refuse(w, r, http.StatusForbidden, Refusal{
+				Check:    CheckDeviceInService,
+				Reason:   "this device is decommissioned, and a decommissioned device is refused on every route until it is remanufactured",
+				DeviceID: identity.DeviceID,
+			})
 			return
 		}
 
