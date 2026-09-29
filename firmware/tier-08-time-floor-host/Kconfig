@@ -1,0 +1,4 @@
+# The Tier 8 firmware's own options, with their own defaults, so the floor's
+# seed and the release policy's counter and channel mean here what they mean
+# on the board. That file ends by sourcing Kconfig.zephyr.
+rsource "../tier-08-credential-lifecycle/Kconfig"

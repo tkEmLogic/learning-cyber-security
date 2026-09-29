@@ -71,6 +71,12 @@ type bypassRow struct {
 
 	plan []string
 	run  func(*tier07Adversary) error
+
+	// local is set instead of run by a row that has no target: it opens no
+	// socket and needs no service, so it takes the dry run, the exact
+	// identifier and the evidence record, and not the marker handshake.
+	// E-8-11 is the one such row (#262).
+	local func(*app) error
 }
 
 func tier07Rows() []bypassRow {
@@ -289,7 +295,7 @@ func (a *app) serviceBypass(args []string) error {
 	if !ok {
 		return fmt.Errorf("unknown bypass %q; run ./course service bypass list", args[0])
 	}
-	if row.run == nil {
+	if row.run == nil && row.local == nil {
 		return fmt.Errorf("%s is a board row, not a host runner: %s. Run it on the device, following the module",
 			strings.ToUpper(row.id), row.test)
 	}
@@ -345,6 +351,9 @@ func (a *app) bypassList() error {
 // Tier 6's extraction command was exempted from the handshake because it had
 // no target and opened no socket. Nothing in Tier 7 is in that position.
 func (a *app) runBypassRow(row bypassRow, executeID string) error {
+	if row.local != nil {
+		return a.runLocalBypassRow(row, executeID)
+	}
 	blockKey := bypassBlockKey(row.id)
 	newAdversary := a.newTier07Adversary
 	if blockKey == tier08BypassKey {
