@@ -768,6 +768,10 @@ type firmwareVariant struct {
 	// arms of the COURSE_IDENTITY choice, and it is the only thing that
 	// differs between the two images that tier publishes.
 	identityModel string
+	// timeFloorSeed is empty for every build but Tier 8's time-floor lab
+	// variant, where --time-floor-seed sets it (#263). Empty means the moment
+	// of the build, which is the only honest seed for a release.
+	timeFloorSeed string
 }
 
 var firmwareVariants = map[string]firmwareVariant{
@@ -863,6 +867,7 @@ func variantsForTier(tier string) map[string]firmwareVariant {
 func (a *app) buildFirmware(args []string) error {
 	name := "baseline"
 	tier := "00"
+	seed := ""
 	for len(args) > 0 {
 		if len(args) < 2 {
 			return fmt.Errorf("option %s requires a value", args[0])
@@ -872,6 +877,8 @@ func (a *app) buildFirmware(args []string) error {
 			name = args[1]
 		case "--tier":
 			tier = normalizeTier(args[1])
+		case "--time-floor-seed":
+			seed = args[1]
 		default:
 			return fmt.Errorf("unknown firmware option %s", args[0])
 		}
@@ -881,6 +888,10 @@ func (a *app) buildFirmware(args []string) error {
 	variant, ok := variants[name]
 	if !ok {
 		return fmt.Errorf("unknown firmware variant %q for tier %s", name, tier)
+	}
+	variant, err := withTimeFloorSeed(variant, tier, seed)
+	if err != nil {
+		return err
 	}
 	appDir, ok := firmwareApps[tier]
 	if !ok {
@@ -1121,7 +1132,11 @@ CONFIG_COURSE_RELEASE_CHANNEL=%q
 
 	// Tier 8 seeds its Time floor with the moment of this build (#217).
 	if tier == tier08 {
-		body += fmt.Sprintf("CONFIG_COURSE_TIME_FLOOR_SEED=%q\n", tier08TimeFloorSeed(time.Now()))
+		seed := variant.timeFloorSeed
+		if seed == "" {
+			seed = tier08TimeFloorSeed(time.Now())
+		}
+		body += fmt.Sprintf("CONFIG_COURSE_TIME_FLOOR_SEED=%q\n", seed)
 	}
 
 	// The filename carries the tier as well as the variant. Tier 0 and Tier 2

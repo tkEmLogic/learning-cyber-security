@@ -32,13 +32,19 @@ func TestTierEightBuildsItsOwnApplication(t *testing.T) {
 }
 
 // Tier 8's bootloader is built separately and its image signed afterwards,
-// like every tier from Tier 3, and it publishes two releases of its own.
+// like every tier from Tier 3. It publishes two releases of its own, and it
+// has one lab image besides them, the time-floor variant (#263).
 func TestTierEightSignsItsOwnImage(t *testing.T) {
 	if !tierSignsItsOwnImage(tier08) {
 		t.Fatal("Tier 8 must build its bootloader separately and sign afterwards")
 	}
-	if got := variantsForTier(tier08); len(got) != 2 {
-		t.Fatalf("Tier 8 publishes two releases, got %d", len(got))
+	for _, name := range []string{"baseline", "fail-health", "time-floor"} {
+		if _, ok := variantsForTier(tier08)[name]; !ok {
+			t.Errorf("Tier 8 has no %s variant", name)
+		}
+	}
+	if got := variantsForTier(tier08); len(got) != 3 {
+		t.Fatalf("Tier 8 has %d variants, want baseline, fail-health and time-floor", len(got))
 	}
 }
 
@@ -112,5 +118,34 @@ func TestTierEightFirmwareCommandsReachTierEight(t *testing.T) {
 	if err := a.deviceFlash([]string{"--tier", "08", "--variant", "nope"}); err == nil ||
 		!strings.Contains(err.Error(), "unknown firmware variant") {
 		t.Errorf("device flash --tier 08 with a bad variant = %v", err)
+	}
+}
+
+// The time-floor lab variant (#263) cannot be built without a seed, and no
+// other build can take one, so a seed ahead of real time never reaches a
+// release a board keeps.
+func TestOnlyTheTimeFloorVariantTakesASeed(t *testing.T) {
+	lab := tier08Variants["time-floor"]
+	if _, err := withTimeFloorSeed(lab, tier08, ""); err == nil {
+		t.Fatal("the time-floor variant built without --time-floor-seed")
+	}
+	if _, err := withTimeFloorSeed(tier08Variants["baseline"], tier08, "2026-12-24T00:00:00Z"); err == nil {
+		t.Fatal("the baseline took a Time floor seed")
+	}
+	if _, err := withTimeFloorSeed(tier07Variants["baseline"], "07", "2026-12-24T00:00:00Z"); err == nil {
+		t.Fatal("a Tier 7 build took a Time floor seed")
+	}
+	if _, err := withTimeFloorSeed(lab, tier08, "24 December"); err == nil {
+		t.Fatal("a seed that is not RFC 3339 was accepted")
+	}
+	got, err := withTimeFloorSeed(lab, tier08, "2026-12-24T01:00:00+01:00")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.timeFloorSeed != "2026-12-24T00:00:00Z" {
+		t.Fatalf("seed = %q, want it normalized to UTC", got.timeFloorSeed)
+	}
+	if baseline, _ := withTimeFloorSeed(tier08Variants["baseline"], tier08, ""); baseline.timeFloorSeed != "" {
+		t.Fatal("the baseline gained a seed")
 	}
 }

@@ -9,6 +9,7 @@ package courseapp
 // so flashing it over a claimed Tier 7 board keeps both identities.
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"time"
@@ -59,12 +60,28 @@ var tier08Variants = map[string]firmwareVariant{
 		trialBehaviour:  "fail-health",
 		identityModel:   "factory",
 	},
+	// time-floor is a lab image, not a product release (#263). It is the
+	// baseline built with a Time floor seed the operator sets past the
+	// board's own Operational certificate valid_to, so the device refuses that
+	// certificate on its own authority. Nothing else differs, and no
+	// future-dated manifest is involved: the manifest's created_at is still
+	// the moment of signing.
+	"time-floor": {
+		releaseID:       "tier-08-time-floor",
+		label:           "time-floor",
+		beaconState:     "steady",
+		version:         "0.8.2-time-floor",
+		imageName:       "tier-08-time-floor.bin",
+		securityCounter: tier08SecurityCounter,
+		trialBehaviour:  "healthy",
+		identityModel:   "factory",
+	},
 }
 
 func tier08Variant(name string) (firmwareVariant, error) {
 	variant, ok := tier08Variants[name]
 	if !ok {
-		return firmwareVariant{}, fmt.Errorf("unknown Tier 8 release %q; use baseline or fail-health", name)
+		return firmwareVariant{}, fmt.Errorf("unknown Tier 8 release %q; use baseline, fail-health or time-floor", name)
 	}
 	return variant, nil
 }
@@ -84,6 +101,28 @@ func (a *app) tier08RawImage(variant firmwareVariant) string {
 // real time refuses every certificate issued before it and never comes back.
 func tier08TimeFloorSeed(now time.Time) string {
 	return now.UTC().Truncate(time.Second).Format(time.RFC3339)
+}
+
+// withTimeFloorSeed applies --time-floor-seed. Only Tier 8's time-floor
+// variant takes one, and it cannot be built without one: a seed ahead of real
+// time refuses every certificate issued before it and never comes back, so it
+// is never a default and never leaks into a release a board keeps.
+func withTimeFloorSeed(variant firmwareVariant, tier, seed string) (firmwareVariant, error) {
+	isLab := tier == tier08 && variant.label == "time-floor"
+	switch {
+	case seed == "" && isLab:
+		return variant, errors.New("the time-floor variant needs --time-floor-seed <RFC 3339 UTC>, set past the board's Operational certificate valid_to")
+	case seed == "":
+		return variant, nil
+	case !isLab:
+		return variant, errors.New("--time-floor-seed is only for ./course build firmware --tier 08 --variant time-floor")
+	}
+	at, err := time.Parse(time.RFC3339, seed)
+	if err != nil {
+		return variant, fmt.Errorf("--time-floor-seed %q is not RFC 3339: %w", seed, err)
+	}
+	variant.timeFloorSeed = tier08TimeFloorSeed(at)
+	return variant, nil
 }
 
 // releaseSignTier08 signs one Tier 8 release and publishes it, by Tier 7's
