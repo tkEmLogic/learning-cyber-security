@@ -314,13 +314,14 @@ func TestTheTier8ListingIsReachableAndTheTier7ListingIsUnchanged(t *testing.T) {
 	}
 }
 
-// Ten rows, every one a host runner, and none of them forges.
+// Ten service rows, every one a host runner, and none of them forges. The
+// eleventh, E-8-11, is the local Time floor row (tier08_time_floor_test.go).
 func TestTheTier8RowSet(t *testing.T) {
 	rows := tier08Rows()
-	if len(rows) != len(tier08Checks) {
-		t.Fatalf("%d rows, want %d", len(rows), len(tier08Checks))
+	if len(rows) != len(tier08Checks)+1 {
+		t.Fatalf("%d rows, want %d", len(rows), len(tier08Checks)+1)
 	}
-	for i, row := range rows {
+	for i, row := range rows[:len(tier08Checks)] {
 		if row.id != tier08Checks[i].id || row.run == nil || row.forges || row.witness != witnessHost {
 			t.Fatalf("row %d: %+v", i, row)
 		}

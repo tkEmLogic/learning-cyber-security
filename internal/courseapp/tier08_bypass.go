@@ -22,8 +22,9 @@ package courseapp
 // presents was issued by the service or the station on the genuine path.
 //
 // Every runner's output is a host result. A host result never stands in for a
-// device result. The Time floor is a device-side control, and no row here
-// claims anything about it.
+// device result. The Time floor is a device-side control. The one row about
+// it, E-8-11, runs the firmware's own floor code in a native_sim build on the
+// host (tier08_time_floor.go), and it too claims nothing about a board.
 
 import (
 	"crypto/ecdsa"
@@ -59,6 +60,7 @@ const (
 	holdsOwnerAndKey    = "the owner account of its own synthetic devices, and each device's current Operational key."
 	holdsSharedIdentity = "Tier 6's shared-image identity, which anyone who has the shared image holds."
 	holdsManufacturer   = "the manufacturer's station, and a copy of the credential the manufacturer later withdraws."
+	holdsReleaseKey     = "a release signing key. Here it is a throwaway one, made for this run and trusted only by a host build, never your Release signing key."
 )
 
 func tier08Rows() []bypassRow {
@@ -195,6 +197,20 @@ func tier08Rows() []bypassRow {
 			},
 			run: (*tier07Adversary).rowDecommissionedAtStation,
 		},
+		{
+			id:       "e-8-11",
+			test:     "A release dated far in the future ends the device's own Operational certificate",
+			expected: "Refused by the Time floor, on the host",
+			witness:  witnessHost,
+			holds:    holdsReleaseKey,
+			plan: []string{
+				"Generate a throwaway release key, two synthetic 90-day Operational certificates, and two manifests: one dated twenty years ahead, and one dated now.",
+				"Build the Tier 8 firmware's own time_floor.c, release_policy.c and recovery_state.c for native_sim, with the throwaway public key compiled in.",
+				"First boot: the far-future manifest under a key the build does not trust moves nothing; the same manifest under the release key raises the Time floor past the certificate's valid_to, and the certificate stops being presented.",
+				"Second boot, on the same simulated flash: the floor is read back, a fresh certificate is refused at once, and an ordinary manifest cannot lower it.",
+			},
+			local: (*app).rowTimeFloorFarFuture,
+		},
 	}
 }
 
@@ -228,10 +244,10 @@ func (a *app) bypassListTier08() error {
 	if !ok {
 		return fmt.Errorf("course.yml has no bypass entry for %s", tier08BypassKey)
 	}
-	fmt.Fprintln(a.out, "Tier 8 rows. The Tier 7 adversary drives every one of them. Here it is the")
+	fmt.Fprintln(a.out, "Tier 8 rows. The Tier 7 adversary drives E-8-01 to E-8-10. Here it is the")
 	fmt.Fprintln(a.out, "owner, or the manufacturer, of its own synthetic devices. It withdraws an")
 	fmt.Fprintln(a.out, "authority and then shows that the credential it kept is refused. No row")
-	fmt.Fprintln(a.out, "signs anything with your Operational Device CA key.")
+	fmt.Fprintln(a.out, "signs anything with your Operational Device CA key or your Release signing key.")
 	fmt.Fprintln(a.out)
 	fmt.Fprintf(a.out, "%-8s  %-12s  %-40s  %s\n", "Row", "Observed on", "Expected result", "Test")
 	for _, row := range tier08Rows() {
@@ -239,8 +255,9 @@ func (a *app) bypassListTier08() error {
 			strings.ToUpper(row.id), row.witness, row.expected, row.test)
 	}
 	fmt.Fprintln(a.out)
-	fmt.Fprintln(a.out, "A host result never stands in for a device result. The Time floor is a")
-	fmt.Fprintln(a.out, "device-side control, and no row here says anything about it.")
+	fmt.Fprintln(a.out, "A host result never stands in for a device result. E-8-11 is the one row about")
+	fmt.Fprintln(a.out, "the Time floor, a device-side control. It builds the firmware's own floor code")
+	fmt.Fprintln(a.out, "for native_sim on this computer, and it never reaches the service or a board.")
 	fmt.Fprintf(a.out, "\nReset: %s\n", block.Reset)
 	return nil
 }
