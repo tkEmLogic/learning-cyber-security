@@ -35,6 +35,13 @@ const (
 	CheckDeviceClaimed        = "device-claimed"
 	CheckOwnershipContext     = "ownership-context"
 
+	// CheckDeviceUnrevoked is Tier 8's, and it runs on every device route,
+	// after identifier-consistent so it has a trusted device id and before
+	// device-claimed so a revoked device is told it is revoked rather than that
+	// it is unclaimed. A revoked device is stopped on every route, the claim
+	// route included, and only a remanufacture leaves the state.
+	CheckDeviceUnrevoked = "device-unrevoked"
+
 	// The operator listener. The three credential checks refuse 401 and the
 	// four claim checks 403. Issue #146 builds the Owner credential store and
 	// the claim endpoints that emit them; the listener, the refusal shape and
@@ -46,6 +53,13 @@ const (
 	CheckClaimWindowOpen        = "claim-window-open"
 	CheckNonceMatch             = "nonce-match"
 	CheckDeviceUnowned          = "device-unowned"
+
+	// CheckOwnerOfRecord guards the Owner's operator workflows: an Owner may
+	// revoke only their own device or their own certificate. It answers 403,
+	// because it is knowing who is asking and refusing them, not failing to
+	// authenticate. It says the caller is not this device's owner and never who
+	// the owner is, for the reason the wrong-owner refusals already do.
+	CheckOwnerOfRecord = "owner-of-record"
 )
 
 // The two certificate roles, which are the two authorities and nothing else.

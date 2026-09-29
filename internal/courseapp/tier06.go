@@ -138,11 +138,13 @@ func (a *app) deviceCADir() string {
 
 func (a *app) provision(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: ./course provision credential|enroll|register|extract|export|erase|bypass|record")
+		return errors.New("usage: ./course provision credential|enroll|register|extract|export|erase|revoke|bypass|record")
 	}
 	switch args[0] {
 	case "credential":
 		return a.provisionCredential(args[1:])
+	case "revoke":
+		return a.provisionRevoke(args[1:])
 	case "enroll":
 		return a.provisionEnroll(args[1:])
 	case "register":
@@ -158,7 +160,7 @@ func (a *app) provision(args []string) error {
 	case "record":
 		return a.provisionShowRecord(args[1:])
 	default:
-		return fmt.Errorf("unknown provision command %q; use credential, enroll, register, extract, export, erase, bypass or record", args[0])
+		return fmt.Errorf("unknown provision command %q; use credential, enroll, register, extract, export, erase, revoke, bypass or record", args[0])
 	}
 }
 
