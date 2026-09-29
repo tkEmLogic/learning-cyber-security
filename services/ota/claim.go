@@ -363,7 +363,12 @@ func (s *Server) matchAndIssue(deviceID, nonce, owner string) claimOutcome {
 		delete(s.claimWindows, deviceID)
 		window = nil
 	}
-	if window == nil {
+	// A window that already holds its answer stays in memory only so the
+	// device's next poll can collect the certificate. It is not open: treating
+	// it as open would compare a stranger's nonce against a claim that has
+	// already happened, spend an attempt on it, and let the fourth attempt
+	// throw away a certificate the device has not collected yet (#261).
+	if window == nil || window.certificate != nil {
 		s.recordClaimEvent(deviceID, "refused", "", CheckClaimWindowOpen)
 		return claimOutcome{status: http.StatusForbidden, refusal: &Refusal{
 			Check:  CheckClaimWindowOpen,

@@ -273,18 +273,7 @@ func (x *tier07Adversary) rowRecoverWithoutPress() error {
 	if err != nil {
 		return err
 	}
-	if err := x.expectRefusal(result, "claim-window-open"); err != nil {
-		if result.Check == "nonce-match" {
-			// The service keeps the answered window from this device's claim
-			// in memory, so the device's next poll can collect its
-			// certificate, and the operator half treats that window as open.
-			// A restart clears it. The row states this rather than passing on
-			// the wrong check.
-			return fmt.Errorf("%w. The service still holds the window from this device's claim, which it answered and which is not open, and it compared the nonce against it. That is a service defect this row found (#257). Run the row again after ./course service stop and ./course service start --https --mutual-tls", err)
-		}
-		return err
-	}
-	return nil
+	return x.expectRefusal(result, "claim-window-open")
 }
 
 // E-8-02. The course's own universal secret, offered as the device half of a

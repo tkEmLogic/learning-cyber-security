@@ -357,6 +357,31 @@ func TestAReplayedNonceOnAnOwnedDeviceRefusesAtNonceUnspent(t *testing.T) {
 	}
 }
 
+// The window a claim answered stays in memory for the device to collect its
+// certificate, and it is not open. A fresh nonce meets claim-window-open,
+// spends no attempt, and four of them cannot throw the certificate away before
+// the device has it (#261).
+func TestAnAnsweredWindowIsNotOpen(t *testing.T) {
+	f := newMutualFixture(t)
+	device := "beacon-claim-206ef1170d64"
+	factory := f.claimable(t, device, "northwind", "owner-secret")
+	csr := certificationRequest(t, device)
+	f.deviceHalf(t, factory, device, testNonce, csr)
+	if status, answer := f.operatorHalf(t, "owner-secret", device, testNonce); status != http.StatusOK {
+		t.Fatalf("the first claim must succeed: %d %v", status, answer)
+	}
+
+	for attempt := 1; attempt <= claimAttemptBudget; attempt++ {
+		status, body := f.operatorHalf(t, "owner-secret", device, "ZZZZ-ZZZZ-ZZZZ-ZZZZ-ZZZZ-ZZZZ")
+		assertRefusal(t, status, body, CheckClaimWindowOpen)
+	}
+
+	status, answer := f.deviceHalf(t, factory, device, testNonce, csr)
+	if status != http.StatusOK || answer["result"] != "issued" {
+		t.Fatalf("collecting poll after four approvals = %d %v, want 200 issued", status, answer)
+	}
+}
+
 // Replayed stays distinct from no open claim window across a restart, because
 // the window is memory and the fact that a nonce was spent is not.
 func TestASpentNonceIsStillSpentAfterARestart(t *testing.T) {
