@@ -26,6 +26,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/tkEmLogic/learning-cyber-security/services/ota"
 )
 
 // Operational authority file names, following the same naming rule as the rest
@@ -56,7 +58,11 @@ const OperationalCAName = "Learning Cyber Security Operational Device CA"
 // service's certificate-active check is the only enforcer in the course. There
 // is no renewal. That is Tier 8, and an expired Operational certificate is
 // Tier 8's opening argument.
-const OperationalLifetime = 90 * 24 * time.Hour
+//
+// The number is the OTA service's, which signs and enforces it. This is the
+// same constant under the name the host side already uses, not a copy that
+// could drift.
+const OperationalLifetime = ota.OperationalLifetime
 
 // OperationalCAFiles lists every file GenerateOperationalCA writes.
 func OperationalCAFiles() []string {

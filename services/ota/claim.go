@@ -64,13 +64,14 @@ const claimAttemptBudget = 4
 // claimPollSeconds is what the device half tells the device to wait.
 const claimPollSeconds = 5
 
-// operationalLifetime is the ninety days an Operational certificate is valid.
+// OperationalLifetime is the ninety days an Operational certificate is valid.
 //
-// Spelled here as well as in coursepki, because the service signs from a
-// directory it is handed and nothing under services/ depends on internal/.
-// Ninety days against the Factory identity's ten years: a Factory identity has
-// to outlive the product, and an owner is a fact that expires.
-const operationalLifetime = 90 * 24 * time.Hour
+// This is the one spelling. The service is what signs and what enforces, so the
+// number lives here, and coursepki reads it from here rather than keeping a
+// copy: nothing under services/ depends on internal/, but internal/ may depend
+// on services/. Ninety days against the Factory identity's ten years: a Factory
+// identity has to outlive the product, and an owner is a fact that expires.
+const OperationalLifetime = 90 * 24 * time.Hour
 
 // The authority the service signs with. The file name is the host side's, and
 // it is spelled here for the same reason cmd/ota/main.go spells the two CA
@@ -389,7 +390,8 @@ func (s *Server) matchAndIssue(deviceID, nonce, owner string) claimOutcome {
 
 	// Both halves have matched. Issue, record, and close the window by filling
 	// it with its answer.
-	der, certificate, err := s.issueOperational(deviceID, owner, window.request.PublicKey)
+	der, certificate, err := s.issueOperational(deviceID, owner, window.request.PublicKey,
+		OperationalLifetime)
 	if err != nil {
 		return claimOutcome{status: http.StatusInternalServerError, body: map[string]any{
 			"error": "the operational authority could not sign this claim: " + err.Error(),
@@ -470,7 +472,13 @@ func claimBackoff(attempt int) time.Duration {
 // and the owner slug in the subject organizational unit. Nothing marks it
 // "operational", because the issuer is the role and a second signal is a fact
 // that can disagree with the chain.
-func (s *Server) issueOperational(deviceID, owner string, publicKey any) ([]byte, *x509.Certificate, error) {
+//
+// The lifetime is the caller's, because a claim is not the only issuer: the
+// Time floor's board demonstration needs a deliberately short-lived
+// certificate. It counts from now, and NotBefore still sits an hour earlier
+// for clock skew, so the window is an hour longer than the lifetime.
+func (s *Server) issueOperational(deviceID, owner string, publicKey any,
+	lifetime time.Duration) ([]byte, *x509.Certificate, error) {
 	dir := s.cfg.MutualTLS.PKIDir
 	if dir == "" {
 		return nil, nil, errors.New("no PKI directory; the service was started without COURSE_PKI_DIR")
@@ -493,7 +501,7 @@ func (s *Server) issueOperational(deviceID, owner string, publicKey any) ([]byte
 			OrganizationalUnit: []string{owner},
 		},
 		NotBefore: now.Add(-time.Hour),
-		NotAfter:  now.Add(operationalLifetime),
+		NotAfter:  now.Add(lifetime),
 		KeyUsage:  x509.KeyUsageDigitalSignature,
 		// Client authentication only, and no SAN: an Operational identity is
 		// never a server, and a SAN answers which server you are talking to.
