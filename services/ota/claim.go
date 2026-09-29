@@ -17,6 +17,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/tkEmLogic/learning-cyber-security/internal/lifecycle"
 )
 
 // The two halves of the claim, and the window they meet in.
@@ -379,7 +381,8 @@ func (s *Server) matchAndIssue(deviceID, nonce, owner string) claimOutcome {
 	// caller that the device is owned, and that oracle is decided and bounded;
 	// naming whom it belongs to is the one thing the caller could not
 	// otherwise obtain, and in a real fleet it maps a device to a customer.
-	if claim, claimed := s.provisioningState().devices[deviceID]; claimed && claim.claimed {
+	state := s.provisioningState()
+	if state.devices[deviceID].Owned() {
 		s.recordClaimEvent(deviceID, "refused", "", CheckDeviceUnowned)
 		return claimOutcome{status: http.StatusForbidden, refusal: &Refusal{
 			Check:    CheckDeviceUnowned,
@@ -398,17 +401,23 @@ func (s *Server) matchAndIssue(deviceID, nonce, owner string) claimOutcome {
 		}}
 	}
 	fingerprint := fingerprintOf(der)
+	serial := certificate.SerialNumber.String()
+	// The stored state is the derivation's answer for the log with this line
+	// on it, so the copy cannot disagree with the record it is a copy of.
+	stateAfter := lifecycle.StateAfter(state.records, lifecycle.Record{
+		Kind: lifecycle.KindClaim, DeviceID: deviceID, OwnerID: owner, CertSerial: serial,
+	})
 	record := map[string]any{
-		"kind":            "claim",
+		"kind":            lifecycle.KindClaim,
 		"recorded_at":     time.Now().UTC().Format(time.RFC3339Nano),
 		"station":         "course-ota-service",
 		"device_id":       deviceID,
 		"owner_id":        owner,
-		"lifecycle_state": "claimed",
+		"lifecycle_state": stateAfter,
 		// The nonce is a secret that authorized a state change, so the record
 		// keeps a verifier of it and never the nonce itself.
 		"claim_nonce_verifier":    verifier,
-		"certificate_serial":      certificate.SerialNumber.String(),
+		"certificate_serial":      serial,
 		"certificate_fingerprint": fingerprint,
 		"certificate_public_key":  fingerprintOf(certificate.RawSubjectPublicKeyInfo),
 	}
@@ -420,7 +429,7 @@ func (s *Server) matchAndIssue(deviceID, nonce, owner string) claimOutcome {
 
 	window.ownerID = owner
 	window.certificate = der
-	window.certSerial = certificate.SerialNumber.String()
+	window.certSerial = serial
 	window.certFingerprint = fingerprint
 	window.certNotAfter = certificate.NotAfter
 	s.recordClaimEvent(deviceID, "nonce_spent", verifier, "")
@@ -431,7 +440,7 @@ func (s *Server) matchAndIssue(deviceID, nonce, owner string) claimOutcome {
 		"result":                  "claimed",
 		"device_id":               deviceID,
 		"owner_id":                owner,
-		"lifecycle_state":         "claimed",
+		"lifecycle_state":         stateAfter,
 		"certificate_serial":      window.certSerial,
 		"certificate_fingerprint": fingerprint,
 		"not_after":               certificate.NotAfter.UTC().Format(time.RFC3339),
@@ -546,8 +555,8 @@ func loadOperationalCA(dir string) (*x509.Certificate, any, error) {
 	return certificate, key, nil
 }
 
-// appendProvisioningRecord writes the one line the claim adds to the device
-// lifecycle record, and refuses to write private key material.
+// appendProvisioningRecord writes one line of the device lifecycle record, and
+// refuses to write private key material.
 //
 // The guard is the provisioning station's, kept rather than assumed. Section
 // 11 makes "the backend stores the private key" a stated failure criterion,
@@ -555,9 +564,10 @@ func loadOperationalCA(dir string) (*x509.Certificate, any, error) {
 // writer of that store, so it needs its own copy of the enforcement rather
 // than inheriting the station's by proximity.
 //
-// This is the only line this tier adds to records.jsonl. Refusals go to the
-// service's own events.jsonl, where the window's whole trail already lives, so
-// the terminal store keeps holding terminal facts.
+// The service writes two kinds of line here: the claim, and from Tier 8 the
+// activation that follows the first use of each certificate. Refusals go to
+// the service's own events.jsonl, where the window's whole trail already
+// lives, so the terminal store keeps holding terminal facts.
 func (s *Server) appendProvisioningRecord(record map[string]any) error {
 	line, err := json.Marshal(record)
 	if err != nil {

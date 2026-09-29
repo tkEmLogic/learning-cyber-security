@@ -417,6 +417,8 @@ func (a *app) release(args []string) error {
 			return a.releaseSignTier06(releaseVariantOption(args[1:]))
 		case "07":
 			return a.releaseSignTier07(releaseVariantOption(args[1:]))
+		case tier08:
+			return tier08NoFirmware
 		}
 		return a.releaseSign()
 	case "assign":
@@ -427,6 +429,8 @@ func (a *app) release(args []string) error {
 			return a.releaseAssignTier06(releaseVariantOption(args[1:]))
 		case "07":
 			return a.releaseAssignTier07(releaseVariantOption(args[1:]))
+		case tier08:
+			return tier08NoFirmware
 		}
 		return errors.New("release assign needs a tier that has more than one release; pass --tier 05, --tier 06 or --tier 07")
 	case "hostile":

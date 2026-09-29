@@ -34,6 +34,7 @@ import (
 	"encoding/asn1"
 
 	"github.com/tkEmLogic/learning-cyber-security/internal/coursepki"
+	"github.com/tkEmLogic/learning-cyber-security/internal/lifecycle"
 )
 
 // Lifecycle states from section 8.
@@ -41,22 +42,23 @@ import (
 // All six are written down even though Tier 6 can only ever reach the first.
 // An enum with one value teaches that lifecycle state is a boolean, and section
 // 8 spends a subsection saying it is not. Tier 7 reaches claimed, Tier 8 the
-// rest.
+// rest. The values live in internal/lifecycle beside the one derivation that
+// assigns them, which the OTA service uses too.
 const (
-	LifecycleManufactured   = "manufactured"
-	LifecycleClaimed        = "claimed"
-	LifecycleActive         = "active"
-	LifecycleTransferred    = "transferred"
-	LifecycleRevoked        = "revoked"
-	LifecycleDecommissioned = "decommissioned"
+	LifecycleManufactured   = lifecycle.Manufactured
+	LifecycleClaimed        = lifecycle.Claimed
+	LifecycleActive         = lifecycle.Active
+	LifecycleTransferred    = lifecycle.Transferred
+	LifecycleRevoked        = lifecycle.Revoked
+	LifecycleDecommissioned = lifecycle.Decommissioned
 )
 
 // Record kinds in the append-only log.
 const (
 	recordCredentialIssued = "credential_issued"
-	recordEnrollment       = "enrollment"
+	recordEnrollment       = lifecycle.KindEnrollment
 	recordDelivery         = "delivery_confirmed"
-	recordRemanufacture    = "remanufacture"
+	recordRemanufacture    = lifecycle.KindRemanufacture
 	recordFixtureReset     = "fixture_reset"
 	// recordClaim is written by the OTA service rather than by the
 	// provisioning station, which is why the store's definition is the device
@@ -64,7 +66,10 @@ const (
 	// a customer-side fact about a device the manufacturer has already
 	// released, and holding the line that this file is manufacturing-only
 	// would have forced claims into a third store for a definition's sake.
-	recordClaim = "claim"
+	recordClaim = lifecycle.KindClaim
+	// recordActivation is the OTA service's too, from Tier 8: the first use
+	// of each Operational certificate, which is what makes a device active.
+	recordActivation = lifecycle.KindActivation
 )
 
 // provisionRecord is one line of the manufacturing record.
@@ -204,7 +209,6 @@ func (a *app) mintCredential(deviceID string) (credential string, record provisi
 		CredentialID:       credentialID,
 		CredentialVerifier: verifierFor(credential),
 		CredentialExpires:  expires.Format(time.RFC3339),
-		Lifecycle:          LifecycleManufactured,
 		Result:             "issued",
 	}
 	if err := a.writeRecord(record); err != nil {
@@ -284,7 +288,22 @@ func flagValue(args []string, name string) (string, error) {
 // The refusal is here rather than in a review checklist because section 11
 // makes "the backend stores the private key" a stated failure criterion for
 // this tier, and a criterion with no enforcement point is a wish.
+//
+// It also fills in lifecycle_state, and a caller cannot. The field is a copy of
+// what the log derives, as docs/adr/0003-device-lifecycle-state-is-derived.md
+// settles, so it is the derivation's answer for the log with this line on it.
+// A line that moves no state, such as a Bootstrap credential for a device not
+// yet enrolled, stores none rather than a state the log does not hold.
 func (a *app) writeRecord(record provisionRecord) error {
+	existing, err := a.readRecords()
+	if err != nil {
+		return err
+	}
+	derived := make([]lifecycle.Record, 0, len(existing))
+	for _, prior := range existing {
+		derived = append(derived, prior.lifecycleRecord())
+	}
+	record.Lifecycle = lifecycle.StateAfter(derived, record.lifecycleRecord())
 	record.Recorded = time.Now().UTC().Format(time.RFC3339Nano)
 	if record.Station == "" {
 		record.Station = "course-provisioning-station"
@@ -306,6 +325,17 @@ func (a *app) writeRecord(record provisionRecord) error {
 	defer file.Close()
 	_, err = file.Write(append(line, '\n'))
 	return err
+}
+
+// lifecycleRecord is the part of a line the derivation reads.
+func (r provisionRecord) lifecycleRecord() lifecycle.Record {
+	return lifecycle.Record{
+		Kind:       r.Kind,
+		DeviceID:   r.DeviceID,
+		OwnerID:    r.OwnerID,
+		CertSerial: r.CertSerial,
+		Result:     r.Result,
+	}
 }
 
 func looksLikePrivateKey(s string) bool {
@@ -504,7 +534,6 @@ func (a *app) enroll(request enrollmentRequest, credential string) (enrollmentOu
 		Kind:               recordEnrollment,
 		DeviceID:           request.DeviceID,
 		HardwareRevision:   request.HardwareRevision,
-		Lifecycle:          LifecycleManufactured,
 		ConsumedCredential: state.matched.CredentialID,
 		CertSerial:         issued.SerialNumber.String(),
 		CertFingerprint:    fingerprint,
@@ -593,6 +622,9 @@ func (a *app) provisionShowRecord(args []string) error {
 			fmt.Fprintf(a.out, "    claimed by %s, lifecycle %s\n", record.OwnerID, record.Lifecycle)
 			fmt.Fprintf(a.out, "    operational certificate %s, fingerprint %s\n",
 				record.CertSerial, short(record.CertFingerprint))
+		case recordActivation:
+			fmt.Fprintf(a.out, "    first used operational certificate %s, lifecycle %s\n",
+				record.CertSerial, record.Lifecycle)
 		}
 	}
 	fmt.Fprintf(a.out, "\nResult: %d record(s)\n", shown)
@@ -738,7 +770,6 @@ func (a *app) registerShared(deviceID string, certDER []byte, nonce, signature [
 	record := provisionRecord{
 		Kind:            recordEnrollment,
 		DeviceID:        deviceID,
-		Lifecycle:       LifecycleManufactured,
 		CertSerial:      cert.SerialNumber.String(),
 		CertFingerprint: fingerprint,
 		CertPublicKey:   publicKeyFingerprint(cert.RawSubjectPublicKeyInfo),

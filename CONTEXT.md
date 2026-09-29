@@ -100,9 +100,11 @@ The append-only device lifecycle record. The provisioning station is its first
 writer rather than its only one. The station records credential issuance and
 enrollment, including the certificate fingerprint and which credential was
 consumed, and from Tier 7 the OTA service appends the claim that binds a device
-to an owner. It never holds a private key, and a secret it refers to is kept
-only as a hash. An entry is never edited or removed, including one a clone put
-there.
+to an owner. From Tier 8 the service also appends an activation the first time
+a device uses each Operational certificate, carrying its serial, which is what
+makes the device `active`. It never holds a private key, and a secret it
+refers to is kept only as a hash. An entry is never edited or removed,
+including one a clone put there.
 _Avoid_: Database, key store
 
 **Proof of possession**:

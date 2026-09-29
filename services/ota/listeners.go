@@ -246,8 +246,8 @@ func (s *Server) authorizeDevice(route deviceRoute) http.Handler {
 		}
 
 		if route.record {
-			claim, claimed := state.devices[identity.DeviceID]
-			if !claimed {
+			device := state.devices[identity.DeviceID]
+			if !device.Owned() {
 				s.Refuse(w, r, http.StatusForbidden, Refusal{
 					Check:    CheckDeviceClaimed,
 					Reason:   "this device carries no claim on record, and an unclaimed device is served nothing",
@@ -255,7 +255,7 @@ func (s *Server) authorizeDevice(route deviceRoute) http.Handler {
 				})
 				return
 			}
-			if identity.OwnerScope != claim.owner {
+			if identity.OwnerScope != device.Owner {
 				s.Refuse(w, r, http.StatusForbidden, Refusal{
 					Check: CheckOwnershipContext,
 					Reason: fmt.Sprintf("the owner scope %q in the certificate presented is not this device's current ownership context",
@@ -263,6 +263,12 @@ func (s *Server) authorizeDevice(route deviceRoute) http.Handler {
 					DeviceID: identity.DeviceID,
 				})
 				return
+			}
+			// Every check has passed, so this request is a use of the
+			// certificate. The first one is recorded; the derivation says
+			// whether it is still owed, so the rest cost a map lookup.
+			if device.Operational[identity.Serial] && !device.Activated[identity.Serial] {
+				s.recordActivation(identity)
 			}
 		}
 

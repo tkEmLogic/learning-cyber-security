@@ -95,6 +95,10 @@ type Server struct {
 	// has no such luck, so match-and-issue is held under claimMu from the
 	// nonce check to the appended record. It is deliberately not s.mu, which
 	// the event log already takes while a claim is in progress.
+	//
+	// It also serializes the activation record, so every line the service
+	// appends to records.jsonl is derived from the log as it stands when the
+	// line is written.
 	claimMu      sync.Mutex
 	claimWindows map[string]*claimWindow
 
@@ -426,6 +430,11 @@ func (s *Server) deviceEvent(w http.ResponseWriter, r *http.Request) {
 	if identity, ok := DeviceFrom(r.Context()); ok {
 		accepted = identity.DeviceID
 		event["certificate_device_id"] = identity.DeviceID
+		// Spelled as on a refusal, so one grep follows a certificate
+		// through both outcomes. During a renewal overlap it is also what
+		// shows two certificates in use at once, which the once-per-serial
+		// activation record cannot.
+		event["certificate_serial"] = identity.Serial
 		event["accepted_from"] = "client_certificate"
 	} else {
 		event["tier_00_trust"] = "body_device_id"

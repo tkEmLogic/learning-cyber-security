@@ -538,6 +538,7 @@ Let the board run for a minute and then read the newest line your device wrote t
     "accepted_device_id": "beacon-remfg-206ef1170d64",
     "accepted_from": "client_certificate",
     "certificate_device_id": "beacon-remfg-206ef1170d64",
+    "certificate_serial": "159307069163124795337050571888294605858",
     "detail": "verified service, signed release metadata",
     "device_id": "beacon-remfg-206ef1170d64",
     "event": "status.observed",

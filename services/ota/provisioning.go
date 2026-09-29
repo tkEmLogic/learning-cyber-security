@@ -5,35 +5,23 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+
+	"github.com/tkEmLogic/learning-cyber-security/internal/lifecycle"
 )
 
-// The service reads the manufacturing record; it never writes it.
+// The service reads the device lifecycle record live, and appends to it in two
+// places only.
 //
 // `.course-state/provisioning` is the host CLI's territory: the provisioning
-// station enrols a device there and issue #146's claim writes the `claim` line
-// that ownership is derived from. This file is the only place the service
-// crosses that boundary, and it crosses it read only, live, on the requests
-// that need it.
+// station enrols a device there. From Tier 7 the service appends the `claim`
+// line that ownership is derived from, and from Tier 8 the `activation` line
+// that makes a device active. Everything else here crosses that boundary read
+// only, on the requests that need it.
 //
 // Nothing here unmarshals the whole record shape. The station owns that shape
-// and adds fields to it; the service reads the four values three checks need
+// and adds fields to it; the service reads the few values the derivation needs
 // and ignores everything else, so a field added on the other side of the
 // boundary can never turn a device's request into a 400.
-
-// Record kinds this package cares about. The station writes several more.
-const (
-	recordKindClaim         = "claim"
-	recordKindRemanufacture = "remanufacture"
-)
-
-// provisioningRecord is the subset of one manufacturing record line the
-// service reads.
-type provisioningRecord struct {
-	Kind       string `json:"kind"`
-	DeviceID   string `json:"device_id"`
-	OwnerID    string `json:"owner_id"`
-	CertSerial string `json:"certificate_serial"`
-}
 
 // revocationRecord is one line of `revoked.jsonl`, the file a minimal host
 // command writes and the service reads as its authority on clause 2 of
@@ -45,20 +33,14 @@ type revocationRecord struct {
 	CertSerial string `json:"certificate_serial"`
 }
 
-// claimState is what replaying the record log says about one device.
-type claimState struct {
-	owner   string
-	claimed bool
-}
-
 // provisioningState is the whole log, replayed.
 //
-// State is derived rather than edited, exactly as the station derives
-// credential state today. A `claim` line claims a device and names its owner;
-// a `remanufacture` line takes it back to manufactured, which is what makes
-// the Tier 6 erase path the only escape from an expired Operational identity.
+// State is derived rather than edited, by the one derivation in
+// internal/lifecycle that the station uses too. The `lifecycle_state` field on
+// a line is a copy written for a reader; nothing here reads it.
 type provisioningState struct {
-	devices map[string]claimState
+	records []lifecycle.Record
+	devices map[string]lifecycle.Device
 
 	// serials is every serial that appears in any claim record, which is what
 	// clause 3 of certificate-active joins on.
@@ -76,31 +58,24 @@ type provisioningState struct {
 }
 
 func (s *Server) provisioningState() provisioningState {
+	records := s.readProvisioningRecords()
 	state := provisioningState{
-		devices: map[string]claimState{},
+		records: records,
+		devices: lifecycle.Derive(records),
 		serials: map[string]bool{},
 	}
-	for _, record := range s.readProvisioningRecords() {
-		switch record.Kind {
-		case recordKindClaim:
-			if record.DeviceID == "" {
-				continue
-			}
-			state.devices[record.DeviceID] = claimState{owner: record.OwnerID, claimed: true}
-			if record.CertSerial != "" {
-				state.serials[record.CertSerial] = true
-			}
-		case recordKindRemanufacture:
-			delete(state.devices, record.DeviceID)
+	for _, record := range records {
+		if record.Kind == lifecycle.KindClaim && record.DeviceID != "" && record.CertSerial != "" {
+			state.serials[record.CertSerial] = true
 		}
 	}
 	return state
 }
 
-func (s *Server) readProvisioningRecords() []provisioningRecord {
-	var records []provisioningRecord
+func (s *Server) readProvisioningRecords() []lifecycle.Record {
+	var records []lifecycle.Record
 	forEachJSONLine(filepath.Join(s.cfg.MutualTLS.ProvisioningDir, "records.jsonl"), func(line []byte) {
-		var record provisioningRecord
+		var record lifecycle.Record
 		if err := json.Unmarshal(line, &record); err == nil {
 			records = append(records, record)
 		}
