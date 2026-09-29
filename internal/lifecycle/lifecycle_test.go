@@ -16,6 +16,10 @@ func activated(serial string) Record {
 	return Record{Kind: KindActivation, DeviceID: device, CertSerial: serial}
 }
 
+func revoked() Record {
+	return Record{Kind: KindRevocation, DeviceID: device}
+}
+
 // Every state reachable so far, each from the log that reaches it. The other
 // three states are declared and have no transition into them yet, which is
 // what the later Tier 8 tickets build.
@@ -30,6 +34,13 @@ func TestEachReachableStateIsDerivedFromTheLog(t *testing.T) {
 		{"first use makes it active", []Record{enrolled(), claimed("northwind", "7009"), activated("7009")}, Active},
 		{"remanufacture takes it back to manufactured",
 			[]Record{enrolled(), claimed("northwind", "7009"), activated("7009"),
+				{Kind: KindRemanufacture, DeviceID: device}}, Manufactured},
+		{"a revocation makes it revoked",
+			[]Record{enrolled(), claimed("northwind", "7009"), revoked()}, Revoked},
+		{"a revocation of an active device makes it revoked",
+			[]Record{enrolled(), claimed("northwind", "7009"), activated("7009"), revoked()}, Revoked},
+		{"only a remanufacture leaves revoked",
+			[]Record{enrolled(), claimed("northwind", "7009"), revoked(),
 				{Kind: KindRemanufacture, DeviceID: device}}, Manufactured},
 	}
 	for _, c := range cases {
@@ -60,6 +71,8 @@ func TestALineThatIsNotATransitionMovesNothing(t *testing.T) {
 				{Kind: KindRemanufacture, DeviceID: device}, claimed("contoso", "8001"), activated("7009")}, Claimed},
 		{"a line of a kind that moves no state",
 			[]Record{enrolled(), claimed("northwind", "7009"), {Kind: "credential_issued", DeviceID: device}}, Claimed},
+		{"a revocation of a device the log has never seen",
+			[]Record{revoked()}, ""},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -84,6 +97,12 @@ func TestOwnershipFollowsTheState(t *testing.T) {
 	log = append(log, activated("7009"))
 	if got := Derive(log)[device]; !got.Owned() || got.Owner != "northwind" {
 		t.Fatalf("active device = %#v", got)
+	}
+	// A revoked device is no longer owned, but the owner of record stays on it
+	// so owner-of-record can still say whose device was stopped.
+	log = append(log, revoked())
+	if got := Derive(log)[device]; got.Owned() || got.Owner != "northwind" {
+		t.Fatalf("revoked device = %#v", got)
 	}
 }
 

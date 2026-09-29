@@ -8,6 +8,8 @@ import (
 	"io"
 	"net/http"
 	"time"
+
+	"github.com/tkEmLogic/learning-cyber-security/internal/lifecycle"
 )
 
 // Tier 7 does not add authorization to the service's one listener. It splits
@@ -115,6 +117,16 @@ func (s *Server) operatorRoutes() []deviceRoute {
 		{pattern: "POST /v1/lab/reset", handler: http.HandlerFunc(s.reset)},
 		{pattern: "POST /v1/claim", handler: s.requireOwner(
 			s.claimHandler(s.cfg.Claim.Operator, "the operator half of the claim exchange"))},
+
+		// Tier 8's two revocations. Both are the Owner's, so both sit behind the
+		// same Owner credential the claim approval does, and both refuse a
+		// caller who is not the device's owner at owner-of-record. The service
+		// is the only writer of the Owner's revocations: a certificate serial
+		// goes to revoked.jsonl, a device to a revocation record in the log.
+		{pattern: "POST /v1/certificates/{serial}/revoke",
+			handler: s.requireOwner(http.HandlerFunc(s.revokeCertificate))},
+		{pattern: "POST /v1/devices/{device_id}/revoke",
+			handler: s.requireOwner(http.HandlerFunc(s.revokeDevice))},
 	}
 }
 
@@ -243,6 +255,20 @@ func (s *Server) authorizeDevice(route deviceRoute) http.Handler {
 				return
 			}
 			r = next
+		}
+
+		// device-unrevoked, on every route the claim route included. It runs
+		// here, after the device id is trusted and before device-claimed, so a
+		// revoked device is told it is revoked rather than that it is unclaimed,
+		// and a revoked device is refused even on the claim endpoint it would
+		// otherwise re-enter through. Only a remanufacture leaves this state.
+		if state.devices[identity.DeviceID].State == lifecycle.Revoked {
+			s.Refuse(w, r, http.StatusForbidden, Refusal{
+				Check:    CheckDeviceUnrevoked,
+				Reason:   "this device is revoked, and a revoked device is served nothing until it is remanufactured",
+				DeviceID: identity.DeviceID,
+			})
+			return
 		}
 
 		if route.record {

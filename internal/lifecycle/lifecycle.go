@@ -33,6 +33,12 @@ const (
 	KindClaim         = "claim"
 	KindRemanufacture = "remanufacture"
 
+	// KindRevocation stops one device. It is the Owner's act, written once, and
+	// one-way: nothing but a remanufacture leaves the state it moves a device
+	// into. It stops a device rather than a credential, which is why it lives
+	// here and a revoked certificate serial lives in revoked.jsonl.
+	KindRevocation = "revocation"
+
 	// KindActivation is appended once per Operational certificate, the first
 	// time the device uses it. It is what makes a device active: `claimed`
 	// already means the certificate was issued, so `active` means it was used,
@@ -127,6 +133,16 @@ func apply(devices map[string]Device, record Record) {
 		}
 		device.State = Active
 		device.Activated[record.CertSerial] = true
+		devices[record.DeviceID] = device
+	case KindRevocation:
+		// One-way, and the only exit is a remanufacture below. The owner and the
+		// certificate history stay, because owner-of-record still has to
+		// recognise whose device was stopped; a revocation for a device the log
+		// has never seen moves nothing, like every other line here.
+		if !known {
+			return
+		}
+		device.State = Revoked
 		devices[record.DeviceID] = device
 	case KindRemanufacture:
 		devices[record.DeviceID] = Device{State: Manufactured}
