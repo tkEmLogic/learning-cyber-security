@@ -45,6 +45,14 @@ const (
 	// and that is the name renewal needs for section 8's "proves the new
 	// identity works".
 	KindActivation = "activation"
+
+	// KindRenewal issues a device its next Operational certificate, on a new
+	// key, for the same owner. It moves no state: ADR 0003 puts renewal inside
+	// the active self-loop, because an overlap is two certificates and one
+	// device. It is a kind of its own and not a second claim line, because a
+	// claim starts a new owner's certificate history and a renewal continues
+	// the current one.
+	KindRenewal = "renewal"
 )
 
 // Record is the subset of one record line the derivation reads. Every writer
@@ -125,6 +133,15 @@ func apply(devices map[string]Device, record Record) {
 		if record.CertSerial != "" {
 			device.Operational[record.CertSerial] = true
 		}
+		devices[record.DeviceID] = device
+	case KindRenewal:
+		// The new serial joins the current owner's certificates, so its first
+		// use can be recorded as an activation. A renewal for a device with no
+		// owner, or naming another owner, adds nothing.
+		if !known || !device.Owned() || record.OwnerID != device.Owner || record.CertSerial == "" {
+			return
+		}
+		device.Operational[record.CertSerial] = true
 		devices[record.DeviceID] = device
 	case KindActivation:
 		if !known || !device.Owned() || !device.Operational[record.CertSerial] ||

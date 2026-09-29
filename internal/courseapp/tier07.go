@@ -303,15 +303,17 @@ func validateOwnerID(slug string) error {
 
 func (a *app) claim(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: ./course claim approve --device <id> --nonce <nonce> --credential <hex>|revoke --serial <certificate serial>")
+		return errors.New("usage: ./course claim approve --device <id> --nonce <nonce> --credential <hex>|revoke --serial <certificate serial>|renew --device <id> --credential <hex>")
 	}
 	switch args[0] {
 	case "approve":
 		return a.claimApprove(args[1:])
 	case "revoke":
 		return a.claimRevoke(args[1:])
+	case "renew":
+		return a.claimRenew(args[1:])
 	default:
-		return fmt.Errorf("unknown claim command %q; use approve or revoke", args[0])
+		return fmt.Errorf("unknown claim command %q; use approve, revoke or renew", args[0])
 	}
 }
 

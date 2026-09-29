@@ -55,9 +55,10 @@ const OperationalCAName = "Learning Cyber Security Operational Device CA"
 //
 // Ninety days is enforceable here in a way a short Tier 2 lifetime would not
 // be, because the device cannot evaluate a validity window at all: the OTA
-// service's certificate-active check is the only enforcer in the course. There
-// is no renewal. That is Tier 8, and an expired Operational certificate is
-// Tier 8's opening argument.
+// service's certificate-active check is the only enforcer in the course. From
+// Tier 8 the service is also the only scheduler of renewal: it asks a device to
+// renew when a third of its certificate's own lifetime is left, and a device
+// that cannot reach the service is not renewed and expires.
 //
 // The number is the OTA service's, which signs and enforces it. This is the
 // same constant under the name the host side already uses, not a copy that

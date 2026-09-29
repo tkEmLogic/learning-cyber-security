@@ -40,6 +40,14 @@ const (
 	ReasonKeyCompromise        = "keyCompromise"
 	ReasonPrivilegeWithdrawn   = "privilegeWithdrawn"
 	ReasonCessationOfOperation = "cessationOfOperation"
+
+	// ReasonSuperseded is the service's own, and never the Owner's. It is
+	// what renewal writes for the certificate a renewal replaced, once the
+	// new one has been used, and for a Renewal candidate a later renewal made
+	// pointless. It is not in the Owner's set: a person asking the service to
+	// stop a certificate is withdrawing it, and supersession is a fact only
+	// the service can observe.
+	ReasonSuperseded = "superseded"
 )
 
 // ownerRevocationReasons is the fixed set an Owner may give. A reason from a
@@ -185,16 +193,16 @@ func (s *Server) revokeDevice(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// operationalCertOwner is who a serial's claim record names as its owner, and
-// the device it was issued to. Serials are unique, so at most one claim record
-// carries any of them.
+// operationalCertOwner is who a serial's issuing record names as its owner, and
+// the device it was issued to. A renewed certificate is the Owner's to revoke
+// as much as a claimed one is. Serials are unique, so at most one claim or
+// renewal record carries any of them.
 func operationalCertOwner(state provisioningState, serial string) (owner, deviceID string, found bool) {
-	for _, record := range state.records {
-		if record.Kind == lifecycle.KindClaim && record.CertSerial == serial {
-			return record.OwnerID, record.DeviceID, true
-		}
+	issued, found := state.issuances[serial]
+	if !found {
+		return "", "", false
 	}
-	return "", "", false
+	return issued.ownerID, issued.deviceID, true
 }
 
 // ownerRevocationReason reads and validates the reason a revocation body

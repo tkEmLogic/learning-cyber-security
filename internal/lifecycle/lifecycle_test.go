@@ -134,3 +134,37 @@ func TestStateAfterIsTheDerivationOfTheLogWithTheLineOnIt(t *testing.T) {
 		t.Fatalf("activation writes %q, want %q", got, Active)
 	}
 }
+
+func renewed(owner, serial string) Record {
+	return Record{Kind: KindRenewal, DeviceID: device, OwnerID: owner, CertSerial: serial}
+}
+
+// Renewal is the active self-loop: it moves no state, and it adds the new
+// serial to the current owner's certificates so its first use activates it.
+func TestRenewalMovesNoStateAndAddsTheSerial(t *testing.T) {
+	log := []Record{enrolled(), claimed("northwind", "7009"), activated("7009"), renewed("northwind", "7010")}
+	got := Derive(log)[device]
+	if got.State != Active || got.Owner != "northwind" {
+		t.Fatalf("renewed device = %#v, want active and still northwind's", got)
+	}
+	if !got.Operational["7009"] || !got.Operational["7010"] || got.Activated["7010"] {
+		t.Fatalf("certificates after renewal = %#v", got)
+	}
+	if state := StateAfter(log, activated("7010")); state != Active {
+		t.Fatalf("activating the renewed serial writes %q, want %q", state, Active)
+	}
+	if !Derive(append(log, activated("7010")))[device].Activated["7010"] {
+		t.Fatal("the renewed serial's first use was not derived")
+	}
+}
+
+// A renewal for a device with no owner, or naming another owner, adds nothing.
+func TestARenewalThatIsNotTheOwnersAddsNothing(t *testing.T) {
+	if got := Derive([]Record{enrolled(), renewed("northwind", "7010")})[device]; got.State != Manufactured {
+		t.Fatalf("a renewal of an unclaimed device = %#v", got)
+	}
+	got := Derive([]Record{enrolled(), claimed("northwind", "7009"), renewed("contoso", "7010")})[device]
+	if got.Operational["7010"] {
+		t.Fatal("a renewal naming another owner added its serial")
+	}
+}

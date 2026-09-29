@@ -75,6 +75,12 @@ const claimPollSeconds = 5
 // identity has to outlive the product, and an owner is a fact that expires.
 const OperationalLifetime = 90 * 24 * time.Hour
 
+// operationalSkew is how far NotBefore is backdated, for clock skew. It makes
+// a certificate's window an hour longer than its lifetime, which renewal has
+// to subtract again: a third of a five-minute certificate's window would be
+// more than its whole life.
+const operationalSkew = time.Hour
+
 // The authority the service signs with. The file name is the host side's, and
 // it is spelled here for the same reason cmd/ota/main.go spells the two CA
 // certificates it loads.
@@ -509,7 +515,7 @@ func (s *Server) issueOperational(deviceID, owner string, publicKey any,
 			Organization:       []string{"Learning Cyber Security course, synthetic"},
 			OrganizationalUnit: []string{owner},
 		},
-		NotBefore: now.Add(-time.Hour),
+		NotBefore: now.Add(-operationalSkew),
 		NotAfter:  now.Add(lifetime),
 		KeyUsage:  x509.KeyUsageDigitalSignature,
 		// Client authentication only, and no SAN: an Operational identity is
@@ -564,8 +570,9 @@ func loadOperationalCA(dir string) (*x509.Certificate, any, error) {
 // writer of that store, so it needs its own copy of the enforcement rather
 // than inheriting the station's by proximity.
 //
-// The service writes two kinds of line here: the claim, and from Tier 8 the
-// activation that follows the first use of each certificate. Refusals go to
+// The service writes these kinds of line here: the claim, and from Tier 8 the
+// activation that follows the first use of each certificate, the renewal that
+// issues the next one, and the Owner's renewal request. Refusals go to
 // the service's own events.jsonl, where the window's whole trail already
 // lives, so the terminal store keeps holding terminal facts.
 func (s *Server) appendProvisioningRecord(record map[string]any) error {

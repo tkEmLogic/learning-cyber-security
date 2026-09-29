@@ -32,8 +32,8 @@ import (
 // identifierSources says what a route carries that the certificate subject can
 // be compared against.
 //
-// identifier-consistent runs on two routes only, and that is not a weakening.
-// It compares identifiers, and only /v1/devices/{device_id}/... carries one
+// identifier-consistent runs on the three device-identified routes only, and
+// that is not a weakening. It compares identifiers, and only /v1/devices/{device_id}/... carries one
 // outside the certificate. The four Operational GETs have no device identifier
 // in the path — {release_id} and {name} are not one — and no body at all, so
 // there is nothing there to disagree with the certificate: the certificate is
@@ -68,7 +68,7 @@ type deviceRoute struct {
 	handler http.Handler
 }
 
-// deviceRoutes is the six routes a device reaches, with the checks each one
+// deviceRoutes is the seven routes a device reaches, with the checks each one
 // runs, in the order it runs them: cheapest and most certificate-local first,
 // which is also the disclosure order. An unclaimed device presenting its
 // Factory certificate is told about its role and never learns its ownership
@@ -81,7 +81,7 @@ type deviceRoute struct {
 func (s *Server) deviceRoutes() []deviceRoute {
 	return []deviceRoute{
 		{"GET /v1/releases/current", RoleOperational, identifierNone, true,
-			http.HandlerFunc(s.currentRelease)},
+			http.HandlerFunc(s.deviceAssignment)},
 		{"GET /v1/releases/{release_id}/manifest", RoleOperational, identifierNone, true,
 			http.HandlerFunc(s.releaseManifest)},
 		{"GET /v1/releases/{release_id}/manifest.sig", RoleOperational, identifierNone, true,
@@ -92,6 +92,12 @@ func (s *Server) deviceRoutes() []deviceRoute {
 			http.HandlerFunc(s.deviceEvent)},
 		{"POST /v1/devices/{device_id}/claim", RoleFactory, identifierPath, false,
 			s.claimHandler(s.cfg.Claim.Device, "the device half of the claim exchange")},
+
+		// Tier 8's renewal. The current Operational identity authenticates it,
+		// so it runs every record check an ordinary Operational route runs, and
+		// the handler adds renewal-due and key-unused.
+		{"POST /v1/devices/{device_id}/renewal", RoleOperational, identifierPath, true,
+			http.HandlerFunc(s.renewalHandler)},
 	}
 }
 
@@ -127,10 +133,16 @@ func (s *Server) operatorRoutes() []deviceRoute {
 			handler: s.requireOwner(http.HandlerFunc(s.revokeCertificate))},
 		{pattern: "POST /v1/devices/{device_id}/revoke",
 			handler: s.requireOwner(http.HandlerFunc(s.revokeDevice))},
+
+		// The Owner's way to make renewal due now, gated by owner-of-record like
+		// the revocations. It sets the flag and nothing else: the device still
+		// renews on its own identity, with no person in the renewal itself.
+		{pattern: "POST /v1/devices/{device_id}/renewal-request",
+			handler: s.requireOwner(http.HandlerFunc(s.requestRenewal))},
 	}
 }
 
-// DeviceHandler serves the six device routes behind mutual TLS. Every refusal
+// DeviceHandler serves the seven device routes behind mutual TLS. Every refusal
 // it makes is 403 carrying a check name, because settled input 7 kept role,
 // ownership, record and body checks in the handler: only a genuinely foreign
 // issuer fails at the handshake, where there is nothing to carry a check.
@@ -308,8 +320,8 @@ func (s *Server) authorizeDevice(route deviceRoute) http.Handler {
 //     evaluate a validity window at all, which is exactly what makes a short
 //     lifetime enforceable here rather than decorative.
 //  2. its serial is not marked revoked.
-//  3. its serial appears in a claim record. This refuses a certificate
-//     genuinely signed by the Operational CA that the service has no record of
+//  3. its serial appears in a claim or renewal record. This refuses a
+//     certificate genuinely signed by the Operational CA that the service has no record of
 //     issuing: a CA signature is not an authorization, the record is. It is
 //     strictly stronger than the CRL this course deliberately does not build,
 //     because a CRL catches only what was explicitly withdrawn while the
