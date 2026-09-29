@@ -137,7 +137,9 @@ type provisionRecord struct {
 	// written on the board-level records — decommission, remanufacture and the
 	// factory_loss observation — so that two identifiers on one board are read
 	// as one unit. The identifier's suffix is the hardware key, the convention
-	// validateDeviceID's comment already states.
+	// validateDeviceID's comment already states. An enrolment record carries it
+	// too when the board reported its MAC (Tier 8 firmware onward), and then it
+	// is the MAC the board printed, not a suffix read off the name.
 	Board string `json:"board,omitempty"`
 
 	// Reason is the manufacturer's stated reason on a remanufacture.
@@ -464,6 +466,11 @@ type enrollmentRequest struct {
 	// CSRDer is the device's certification request, carrying the credential in
 	// an extension so that it is covered by the request's own self-signature.
 	CSRDer []byte
+	// ReportedMAC is the factory MAC a Tier 8 board prints before its request,
+	// twelve lower-case hex characters. It is empty for a Tier 6 or Tier 7
+	// board, which prints none, and the station then keys the board by the
+	// identifier's suffix as it did before Tier 8.
+	ReportedMAC string
 }
 
 // enrollmentOutcome is what the station decided, and why.
@@ -519,13 +526,27 @@ func (a *app) enroll(request enrollmentRequest, credential string) (enrollmentOu
 	// a decommissioned board is refused before the station ever looks at the
 	// credential, so a fresh credential and a brand-new identifier on the same
 	// board are refused here too, not sent down the used-credential path. The
-	// board is keyed by its MAC suffix, so this holds across identifiers, and
-	// only a remanufacture record lifts it.
+	// board is keyed by the MAC it reported, or by its identifier's MAC suffix
+	// when it reported none, so this holds across identifiers, and only a
+	// remanufacture record lifts it.
+	// identifier-matches-hardware, before hardware-in-service: a board that
+	// reports its MAC may only enrol under an identifier whose suffix is that
+	// MAC. Without this check the suffix is only a naming convention, and a
+	// decommissioned board could enrol under another board's name.
+	if request.ReportedMAC != "" && boardOf(request.DeviceID) != request.ReportedMAC {
+		outcome := enrollmentOutcome{
+			Check: "identifier-matches-hardware",
+			Reason: fmt.Sprintf("the board reported MAC %s, but the identifier %s names the board %s",
+				request.ReportedMAC, request.DeviceID, boardOf(request.DeviceID)),
+		}
+		return outcome, a.recordRefusal(request, outcome)
+	}
+
 	records, err := a.readRecords()
 	if err != nil {
 		return enrollmentOutcome{}, err
 	}
-	if boardDecommissioned(records, boardOf(request.DeviceID)) {
+	if boardDecommissioned(records, enrollingBoard(request)) {
 		outcome := enrollmentOutcome{
 			Check:  "hardware-in-service",
 			Reason: fmt.Sprintf("the board carrying %s is decommissioned; only ./course provision remanufacture lets it enrol again", request.DeviceID),
@@ -593,6 +614,7 @@ func (a *app) enroll(request enrollmentRequest, credential string) (enrollmentOu
 		CertSerial:         issued.SerialNumber.String(),
 		CertFingerprint:    fingerprint,
 		CertPublicKey:      publicKeyFingerprint(csr.RawSubjectPublicKeyInfo),
+		Board:              request.ReportedMAC,
 		Result:             "issued",
 	}
 	if err := a.writeRecord(record); err != nil {
@@ -621,6 +643,7 @@ func (a *app) recordRefusal(request enrollmentRequest, outcome enrollmentOutcome
 		Kind:             recordEnrollment,
 		DeviceID:         request.DeviceID,
 		HardwareRevision: request.HardwareRevision,
+		Board:            request.ReportedMAC,
 		Result:           "refused",
 		Detail:           outcome.Check + ": " + outcome.Reason,
 	})
@@ -1181,7 +1204,12 @@ func (a *app) provisionEnroll(args []string) error {
 		return err
 	}
 	defer console.Close()
+	return a.enrollOverConsole(console, deviceID, credential)
+}
 
+// enrollOverConsole is provisionEnroll after the port is open. It is separate
+// so that a test can drive it with a synthetic console transcript.
+func (a *app) enrollOverConsole(console *console, deviceID, credential string) error {
 	fmt.Fprintf(a.out, "Enrolling %s over the board's console.\n", deviceID)
 	fmt.Fprintln(a.out, "The credential goes over the cable, not over the network. A Bootstrap")
 	fmt.Fprintln(a.out, "credential delivered through the device's normal network traffic would")
@@ -1191,18 +1219,20 @@ func (a *app) provisionEnroll(args []string) error {
 	if err := console.send("provision request " + credential); err != nil {
 		return err
 	}
-	csrDER, err := console.readChunked("provision.csr", 30*time.Second)
+	mac, csrDER, err := readProvisionRequest(console, 30*time.Second)
 	if err != nil {
-		return fmt.Errorf("the board did not return a certification request: %w", err)
+		return err
 	}
 	fmt.Fprintf(a.out, "  board returned a %d byte certification request\n", len(csrDER))
 	fmt.Fprintln(a.out, "  it is signed by the key the board generated, and the credential is")
 	fmt.Fprintln(a.out, "  inside that signature rather than beside it")
+	a.reportBoardKey(deviceID, mac)
 
 	outcome, err := a.enroll(enrollmentRequest{
 		DeviceID:         deviceID,
 		HardwareRevision: strconv.Itoa(tier04HardwareRevision),
 		CSRDer:           csrDER,
+		ReportedMAC:      mac,
 	}, credential)
 	if err != nil {
 		return err
