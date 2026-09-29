@@ -24,6 +24,7 @@ Everything runs in a dev container. Your own machine needs Podman and an editor,
 | [Tier 5: Make installation recoverable](course-material/tiers/tier-05-recovery/index.md) | Resumable downloads, a trial boot, a local health gate, and a revert to the last confirmed image |
 | [Tier 6: Replace shared identity with per-device factory identity](course-material/tiers/tier-06-factory-identity/index.md) | On-device key generation, a per-device Factory identity, a one-use Bootstrap credential, and an honest read of what the storage protects |
 | [Tier 7: Add owner-scoped operational identity and mutual TLS](course-material/tiers/tier-07-operational-identity/index.md) | An Operational certificate authority, a two-party claim with a physical action and an authenticated owner, and mutual TLS on every endpoint a device uses |
+| [Tier 8: Operate the credential lifecycle](course-material/tiers/tier-08-credential-lifecycle/index.md) | Renewal into a second key slot, revocation of a certificate or a device, recovery of a lost identity, ownership transfer, decommissioning with a verified erase, and a Time floor that lets a device without a clock refuse its own expired certificate |
 
 Eleven core tiers and two advanced tiers are planned. [The course page](course-material/index.md) lists all of them, so you can see where the work goes.
 
@@ -31,7 +32,7 @@ Eleven core tiers and two advanced tiers are planned. [The course page](course-m
 
 A physical ESP32-C6 development kit is optional for most work and required for flashing, serial output, Wi-Fi behavior, and anything the device itself must prove.
 
-The course's board is the Espressif ESP32-C6-DevKitC-1. Tiers 0, 2, 3, 4, 5, 6 and 7 are validated on it: every hardware result those tiers recorded was observed again on this board. Tier 1 is analysis only and has no hardware results.
+The course's board is the Espressif ESP32-C6-DevKitC-1. Tiers 0, 2, 3, 4, 5, 6, 7 and 8 are validated on it: every hardware result those tiers record was observed on this board. Tier 1 is analysis only and has no hardware results.
 
 `course.yml` records each hardware result. A skipped hardware check never supports a hardware claim.
 

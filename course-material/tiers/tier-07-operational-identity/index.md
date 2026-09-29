@@ -1024,13 +1024,11 @@ Two questions to end on. The first is practical: the claim route already reads t
 
 ## Continue
 
-**Tier 8 operates the credential lifecycle.** Your device holds a certificate that expires in ninety days and cannot tell when that happens. Nothing here can transfer a device to a new owner, retire one, or take an identity back once it is issued, and the first claim on an unclaimed device wins permanently.
+**[Tier 8: Operate the credential lifecycle](../tier-08-credential-lifecycle/index.md).** Your device holds a certificate that expires in ninety days and cannot tell when that happens. Nothing here can transfer a device to a new owner, retire one, or take an identity back once it is issued, and the first claim on an unclaimed device wins permanently.
 
 Tier 8 builds the operations around the identities this tier issued: renewal before expiry, revocation that takes effect, ownership transfer, and decommissioning that a factory reset does not undo.
 
 Start it from a claimed device holding its Operational identity.
-
-Tier 8 has not been published yet. Until it is, [the course page](../../index.md) lists every tier and where the work goes next.
 
 ## Primary references
 

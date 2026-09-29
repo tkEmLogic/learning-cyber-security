@@ -1123,7 +1123,7 @@ tiers:
     title: Operate the credential lifecycle
     kind: lifecycle
     track: core
-    status: planned
+    status: implemented
     start_checkpoint: course-v1.0-tier-07-complete
     complete_checkpoint: course-v1.0-tier-08-complete
     module: course-material/tiers/tier-08-credential-lifecycle/index.md

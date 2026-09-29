@@ -32,7 +32,7 @@ A Security claim is only as good as its evidence. When you did not observe somet
 
 ## The tiers
 
-The core course is eleven tiers and about 47 hours of work. Two advanced tiers follow it for teams with disposable hardware.
+The core course is eleven tiers and about 55 hours of work. Two advanced tiers follow it for teams with disposable hardware.
 
 **The linked tiers are written and ready to work through. The rest is the course plan**, here so you can see where the work goes rather than because you can start it yet.
 
@@ -48,13 +48,13 @@ Three short names run through the table below and through the whole course. TLS 
 | [Tier 5: Make installation recoverable](tiers/tier-05-recovery/index.md) | Test boot, confirmation, and rollback | Power loss, a corrupted download, or a release that crashes on boot | 4 hours |
 | [Tier 6: Replace shared identity with per-device factory identity](tiers/tier-06-factory-identity/index.md) | On-device key generation and a per-device Factory identity | One extracted shared credential impersonates every device | 4 hours |
 | [Tier 7: Add owner-scoped operational identity and mutual TLS](tiers/tier-07-operational-identity/index.md) | A rotatable Operational identity and mutual TLS | Factory credentials overused for daily access, or an unclaimed device joining | 8 hours |
-| Tier 8: Operate the credential lifecycle | Rotation, renewal, revocation, ownership transfer, decommissioning | Expired, stolen, copied, or old-owner credentials that still work | 4 hours |
+| [Tier 8: Operate the credential lifecycle](tiers/tier-08-credential-lifecycle/index.md) | Rotation, renewal, revocation, ownership transfer, decommissioning | Expired, stolen, copied, or old-owner credentials that still work | 12 hours |
 | Tier 9: Manage dependencies, vulnerabilities, and support | A software bill of materials, or SBOM, with vulnerability handling, disclosure, and reporting exercises | Unknown components, unreviewed vulnerabilities, and late reporting | 5 hours |
 | Tier 10: Defend the integrated reference product | No new control. Diagnose and repair the whole product under attack | A mixed campaign combining impersonation, replay, and interruption | 5 hours |
 | Advanced Tier A: Add a hardware-rooted boot chain and confidentiality | ESP32-C6 Secure Boot v2 and flash encryption | A physical attacker replaces the bootloader or reads flash | 6 to 8 hours |
 | Advanced Tier B: Isolate operational identity in STSAFE-A120 | A secure element that never exports its private keys | Key extraction from MCU storage, and misuse by compromised application code | 6 to 8 hours |
 
-Tier 7 is the longest tier in the course. It is about twice the size of any other tier, so plan two sessions for it rather than one.
+Tier 7 and Tier 8 are the longest tiers in the course. Tier 7 is about twice the size of any other tier, so plan two sessions for it. Tier 8 is about three times the size, so plan three.
 
 The two advanced tiers make irreversible hardware changes. They require disposable boards and a Mentor before and after the change.
 
@@ -107,6 +107,18 @@ This table holds the course's own roles and records. The security words themselv
 | Owner credential | A credential that authorizes a person rather than a device. The holder presents it on every operator request, and it is never a device identity |
 | Claim window | A ten-minute period opened by a physical action, a ten-second hold of the BOOT button, during which a device may be assigned to a new owner and receive a new operational identity |
 | Claim nonce | A one-use secret that the device generates when its Claim window opens and prints on its console. Giving it to the service is how a claim proves that someone is physically at that device |
+| Device lifecycle state | Where one device stands in its life: manufactured, claimed, active, transferred, revoked, or decommissioned. It is worked out from the Provisioning record, which is the authority |
+| Renewal | Replacing a device's Operational identity with one on a new key, for the same owner, before the old one expires. The service decides when it is due, and no person takes part |
+| Renewal candidate | The new key and certificate a device holds during a renewal, beside its current identity, until the service has seen them used |
+| Recovery | Replacing a lost Operational identity for the device's current owner. It is a claim with the same press and nonce, and it always uses a new key |
+| Recovery authorization | The owner's recorded statement that a device's Operational identity is lost. It revokes that certificate and allows one recovery within a limited time |
+| Certificate revocation | Stopping one certificate, so the service refuses it everywhere. It stops a credential, not a device, and nothing cancels it |
+| Device revocation | Stopping one device, so it can neither use nor obtain an Operational identity. Only a remanufacture undoes it |
+| Ownership transfer | Moving a device to a new owner in two acts: the current owner gives it up, then a new owner claims it with an ordinary press |
+| Remanufacture | The manufacturer enrolling a board again under a new identifier. It is the only way out of revoked and decommissioned |
+| Decommissioning | The manufacturer retiring a board for good. What stops the board coming back is the service's record, not the erase |
+| Factory loss | A board enrolling again while the record still shows a live identity for it, which means the old identity was lost with no record of why. It is recorded, not refused |
+| Time floor | The latest moment the device has signed proof that the time has reached. It only rises, and it can prove a certificate expired but never that one is still valid |
 | Secure element | A separate security component that generates or stores private keys and performs cryptographic operations without exporting those private keys |
 
 ## Safety
