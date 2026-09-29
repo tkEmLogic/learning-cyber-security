@@ -16,11 +16,13 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -41,6 +43,49 @@ type bypassFixture struct {
 	app  *app
 	out  *bytes.Buffer
 	root string
+
+	// The service's configuration and the three handlers the listeners
+	// serve, kept so that restart can put a new service behind the same
+	// listeners.
+	config                  ota.Config
+	device, operator, plain *swappableHandler
+}
+
+// swappableHandler lets a test replace the service behind a listener that is
+// already bound, which is what a restart of the Learner's service looks like
+// from a client: the same ports, the same records on disk, and nothing that
+// was only in memory.
+type swappableHandler struct {
+	mu      sync.RWMutex
+	handler http.Handler
+}
+
+func (h *swappableHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	h.mu.RLock()
+	handler := h.handler
+	h.mu.RUnlock()
+	handler.ServeHTTP(w, r)
+}
+
+func (h *swappableHandler) set(handler http.Handler) {
+	h.mu.Lock()
+	h.handler = handler
+	h.mu.Unlock()
+}
+
+// restart stands up a new service on the same state, behind the same
+// listeners. It is the test's own in-process service, so the test may do
+// this; the fixture never may.
+func (f *bypassFixture) restart(t *testing.T) {
+	t.Helper()
+	service, err := ota.New(f.config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.device.set(service.DeviceHandler())
+	f.operator.set(service.OperatorHandler())
+	f.plain.set(service.SplitPublicHandler(f.app.manifest.Bypass[tier07BypassKey].DevicePort,
+		f.app.manifest.Bypass[tier07BypassKey].OperatorPort, coursepki.ServiceName))
 }
 
 // newBypassFixture stands up the Learner's own environment: the four
@@ -76,14 +121,15 @@ func newBypassFixture(t *testing.T) *bypassFixture {
 		ProvisioningDir: provisioning,
 		PKIDir:          pki,
 	}
-	service, err := ota.New(ota.Config{
+	config := ota.Config{
 		CourseID:      "learning-cyber-security",
 		EnvironmentID: "bypass-test",
 		Tier:          "07",
 		StateDir:      stateDir,
 		ReleaseDir:    releases,
 		MutualTLS:     mutual,
-	})
+	}
+	service, err := ota.New(config)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +143,8 @@ func newBypassFixture(t *testing.T) *bypassFixture {
 	// The device listener, configured exactly as cmd/ota configures it: a
 	// client certificate is required, and the only question asked of it in the
 	// handshake is which authority signed it.
-	device := httptest.NewUnstartedServer(service.DeviceHandler())
+	deviceHandler := &swappableHandler{handler: service.DeviceHandler()}
+	device := httptest.NewUnstartedServer(deviceHandler)
 	device.TLS = &tls.Config{
 		Certificates:          []tls.Certificate{serverCertificate},
 		ClientAuth:            tls.RequireAnyClientCert,
@@ -106,14 +153,16 @@ func newBypassFixture(t *testing.T) *bypassFixture {
 	device.StartTLS()
 	t.Cleanup(device.Close)
 
-	operator := httptest.NewUnstartedServer(service.OperatorHandler())
+	operatorHandler := &swappableHandler{handler: service.OperatorHandler()}
+	operator := httptest.NewUnstartedServer(operatorHandler)
 	operator.TLS = &tls.Config{Certificates: []tls.Certificate{serverCertificate}}
 	operator.StartTLS()
 	t.Cleanup(operator.Close)
 
 	devicePort := portOf(t, device.URL)
 	operatorPort := portOf(t, operator.URL)
-	plain := httptest.NewServer(service.SplitPublicHandler(devicePort, operatorPort, coursepki.ServiceName))
+	plainHandler := &swappableHandler{handler: service.SplitPublicHandler(devicePort, operatorPort, coursepki.ServiceName)}
+	plain := httptest.NewServer(plainHandler)
 	t.Cleanup(plain.Close)
 
 	writeJSON(filepath.Join(root, ".course-state", "environment.json"), environment{
@@ -153,7 +202,8 @@ func newBypassFixture(t *testing.T) *bypassFixture {
 	block.OperatorPort = operatorPort
 	a.manifest.Bypass[tier07BypassKey] = block
 
-	return &bypassFixture{app: a, out: out, root: root}
+	return &bypassFixture{app: a, out: out, root: root, config: config,
+		device: deviceHandler, operator: operatorHandler, plain: plainHandler}
 }
 
 func readTestCA(t *testing.T, path string) *x509.Certificate {

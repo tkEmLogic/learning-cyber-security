@@ -1,6 +1,6 @@
 # Fixture safety contract
 
-Status: Resolved design. Tier 0 rules are from the first runnable course release. Tier 2, Tier 3, Tier 4, Tier 6 and Tier 7 rules extend them. Tier 6 is the first to carry a named exception rather than only additions, and it is bounded in the section that takes it. Tier 7 takes no new exception, and it writes the tightest bounds in this document, because its adversary holds a signing key that a correctly configured service obeys.
+Status: Resolved design. Tier 0 rules are from the first runnable course release. Tier 2, Tier 3, Tier 4, Tier 6, Tier 7 and Tier 8 rules extend them. Tier 6 is the first to carry a named exception rather than only additions, and it is bounded in the section that takes it. Tier 7 takes no new exception, and it writes the tightest bounds in this document, because its adversary holds a signing key that a correctly configured service obeys.
 
 This contract lets a Learner demonstrate insecure behavior, and later watch a control refuse it, without turning a course fixture into a general network attack tool.
 
@@ -547,6 +547,26 @@ Every mutable input stays allowlisted. The exact manifest block is for the build
 
 The fixture requires no hardware of its own. That is the lesson rather than a compromise: a forged certificate does not need the device it impersonates. What it may not claim is anything about a board.
 
+## Tier 8 fixtures
+
+Tier 8 takes no new exception and no new authority. Its rows run under `./course service bypass e-8-NN`, beside Tier 7's, and every rule in the Tier 7 section binds them unchanged: dry run first, the exact row identifier to execute, the marker handshake over plain HTTP, manifest-owned inputs, the Learner's own `--mutual-tls` service and never one of the fixture's own, and an evidence record.
+
+**The actor is the Tier 7 adversary, one tier on.** It holds the same single adversary owner, it keeps its keys in the same fixture state under `.course-state/bypass/tier-07`, and `./course service bypass reset` is its one reset. The Tier 8 block in `course.yml` names the same owner slug as the Tier 7 block, and the runner refuses to start when the two disagree. A second state file would hold a second copy of the owner credential, and the two copies would supersede each other in the owner store.
+
+**What changes is what the actor does with that account.** In Tier 7 it tried to take what was not its own. In Tier 8 it is the owner, or the manufacturer, of its own synthetic devices. It withdraws an authority with a real Tier 8 operation, and then it shows that the credential it kept is refused. The operations are the ones a Learner runs: the Owner's revocations, recovery authorization, renewal request and transfer on the operator listener, and the manufacturer's Factory-identity block and decommissioning at the station, in process.
+
+| Fixture | Permitted action | Refused behavior |
+| --- | --- | --- |
+| The Tier 8 rows, `./course service bypass e-8-NN` | Everything the Tier 7 adversary may do, plus the Owner's Tier 8 operations on a synthetic device it owns, and the station's `provision revoke` and `provision decommission` on a synthetic device it enrolled. Present the shared development identity from `.course-secrets/pki` as a client certificate. | Everything the Tier 7 section refuses. Any Tier 8 operation on a device the fixture did not enrol. Signing anything with the Operational CA key. A release, a manifest or any write to the release store. |
+
+**No Tier 8 row signs anything.** Every certificate a row presents was issued by the service or the station on the genuine path, or is the shared development identity that Tier 6 already made. The Operational CA key bound in the Tier 7 section is not used, and the Release signing key is not read.
+
+**The far-future release is not a fixture row.** Issue #217 asks for a host-only demonstration that a release dated in the future ends Operational credentials through the Time floor. The Time floor is a device-side control, and the service has no check that refuses anything in that demonstration, so there is no refusal a runner could read off the wire. Publishing such a release through the Learner's own service is also exactly what #217 forbids, because the board polls that service and its floor would stay ahead for good. A runner that modelled the floor in Go would be the fixture grading its own copy of the control. That row waits for the firmware, and it must never run against a service a board can reach.
+
+**Reset rewinds none of Tier 8's withdrawals.** Revocation, transfer and decommissioning are one-way by design, and a reset that undid them would teach that they can be undone. Their records stay in `records.jsonl`, and the serials they revoked stay in `revoked.jsonl`. They name only synthetic devices, so they change nothing about how the service answers the Learner's own board. Reset still removes the adversary owner and the serials Tier 7's rows marked. Every Tier 8 row finds its own withdrawal already done on a second run, and it is refused at the same check again.
+
+The rows need no hardware and they say nothing about a board. Every row is labelled `host`, and a host result never stands in for a device result.
+
 ## Capture rules
 
 A fixture may capture traffic only under these bounds.
@@ -597,7 +617,7 @@ The fixture exits nonzero and names the failed check.
 
 It never falls back to a weaker target check, a wider address scope, a default device, or an unrestricted command.
 
-Sources: [Define the Tier 0 fixture safety contract](https://github.com/tkEmLogic/learning-cyber-security/issues/24) for the Tier 0 rules, [Extend the fixture safety contract to HTTPS and a named service](https://github.com/tkEmLogic/learning-cyber-security/issues/41) for the transport, service name, and capture rules, [Extend the fixture safety contract to hostile firmware images and signing keys](https://github.com/tkEmLogic/learning-cyber-security/issues/53) for the key material and Tier 3 rules, [What does the fixture safety contract need for Tier 4?](https://github.com/tkEmLogic/learning-cyber-security/issues/70) for the manifest signing and replay rules, [Write the Tier 6 section of the fixture safety contract](https://github.com/tkEmLogic/learning-cyber-security/issues/122) for the compiled-in credential exception, the append-only reset, and the flash dump rules, and [Write the Tier 7 section of the fixture safety contract](https://github.com/tkEmLogic/learning-cyber-security/issues/149) for the Operational CA signing bounds, the reset split between history and live authorization state, and the naming-convention limitation.
+Sources: [Define the Tier 0 fixture safety contract](https://github.com/tkEmLogic/learning-cyber-security/issues/24) for the Tier 0 rules, [Extend the fixture safety contract to HTTPS and a named service](https://github.com/tkEmLogic/learning-cyber-security/issues/41) for the transport, service name, and capture rules, [Extend the fixture safety contract to hostile firmware images and signing keys](https://github.com/tkEmLogic/learning-cyber-security/issues/53) for the key material and Tier 3 rules, [What does the fixture safety contract need for Tier 4?](https://github.com/tkEmLogic/learning-cyber-security/issues/70) for the manifest signing and replay rules, [Write the Tier 6 section of the fixture safety contract](https://github.com/tkEmLogic/learning-cyber-security/issues/122) for the compiled-in credential exception, the append-only reset, and the flash dump rules, [Write the Tier 7 section of the fixture safety contract](https://github.com/tkEmLogic/learning-cyber-security/issues/149) for the Operational CA signing bounds, the reset split between history and live authorization state, and the naming-convention limitation, and [Build the Tier 8 attack fixture](https://github.com/tkEmLogic/learning-cyber-security/issues/257) for the Tier 8 rows.
 
 ## Where each rule is enforced
 
@@ -641,5 +661,8 @@ A rule with no named enforcement point is a wish. This table says where each rul
 | Reset appends a `fixture_reset` entry, deletes nothing from `records.jsonl` or `events.jsonl`, keeps the fixture's own key material, and clears only the adversary owner entry and the serials the fixture marked | `bypassReset`, `removeOwnerEntries` and `removeRevokedSerials` in `internal/courseapp/tier07_bypass.go` | Enforced |
 | No owner credential, private key or claim nonce is printed, written to evidence, written to a course page, or committed | `adversaryState` in `internal/courseapp/tier07_adversary.go`, held at 0600 under `.course-state/bypass/tier-07`, with the evidence record carrying no secret, plus `scripts/check-secrets.sh` and `.gitignore` | Enforced |
 | The revoke command accepts only a serial this Course environment issued and can show a record for | the Tier 7 revoke command | Owed by [Build the Operational CA, the Owner credential store and the claim endpoints](https://github.com/tkEmLogic/learning-cyber-security/issues/146) |
+| Tier 8 rows share the Tier 7 adversary's single owner and state | `newTier08Adversary` in `internal/courseapp/tier08_bypass.go`, which refuses a Tier 8 block naming a different `adversary_owner` and reads the Tier 7 fixture state | Enforced |
+| Tier 8 synthetic identifiers come from a bounded manifest list | `allowedIdentifier` in `internal/courseapp/tier07_adversary.go`, against `bypass.tier-08.synthetic_ids` in `course.yml` | Enforced |
+| No Tier 8 row signs with the Operational CA key | `tier08Rows` in `internal/courseapp/tier08_bypass.go`, where no row sets `forges` and none calls `signWithOperationalCA` | Enforced |
 
 When a rule moves, this table moves with it.
