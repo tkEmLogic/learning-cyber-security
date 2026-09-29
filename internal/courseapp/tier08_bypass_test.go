@@ -57,7 +57,7 @@ var tier08Checks = []struct {
 // claimThenRestart claims E-8-01's device and restarts the test's own
 // service, so the answered window from that claim is no longer in memory.
 // That is the state a lost Operational identity is found in: days after the
-// claim, not seconds. Without it, E-8-01 meets the defect its runner names.
+// claim, not seconds.
 func claimThenRestart(t *testing.T, f *bypassFixture) {
 	t.Helper()
 	adversary, err := f.app.newTier08Adversary("E-8-01")
@@ -330,20 +330,12 @@ func TestTheTier8RowSet(t *testing.T) {
 	}
 }
 
-// Found by this fixture. The service keeps the window a claim answered, so
-// that the device can collect its certificate, and the operator half of the
-// claim treats it as still open: a no-press approval straight after a claim
-// meets nonce-match and spends an attempt on a claim that already happened.
-// E-8-01 fails and says so. When the service stops treating an answered
-// window as open, this test fails, and the narration in rowRecoverWithoutPress
-// and this test both go.
-func TestE801NamesTheAnsweredWindowTheServiceStillHolds(t *testing.T) {
+// E-8-01 straight after a claim, with no restart. The service keeps the
+// window that claim answered so the device can collect its certificate, and it
+// must not treat that window as open (#261).
+func TestE801RefusesStraightAfterAClaim(t *testing.T) {
 	f := newTier08Fixture(t)
-	err := f.app.serviceBypass([]string{"e-8-01", "--execute", "e-8-01"})
-	if err == nil {
-		t.Fatalf("E-8-01 passed with the answered window in memory; the service defect is fixed, so remove this test and the runner's narration:\n%s", f.out.String())
-	}
-	if !strings.Contains(err.Error(), "service defect this row found") {
-		t.Fatalf("E-8-01 failed without naming the answered window: %v", err)
+	if err := f.app.serviceBypass([]string{"e-8-01", "--execute", "e-8-01"}); err != nil {
+		t.Fatalf("E-8-01 with the answered window in memory: %v\n%s", err, f.out.String())
 	}
 }
