@@ -825,6 +825,7 @@ var firmwareApps = map[string]string{
 	"05": "firmware/tier-05-recovery",
 	"06": "firmware/tier-06-factory-identity",
 	"07": "firmware/tier-07-operational-identity",
+	"08": "firmware/tier-08-credential-lifecycle",
 }
 
 // tierSignsItsOwnImage names the tiers whose bootloader is built separately
@@ -876,9 +877,6 @@ func (a *app) buildFirmware(args []string) error {
 		}
 		args = args[2:]
 	}
-	if tier == tier08 {
-		return tier08NoFirmware
-	}
 	variants := variantsForTier(tier)
 	variant, ok := variants[name]
 	if !ok {
@@ -921,7 +919,7 @@ func (a *app) buildFirmware(args []string) error {
 	// can verify a Release manifest. It is a separate variable from the trust
 	// anchor because it answers a separate question: the anchor says which
 	// service to talk to, this says whose release metadata to believe.
-	if tier == "04" || tier == "05" || tier == "06" || tier == "07" {
+	if tier == "04" || tier == "05" || tier == "06" || tier == "07" || tier == tier08 {
 		keyDir, err := a.writeSigningPublicKeyInc()
 		if err != nil {
 			return err
@@ -1076,7 +1074,7 @@ CONFIG_COURSE_TRUST_ANCHOR_FINGERPRINT=%q
 	//
 	// The hardware revision is asserted here and nowhere read. The channel is
 	// a policy choice, not a property of the device.
-	if tier == "04" || tier == "05" || tier == "06" || tier == "07" {
+	if tier == "04" || tier == "05" || tier == "06" || tier == "07" || tier == tier08 {
 		body += fmt.Sprintf(`CONFIG_COURSE_SECURITY_COUNTER=%d
 CONFIG_COURSE_HARDWARE_REVISION=%d
 CONFIG_COURSE_RELEASE_CHANNEL=%q
@@ -1095,7 +1093,7 @@ CONFIG_COURSE_RELEASE_CHANNEL=%q
 	// swapping in. Both copies are covered by the image signature. It
 	// identifies the build and not the release, and a Learner's own build
 	// carries their hash and will usually be dirty.
-	if tier == "05" || tier == "06" || tier == "07" {
+	if tier == "05" || tier == "06" || tier == "07" || tier == tier08 {
 		symbol, err := trialBehaviourSymbol(variant.trialBehaviour)
 		if err != nil {
 			return "", "", err
@@ -1113,12 +1111,17 @@ CONFIG_COURSE_RELEASE_CHANNEL=%q
 	// that Tier 7 keeps: CONFIG_COURSE_IDENTITY_FACTORY is a plain bool there
 	// rather than half of a choice, so the generated line configures both
 	// trees and the two tiers stay readable side by side.
-	if tier == "06" || tier == "07" {
+	if tier == "06" || tier == "07" || tier == tier08 {
 		symbol, err := identityModelSymbol(variant.identityModel)
 		if err != nil {
 			return "", "", err
 		}
 		body += fmt.Sprintf("%s=y\n", symbol)
+	}
+
+	// Tier 8 seeds its Time floor with the moment of this build (#217).
+	if tier == tier08 {
+		body += fmt.Sprintf("CONFIG_COURSE_TIME_FLOOR_SEED=%q\n", tier08TimeFloorSeed(time.Now()))
 	}
 
 	// The filename carries the tier as well as the variant. Tier 0 and Tier 2
@@ -1752,9 +1755,6 @@ func (a *app) deviceFlash(args []string) error {
 			return fmt.Errorf("unknown flash option %s", args[0])
 		}
 		args = args[2:]
-	}
-	if tier == tier08 {
-		return tier08NoFirmware
 	}
 	if destroyIdentity && !tierErasesIdentity(tier) {
 		return fmt.Errorf("--destroy-identity applies only to images below Tier 6; a tier %s image keeps the storage partition", tier)

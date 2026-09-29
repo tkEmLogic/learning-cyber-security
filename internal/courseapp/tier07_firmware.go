@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -110,59 +111,75 @@ func (a *app) releaseSignTier07(variantName string) error {
 	if err != nil {
 		return err
 	}
+	release, err := a.signTierRelease("07", variant, a.tier07RawImage(variant), tier07Version)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(a.out, "Result: published %s, %d bytes\n", variant.releaseID, release["image_size"])
+	fmt.Fprintln(a.out, "This image holds a Factory identity and no owner. Who owns the device is")
+	fmt.Fprintln(a.out, "decided after it is running, by a claim, and it is the service that decides.")
+	return nil
+}
+
+// signTierRelease is Tier 7's signing sequence, shared with Tier 8 because
+// nothing in it differs but the tier's name, its raw image and its version:
+// sign the image with the source-revision TLV, write and sign the manifest,
+// and publish. It prints everything up to the Result line, which each tier
+// words for itself.
+func (a *app) signTierRelease(tier string, variant firmwareVariant, raw, version string) (map[string]any, error) {
 	key := a.signingKeyPath("release")
 	if _, err := os.Stat(key); err != nil {
-		return errors.New("no Release signing key yet; run ./course keys create release first")
+		return nil, errors.New("no Release signing key yet; run ./course keys create release first")
 	}
-	raw := a.tier07RawImage(variant)
 	if _, err := os.Stat(raw); err != nil {
-		return fmt.Errorf("no Tier 7 image to sign; run ./course build firmware --tier 07 first")
+		return nil, fmt.Errorf("no Tier %s image to sign; run ./course build firmware --tier %s first",
+			strings.TrimLeft(tier, "0"), tier)
 	}
 	out := filepath.Join(a.releaseDir(), variant.imageName)
 	if err := os.MkdirAll(a.releaseDir(), 0o700); err != nil {
-		return err
+		return nil, err
 	}
 
 	fingerprint, err := a.keyFingerprint(key)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	fmt.Fprintf(a.out, "Signing with the release key, fingerprint %s\n", fingerprint)
 
 	revision := a.sourceRevision()
-	if err := a.signImage(key, raw, out, strconv.Itoa(variant.securityCounter), tier07Version,
+	if err := a.signImage(key, raw, out, strconv.Itoa(variant.securityCounter), version,
 		"--custom-tlv", tier05RevisionTLV, revision); err != nil {
-		return err
+		return nil, err
 	}
 	fmt.Fprintf(a.out, "+ source revision %s written to protected TLV %s\n",
 		revision, tier05RevisionTLV)
 
 	image, err := os.ReadFile(out)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	manifest := a.buildManifest(variant, image, time.Now())
 	data, err := json.MarshalIndent(manifest, "", "  ")
 	if err != nil {
-		return err
+		return nil, err
 	}
 	data = append(data, '\n')
 
 	manifestFile := a.manifestPath(variant.releaseID)
 	if err := os.WriteFile(manifestFile, data, 0o600); err != nil {
-		return err
+		return nil, err
 	}
 
 	keyPEM, err := os.ReadFile(key)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	signature, err := signManifest(keyPEM, data)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if err := os.WriteFile(a.manifestSignaturePath(variant.releaseID), signature, 0o600); err != nil {
-		return err
+		return nil, err
 	}
 
 	fmt.Fprintf(a.out, "+ signed %d manifest bytes with ECDSA P-256 over SHA-256\n", len(data))
@@ -171,14 +188,7 @@ func (a *app) releaseSignTier07(variantName string) error {
 	fmt.Fprintf(a.out, "  counter:   %d, in the image TLV and in the manifest\n",
 		manifest.SecurityCounter)
 
-	release, err := a.publishSigned(variant, out, fingerprint)
-	if err != nil {
-		return err
-	}
-	fmt.Fprintf(a.out, "Result: published %s, %d bytes\n", variant.releaseID, release["image_size"])
-	fmt.Fprintln(a.out, "This image holds a Factory identity and no owner. Who owns the device is")
-	fmt.Fprintln(a.out, "decided after it is running, by a claim, and it is the service that decides.")
-	return nil
+	return a.publishSigned(variant, out, fingerprint)
 }
 
 // releaseAssignTier07 points the service at a Tier 7 release that is already
@@ -189,10 +199,17 @@ func (a *app) releaseAssignTier07(variantName string) error {
 	if err != nil {
 		return err
 	}
+	return a.assignTierRelease("07", variant)
+}
+
+// assignTierRelease is Tier 7's assign, shared with Tier 8: it points the
+// service at a release that is already signed, using only that release's own
+// signed manifest.
+func (a *app) assignTierRelease(tier string, variant firmwareVariant) error {
 	data, err := os.ReadFile(a.manifestPath(variant.releaseID))
 	if err != nil {
-		return fmt.Errorf("no signed %s release yet; run ./course release sign --tier 07 --variant %s first",
-			variant.label, variant.label)
+		return fmt.Errorf("no signed %s release yet; run ./course release sign --tier %s --variant %s first",
+			variant.label, tier, variant.label)
 	}
 	var manifest releaseManifest
 	if err := json.Unmarshal(data, &manifest); err != nil {

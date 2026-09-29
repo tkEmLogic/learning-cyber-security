@@ -1,30 +1,9 @@
 package courseapp
 
 import (
-	"errors"
 	"strings"
 	"testing"
 )
-
-// Tier 8 has no firmware yet, and every firmware command says so rather than
-// falling through to an older tier's image.
-func TestTierEightHasNoFirmwareYetAndSaysSo(t *testing.T) {
-	a, _ := provisioningApp(t)
-	commands := map[string]func() error{
-		"build firmware": func() error { return a.buildFirmware([]string{"--tier", "08"}) },
-		"device flash":   func() error { return a.deviceFlash([]string{"--tier", "8"}) },
-		"release sign":   func() error { return a.release([]string{"sign", "--tier", "08"}) },
-		"release assign": func() error { return a.release([]string{"assign", "--tier", "tier-08"}) },
-	}
-	for name, run := range commands {
-		if err := run(); !errors.Is(err, tier08NoFirmware) {
-			t.Errorf("%s --tier 08 = %v, want the no-firmware refusal", name, err)
-		}
-	}
-	if _, ok := firmwareApps[tier08]; ok {
-		t.Error("Tier 8 has a firmware application now; drop tier08NoFirmware and its callers")
-	}
-}
 
 // The station fills in lifecycle_state from the derivation, whatever the
 // caller put there, and a line that moves no state stores none.
