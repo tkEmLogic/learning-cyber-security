@@ -51,6 +51,18 @@ const (
 	// the same board lifts it. No certificate serial is revoked, so the
 	// service's device-in-service check stays reachable over the wire.
 	KindDecommission = "decommission"
+
+	// KindRecovery replaces a lost Operational identity for the owner of
+	// record. It adds the new certificate's serial to the device and moves no
+	// state: a device that lost its key is still claimed or active as far as
+	// the log knows, because the log records what a device may do and not what
+	// it is holding.
+	KindRecovery = "recovery"
+
+	// KindRecoveryAuthorization is the owner's recorded statement that the
+	// Operational identity is lost, written before the press. It moves nothing
+	// here; the service reads it to let one recovery through.
+	KindRecoveryAuthorization = "recovery_authorization"
 )
 
 // Record is the subset of one record line the derivation reads. Every writer
@@ -139,6 +151,16 @@ func apply(devices map[string]Device, record Record) {
 		}
 		device.State = Active
 		device.Activated[record.CertSerial] = true
+		devices[record.DeviceID] = device
+	case KindRecovery:
+		// A new certificate for the same owner, and nothing else. A recovery
+		// for a device that has no owner, or for somebody who is not its
+		// owner, moves nothing, like every other line that does not describe
+		// a transition from where the device is.
+		if !known || !device.Owned() || record.OwnerID != device.Owner || record.CertSerial == "" {
+			return
+		}
+		device.Operational[record.CertSerial] = true
 		devices[record.DeviceID] = device
 	case KindRevocation:
 		// One-way, and the only exit is a remanufacture below. The owner and the

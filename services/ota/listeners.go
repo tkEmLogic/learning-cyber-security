@@ -127,6 +127,13 @@ func (s *Server) operatorRoutes() []deviceRoute {
 			handler: s.requireOwner(http.HandlerFunc(s.revokeCertificate))},
 		{pattern: "POST /v1/devices/{device_id}/revoke",
 			handler: s.requireOwner(http.HandlerFunc(s.revokeDevice))},
+
+		// Tier 8's Recovery authorization: the owner of record says the
+		// Operational identity is lost, which revokes the old certificate and
+		// lets one claim of an owned device through within the hour. The
+		// device side is the unchanged claim route above.
+		{pattern: "POST /v1/devices/{device_id}/recover",
+			handler: s.requireOwner(http.HandlerFunc(s.authorizeRecovery))},
 	}
 }
 
