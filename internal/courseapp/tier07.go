@@ -76,15 +76,17 @@ func (a *app) revokedPath() string {
 
 func (a *app) owner(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: ./course owner new --name <slug>|list")
+		return errors.New("usage: ./course owner new --name <slug>|list|revoke certificate|device ...")
 	}
 	switch args[0] {
 	case "new":
 		return a.ownerNew(args[1:])
 	case "list":
 		return a.ownerList()
+	case "revoke":
+		return a.ownerRevoke(args[1:])
 	default:
-		return fmt.Errorf("unknown owner command %q; use new or list", args[0])
+		return fmt.Errorf("unknown owner command %q; use new, list or revoke", args[0])
 	}
 }
 
