@@ -141,3 +141,59 @@ func TestStateAfterIsTheDerivationOfTheLogWithTheLineOnIt(t *testing.T) {
 		t.Fatalf("activation writes %q, want %q", got, Active)
 	}
 }
+
+func recovered(owner, serial string) Record {
+	return Record{Kind: KindRecovery, DeviceID: device, OwnerID: owner, CertSerial: serial}
+}
+
+// Recovery changes no state, as ADR 0003 says: a device that lost its key is
+// still where the log left it. What it does change is which certificates the
+// device holds, so the new one can be activated.
+func TestARecoveryMovesNoStateAndAddsTheNewCertificate(t *testing.T) {
+	authorized := Record{Kind: KindRecoveryAuthorization, DeviceID: device, OwnerID: "northwind"}
+	cases := []struct {
+		name    string
+		records []Record
+		want    string
+	}{
+		{"a claimed device stays claimed",
+			[]Record{enrolled(), claimed("northwind", "7009"), authorized, recovered("northwind", "7010")}, Claimed},
+		{"an active device stays active",
+			[]Record{enrolled(), claimed("northwind", "7009"), activated("7009"), authorized,
+				recovered("northwind", "7010")}, Active},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := Derive(c.records)[device]
+			if got.State != c.want {
+				t.Fatalf("state = %q, want %q", got.State, c.want)
+			}
+			if !got.Operational["7010"] || got.Owner != "northwind" {
+				t.Fatalf("the recovered certificate must join the device under its owner: %#v", got)
+			}
+		})
+	}
+
+	// The recovered certificate's first use is an activation like any other.
+	after := Derive([]Record{enrolled(), claimed("northwind", "7009"), recovered("northwind", "7010"),
+		activated("7010")})[device]
+	if after.State != Active || !after.Activated["7010"] {
+		t.Fatalf("the recovered certificate's first use must activate it: %#v", after)
+	}
+}
+
+// A recovery that names somebody other than the owner of record, or a device
+// nobody owns, adds nothing.
+func TestARecoveryForAnotherOwnerAddsNothing(t *testing.T) {
+	for name, records := range map[string][]Record{
+		"another owner":     {enrolled(), claimed("northwind", "7009"), recovered("contoso", "7010")},
+		"an unowned device": {enrolled(), recovered("northwind", "7010")},
+		"a revoked device":  {enrolled(), claimed("northwind", "7009"), revoked(), recovered("northwind", "7010")},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if Derive(records)[device].Operational["7010"] {
+				t.Fatal("a recovery that is not a transition must add no certificate")
+			}
+		})
+	}
+}

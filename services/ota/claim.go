@@ -250,7 +250,18 @@ func (s *Server) openOrPoll(deviceID, verifier string, request *x509.Certificate
 		expires:       now.Add(ClaimWindowLifetime),
 	}
 	s.claimWindows[deviceID] = window
-	s.recordClaimEvent(deviceID, "opened", verifier, "")
+	// An owned device opening a window is the service-side sign of a lost
+	// Operational identity: the device cannot know it lost anything, so its
+	// half is accepted as always and the event says what the service sees. With
+	// a live Recovery authorization it is the recovery the owner asked for.
+	detail := ""
+	if device := s.provisioningState().devices[deviceID]; device.Owned() {
+		detail = "claim window opened by an owned device"
+		if _, found := s.liveRecoveryAuthorization(deviceID, device.Owner, now); found {
+			detail = "claim window opened by an owned device under a recovery authorization"
+		}
+	}
+	s.recordClaimEvent(deviceID, "opened", verifier, detail)
 	return claimOutcome{status: http.StatusOK, body: map[string]any{
 		"result":                  "pending",
 		"device_id":               deviceID,
@@ -381,14 +392,28 @@ func (s *Server) matchAndIssue(deviceID, nonce, owner string) claimOutcome {
 	// caller that the device is owned, and that oracle is decided and bounded;
 	// naming whom it belongs to is the one thing the caller could not
 	// otherwise obtain, and in a real fleet it maps a device to a customer.
+	//
+	// From Tier 8 an owned device passes here in one case: its owner of record
+	// is the caller and holds an unspent Recovery authorization for it. That
+	// makes this claim a recovery, and it is the only thing that does. The
+	// reason gains one clause pointing an owner at claim recover, which says
+	// nothing about who the owner is.
 	state := s.provisioningState()
-	if state.devices[deviceID].Owned() {
-		s.recordClaimEvent(deviceID, "refused", "", CheckDeviceUnowned)
-		return claimOutcome{status: http.StatusForbidden, refusal: &Refusal{
-			Check:    CheckDeviceUnowned,
-			Reason:   "that device is already owned, and ownership is first come in this course",
-			DeviceID: deviceID,
-		}}
+	kind := lifecycle.KindClaim
+	var authorization recoveryAuthorization
+	if device := state.devices[deviceID]; device.Owned() {
+		live, found := s.liveRecoveryAuthorization(deviceID, owner, now)
+		if !found || device.Owner != owner {
+			s.recordClaimEvent(deviceID, "refused", "", CheckDeviceUnowned)
+			return claimOutcome{status: http.StatusForbidden, refusal: &Refusal{
+				Check: CheckDeviceUnowned,
+				Reason: "that device is already owned, and ownership is first come in this course; " +
+					"if it is your device and it lost its Operational identity, run ./course claim recover first",
+				DeviceID: deviceID,
+			}}
+		}
+		kind = lifecycle.KindRecovery
+		authorization = live
 	}
 
 	// Both halves have matched. Issue, record, and close the window by filling
@@ -405,10 +430,10 @@ func (s *Server) matchAndIssue(deviceID, nonce, owner string) claimOutcome {
 	// The stored state is the derivation's answer for the log with this line
 	// on it, so the copy cannot disagree with the record it is a copy of.
 	stateAfter := lifecycle.StateAfter(state.records, lifecycle.Record{
-		Kind: lifecycle.KindClaim, DeviceID: deviceID, OwnerID: owner, CertSerial: serial,
+		Kind: kind, DeviceID: deviceID, OwnerID: owner, CertSerial: serial,
 	})
 	record := map[string]any{
-		"kind":            lifecycle.KindClaim,
+		"kind":            kind,
 		"recorded_at":     time.Now().UTC().Format(time.RFC3339Nano),
 		"station":         "course-ota-service",
 		"device_id":       deviceID,
@@ -420,6 +445,13 @@ func (s *Server) matchAndIssue(deviceID, nonce, owner string) claimOutcome {
 		"certificate_serial":      serial,
 		"certificate_fingerprint": fingerprint,
 		"certificate_public_key":  fingerprintOf(certificate.RawSubjectPublicKeyInfo),
+	}
+	result := "claimed"
+	if kind == lifecycle.KindRecovery {
+		// The authorization this certificate spends. Naming it is what makes
+		// the authorization single use: a spent one is found by this field.
+		record["recovery_authorization"] = authorization.ID
+		result = "recovered"
 	}
 	if err := s.appendProvisioningRecord(record); err != nil {
 		return claimOutcome{status: http.StatusInternalServerError, body: map[string]any{
@@ -437,7 +469,7 @@ func (s *Server) matchAndIssue(deviceID, nonce, owner string) claimOutcome {
 		fmt.Sprintf("operational certificate %s issued to owner %s", window.certSerial, owner))
 
 	return claimOutcome{status: http.StatusOK, body: map[string]any{
-		"result":                  "claimed",
+		"result":                  result,
 		"device_id":               deviceID,
 		"owner_id":                owner,
 		"lifecycle_state":         stateAfter,
@@ -564,8 +596,9 @@ func loadOperationalCA(dir string) (*x509.Certificate, any, error) {
 // writer of that store, so it needs its own copy of the enforcement rather
 // than inheriting the station's by proximity.
 //
-// The service writes two kinds of line here: the claim, and from Tier 8 the
-// activation that follows the first use of each certificate. Refusals go to
+// The service writes these kinds of line here: the claim, and from Tier 8 the
+// activation that follows the first use of each certificate, the recovery
+// authorization and the recovery. Refusals go to
 // the service's own events.jsonl, where the window's whole trail already
 // lives, so the terminal store keeps holding terminal facts.
 func (s *Server) appendProvisioningRecord(record map[string]any) error {

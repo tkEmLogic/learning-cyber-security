@@ -42,7 +42,8 @@ type provisioningState struct {
 	records []lifecycle.Record
 	devices map[string]lifecycle.Device
 
-	// serials is every serial that appears in any claim record, which is what
+	// serials is every serial that appears in any claim or recovery record,
+	// which is what
 	// clause 3 of certificate-active joins on.
 	//
 	// Any claim record, not this device's. The narrower form could never be
@@ -65,7 +66,10 @@ func (s *Server) provisioningState() provisioningState {
 		serials: map[string]bool{},
 	}
 	for _, record := range records {
-		if record.Kind == lifecycle.KindClaim && record.DeviceID != "" && record.CertSerial != "" {
+		// A recovery issues a certificate exactly as a claim does, so its serial
+		// joins the same set, or clause 3 would refuse what recovery issued.
+		if (record.Kind == lifecycle.KindClaim || record.Kind == lifecycle.KindRecovery) &&
+			record.DeviceID != "" && record.CertSerial != "" {
 			state.serials[record.CertSerial] = true
 		}
 	}

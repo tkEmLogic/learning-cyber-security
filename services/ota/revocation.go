@@ -185,12 +185,13 @@ func (s *Server) revokeDevice(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// operationalCertOwner is who a serial's claim record names as its owner, and
-// the device it was issued to. Serials are unique, so at most one claim record
-// carries any of them.
+// operationalCertOwner is who a serial's claim or recovery record names as its
+// owner, and the device it was issued to. Serials are unique, so at most one
+// record carries any of them.
 func operationalCertOwner(state provisioningState, serial string) (owner, deviceID string, found bool) {
 	for _, record := range state.records {
-		if record.Kind == lifecycle.KindClaim && record.CertSerial == serial {
+		if (record.Kind == lifecycle.KindClaim || record.Kind == lifecycle.KindRecovery) &&
+			record.CertSerial == serial {
 			return record.OwnerID, record.DeviceID, true
 		}
 	}

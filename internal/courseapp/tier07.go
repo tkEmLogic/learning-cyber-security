@@ -303,15 +303,17 @@ func validateOwnerID(slug string) error {
 
 func (a *app) claim(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: ./course claim approve --device <id> --nonce <nonce> --credential <hex>|revoke --serial <certificate serial>")
+		return errors.New("usage: ./course claim approve --device <id> --nonce <nonce> --credential <hex>|recover --device <id> --credential <hex> [--reason keyCompromise]|revoke --serial <certificate serial>")
 	}
 	switch args[0] {
 	case "approve":
 		return a.claimApprove(args[1:])
+	case "recover":
+		return a.claimRecover(args[1:])
 	case "revoke":
 		return a.claimRevoke(args[1:])
 	default:
-		return fmt.Errorf("unknown claim command %q; use approve or revoke", args[0])
+		return fmt.Errorf("unknown claim command %q; use approve, recover or revoke", args[0])
 	}
 }
 
@@ -436,6 +438,15 @@ func (a *app) claimApprove(args []string) error {
 	fmt.Fprintln(a.out, "The certificate is now waiting in the open claim window, and the device")
 	fmt.Fprintln(a.out, "collects it on its next poll. Nothing was sent to the device from here:")
 	fmt.Fprintln(a.out, "the two halves never meet except inside the service.")
+	if issued.Result == "recovered" {
+		// Tier 8: the same claim, let through by a Recovery authorization.
+		// The lifecycle state did not move, and the authorization is spent.
+		fmt.Fprintln(a.out, "This claim was a recovery. Your Recovery authorization is now spent, and")
+		fmt.Fprintln(a.out, "the lifecycle state did not change.")
+		fmt.Fprintf(a.out, "Result: %s is recovered for %s, certificate %s\n",
+			issued.DeviceID, issued.OwnerID, short(issued.Fingerprint))
+		return nil
+	}
 	fmt.Fprintf(a.out, "Result: %s is claimed by %s, certificate %s\n",
 		issued.DeviceID, issued.OwnerID, short(issued.Fingerprint))
 	return nil
