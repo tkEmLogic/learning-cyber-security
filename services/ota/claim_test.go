@@ -101,6 +101,33 @@ func (f *mutualFixture) claimable(t *testing.T, deviceID, owner, credential stri
 	return factory
 }
 
+// A claim signs for OperationalLifetime, but the signer takes the lifetime
+// from its caller, because the Time floor's board demonstration needs a
+// certificate that dies in minutes. The window is the lifetime plus the hour
+// NotBefore is backdated for skew.
+func TestAnOperationalCertificateCanBeShortLived(t *testing.T) {
+	f := newMutualFixture(t)
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, lifetime := range []time.Duration{5 * time.Minute, OperationalLifetime} {
+		before := time.Now().UTC().Truncate(time.Second)
+		_, issued, err := f.server.issueOperational("beacon-short-206ef1170d64", "northwind",
+			key.Public(), lifetime)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := issued.NotAfter.Sub(issued.NotBefore); got < lifetime+time.Hour-time.Second ||
+			got > lifetime+time.Hour+time.Second {
+			t.Fatalf("window = %s, want %s plus the skew hour", got, lifetime)
+		}
+		if issued.NotAfter.Before(before.Add(lifetime)) {
+			t.Fatalf("not after = %s, want at least %s from issue", issued.NotAfter, lifetime)
+		}
+	}
+}
+
 // The claim needs both halves, and the device collects its certificate on the
 // same POST it opened the window with.
 func TestBothHalvesTogetherIssueAnOwnerScopedCertificate(t *testing.T) {

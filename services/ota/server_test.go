@@ -638,7 +638,7 @@ func TestOperationalIdentityIsRefusedAtTheClaimEndpoint(t *testing.T) {
 	f := newMutualFixture(t)
 	now := time.Now()
 	operational, _ := f.operational.issue(t, 7001, "beacon-remfg-206ef1170d64", "northwind",
-		now.Add(-time.Hour), now.Add(90*24*time.Hour))
+		now.Add(-time.Hour), now.Add(OperationalLifetime))
 	f.claim(t, "beacon-remfg-206ef1170d64", "northwind", 7001)
 
 	status, body := f.refusalOf(t, present(t, f.operational, operational, http.MethodPost,
@@ -669,7 +669,7 @@ func TestRevokedCertificateIsRefusedThoughUnexpired(t *testing.T) {
 	f := newMutualFixture(t)
 	now := time.Now()
 	cert, _ := f.operational.issue(t, 7003, "beacon-remfg-206ef1170d64", "northwind",
-		now.Add(-time.Hour), now.Add(90*24*time.Hour))
+		now.Add(-time.Hour), now.Add(OperationalLifetime))
 	f.claim(t, "beacon-remfg-206ef1170d64", "northwind", 7003)
 	f.revoke(t, 7003)
 
@@ -688,7 +688,7 @@ func TestCertificateTheServiceNeverIssuedIsRefused(t *testing.T) {
 	f := newMutualFixture(t)
 	now := time.Now()
 	forged, _ := f.operational.issue(t, 9999, "beacon-remfg-206ef1170d64", "northwind",
-		now.Add(-time.Hour), now.Add(90*24*time.Hour))
+		now.Add(-time.Hour), now.Add(OperationalLifetime))
 	f.claim(t, "beacon-remfg-206ef1170d64", "northwind", 7004)
 
 	status, body := f.refusalOf(t, present(t, f.operational, forged,
@@ -707,7 +707,7 @@ func TestUnclaimedDeviceIsRefused(t *testing.T) {
 	now := time.Now()
 	f.claim(t, "beacon-bypass-e7-01", "rival-labs", 7005)
 	forged, _ := f.operational.issue(t, 7005, "beacon-never-claimed", "rival-labs",
-		now.Add(-time.Hour), now.Add(90*24*time.Hour))
+		now.Add(-time.Hour), now.Add(OperationalLifetime))
 
 	status, body := f.refusalOf(t, present(t, f.operational, forged,
 		http.MethodGet, "https://ota.course.example/v1/releases/current", ""))
@@ -725,7 +725,7 @@ func TestWrongOwnerScopeIsRefused(t *testing.T) {
 	now := time.Now()
 	f.claim(t, "beacon-remfg-206ef1170d64", "northwind", 7006)
 	forged, _ := f.operational.issue(t, 7006, "beacon-remfg-206ef1170d64", "rival-labs",
-		now.Add(-time.Hour), now.Add(90*24*time.Hour))
+		now.Add(-time.Hour), now.Add(OperationalLifetime))
 
 	status, body := f.refusalOf(t, present(t, f.operational, forged,
 		http.MethodGet, "https://ota.course.example/v1/releases/current", ""))
@@ -747,7 +747,7 @@ func TestEventPathIdentifierMustMatchTheCertificate(t *testing.T) {
 	f := newMutualFixture(t)
 	now := time.Now()
 	cert, _ := f.operational.issue(t, 7007, "beacon-remfg-206ef1170d64", "northwind",
-		now.Add(-time.Hour), now.Add(90*24*time.Hour))
+		now.Add(-time.Hour), now.Add(OperationalLifetime))
 	f.claim(t, "beacon-remfg-206ef1170d64", "northwind", 7007)
 
 	status, body := f.refusalOf(t, present(t, f.operational, cert, http.MethodPost,
@@ -762,7 +762,7 @@ func TestEventBodyIdentifierMustMatchTheCertificate(t *testing.T) {
 	f := newMutualFixture(t)
 	now := time.Now()
 	cert, _ := f.operational.issue(t, 7008, "beacon-remfg-206ef1170d64", "northwind",
-		now.Add(-time.Hour), now.Add(90*24*time.Hour))
+		now.Add(-time.Hour), now.Add(OperationalLifetime))
 	f.claim(t, "beacon-remfg-206ef1170d64", "northwind", 7008)
 
 	status, body := f.refusalOf(t, present(t, f.operational, cert, http.MethodPost,
@@ -780,7 +780,7 @@ func TestValidOperationalIdentityIsServed(t *testing.T) {
 	f := newMutualFixture(t)
 	now := time.Now()
 	cert, _ := f.operational.issue(t, 7009, "beacon-remfg-206ef1170d64", "northwind",
-		now.Add(-time.Hour), now.Add(90*24*time.Hour))
+		now.Add(-time.Hour), now.Add(OperationalLifetime))
 	f.claim(t, "beacon-remfg-206ef1170d64", "northwind", 7009)
 
 	recorder := httptest.NewRecorder()
