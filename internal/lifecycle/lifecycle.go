@@ -63,6 +63,14 @@ const (
 	// Operational identity is lost, written before the press. It moves nothing
 	// here; the service reads it to let one recovery through.
 	KindRecoveryAuthorization = "recovery_authorization"
+
+	// KindTransfer is the first act of an Ownership transfer: the owner of
+	// record gives the device up. It moves an owned device to transferred,
+	// owned by no one, and the device rests there until the second act, an
+	// ordinary claim by whoever holds it. Issue #205 called the state
+	// transient; #215 narrowed it to a resting state, because the two acts are
+	// done by two people and nothing makes the second one follow at once.
+	KindTransfer = "transfer"
 )
 
 // Record is the subset of one record line the derivation reads. Every writer
@@ -79,7 +87,8 @@ type Record struct {
 type Device struct {
 	State string
 
-	// Owner is the owner of record while the device is claimed or active.
+	// Owner is the owner of record while the device is claimed or active, and
+	// stays on a revoked device. A transferred device has none: it was given up.
 	Owner string
 
 	// Operational is every Operational certificate serial issued to this
@@ -162,6 +171,15 @@ func apply(devices map[string]Device, record Record) {
 		}
 		device.Operational[record.CertSerial] = true
 		devices[record.DeviceID] = device
+	case KindTransfer:
+		// Only the owner of record gives a device up, so a transfer for a device
+		// nobody owns, or one naming somebody else, moves nothing. The owner and
+		// the certificate history go with it: the transfer revoked those
+		// certificates, and the next claim starts a history of its own.
+		if !known || !device.Owned() || record.OwnerID != device.Owner {
+			return
+		}
+		devices[record.DeviceID] = Device{State: Transferred}
 	case KindRevocation:
 		// One-way, and the only exit is a remanufacture below. The owner and the
 		// certificate history stay, because owner-of-record still has to

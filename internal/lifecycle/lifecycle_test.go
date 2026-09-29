@@ -20,9 +20,7 @@ func revoked() Record {
 	return Record{Kind: KindRevocation, DeviceID: device}
 }
 
-// Every state reachable so far, each from the log that reaches it. The other
-// three states are declared and have no transition into them yet, which is
-// what the later Tier 8 tickets build.
+// Every one of the six states, each from the log that reaches it.
 func TestEachReachableStateIsDerivedFromTheLog(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -42,6 +40,9 @@ func TestEachReachableStateIsDerivedFromTheLog(t *testing.T) {
 		{"only a remanufacture leaves revoked",
 			[]Record{enrolled(), claimed("northwind", "7009"), revoked(),
 				{Kind: KindRemanufacture, DeviceID: device}}, Manufactured},
+		{"a transfer makes it transferred",
+			[]Record{enrolled(), claimed("northwind", "7009"), activated("7009"),
+				{Kind: KindTransfer, DeviceID: device, OwnerID: "northwind"}}, Transferred},
 		{"decommission retires it from any state",
 			[]Record{enrolled(), claimed("northwind", "7009"), activated("7009"),
 				{Kind: KindDecommission, DeviceID: device}}, Decommissioned},
@@ -193,6 +194,50 @@ func TestARecoveryForAnotherOwnerAddsNothing(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			if Derive(records)[device].Operational["7010"] {
 				t.Fatal("a recovery that is not a transition must add no certificate")
+			}
+		})
+	}
+}
+
+func transferred(owner string) Record {
+	return Record{Kind: KindTransfer, DeviceID: device, OwnerID: owner}
+}
+
+// A transfer is a resting state, as #215 settled against #205: the device is
+// owned by no one until a new owner claims it, and the new claim starts a
+// certificate history of its own.
+func TestATransferRestsUntilTheNextClaim(t *testing.T) {
+	log := []Record{enrolled(), claimed("northwind", "7009"), activated("7009"), transferred("northwind")}
+	got := Derive(log)[device]
+	if got.State != Transferred || got.Owned() || got.Owner != "" || got.Operational["7009"] {
+		t.Fatalf("transferred device = %#v, want transferred and owned by no one", got)
+	}
+	if StateAfter(log[:3], transferred("northwind")) != Transferred {
+		t.Fatal("a transfer line must store transferred")
+	}
+
+	log = append(log, claimed("contoso", "7020"))
+	got = Derive(log)[device]
+	if got.State != Claimed || got.Owner != "contoso" || !got.Operational["7020"] || got.Operational["7009"] {
+		t.Fatalf("after the new claim: %#v, want claimed by contoso with only the new certificate", got)
+	}
+}
+
+// Only the owner of record gives a device up. A transfer naming somebody else,
+// of a device nobody owns, or of a revoked device moves nothing.
+func TestATransferThatIsNotATransitionMovesNothing(t *testing.T) {
+	for name, c := range map[string]struct {
+		records []Record
+		want    string
+	}{
+		"another owner":     {[]Record{enrolled(), claimed("northwind", "7009"), transferred("contoso")}, Claimed},
+		"an unowned device": {[]Record{enrolled(), transferred("northwind")}, Manufactured},
+		"a revoked device":  {[]Record{enrolled(), claimed("northwind", "7009"), revoked(), transferred("northwind")}, Revoked},
+		"twice":             {[]Record{enrolled(), claimed("northwind", "7009"), transferred("northwind"), transferred("northwind")}, Transferred},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if got := Derive(c.records)[device].State; got != c.want {
+				t.Fatalf("state = %q, want %q", got, c.want)
 			}
 		})
 	}

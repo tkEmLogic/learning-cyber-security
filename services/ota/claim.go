@@ -396,19 +396,48 @@ func (s *Server) matchAndIssue(deviceID, nonce, owner string) claimOutcome {
 	// From Tier 8 an owned device passes here in one case: its owner of record
 	// is the caller and holds an unspent Recovery authorization for it. That
 	// makes this claim a recovery, and it is the only thing that does. The
-	// reason gains one clause pointing an owner at claim recover, which says
-	// nothing about who the owner is.
+	// reason gains two clauses, one pointing an owner at claim recover and one
+	// pointing a new owner at owner transfer, and neither says who the owner
+	// is.
+	//
+	// A device that is not owned is not always claimable. A revoked or a
+	// decommissioned device is not owned either, and the device listener
+	// refuses it before a window opens, but a window opened before the
+	// revocation or the decommission is still in memory. Without these two
+	// checks approving it would write a fresh claim record and bring a stopped
+	// device back to claimed, which only a remanufacture may do. They sit here,
+	// beside device-unowned, because this is where the record is read, and the
+	// window closes with the refusal because it can never succeed. A
+	// transferred device is the one unowned state that passes: that is the
+	// second act of an Ownership transfer.
 	state := s.provisioningState()
 	kind := lifecycle.KindClaim
 	var authorization recoveryAuthorization
-	if device := state.devices[deviceID]; device.Owned() {
+	device := state.devices[deviceID]
+	if device.State == lifecycle.Revoked || device.State == lifecycle.Decommissioned {
+		check, reason := CheckDeviceUnrevoked,
+			"this device is revoked, and a revoked device cannot be claimed until it is remanufactured"
+		if device.State == lifecycle.Decommissioned {
+			check, reason = CheckDeviceInService,
+				"this device is decommissioned, and a decommissioned device cannot be claimed until it is remanufactured"
+		}
+		s.recordClaimEvent(deviceID, "closed", window.nonceVerifier,
+			"the device was "+device.State+" while its claim window was open")
+		delete(s.claimWindows, deviceID)
+		s.recordClaimEvent(deviceID, "refused", "", check)
+		return claimOutcome{status: http.StatusForbidden, refusal: &Refusal{
+			Check: check, Reason: reason, DeviceID: deviceID,
+		}}
+	}
+	if device.Owned() {
 		live, found := s.liveRecoveryAuthorization(deviceID, owner, now)
 		if !found || device.Owner != owner {
 			s.recordClaimEvent(deviceID, "refused", "", CheckDeviceUnowned)
 			return claimOutcome{status: http.StatusForbidden, refusal: &Refusal{
 				Check: CheckDeviceUnowned,
 				Reason: "that device is already owned, and ownership is first come in this course; " +
-					"if it is your device and it lost its Operational identity, run ./course claim recover first",
+					"if it is your device and it lost its Operational identity, run ./course claim recover first; " +
+					"if its owner is handing it to you, they run ./course owner transfer first",
 				DeviceID: deviceID,
 			}}
 		}

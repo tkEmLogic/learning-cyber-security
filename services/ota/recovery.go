@@ -205,8 +205,8 @@ func (s *Server) authorizeRecovery(w http.ResponseWriter, r *http.Request) {
 }
 
 // liveRecoveryAuthorization is the newest authorization this owner gave for
-// this device that no recovery has spent and the service clock has not
-// expired. The caller holds claimMu.
+// this device that no recovery has spent, no transfer has voided and the
+// service clock has not expired. The caller holds claimMu.
 func (s *Server) liveRecoveryAuthorization(deviceID, owner string, now time.Time) (recoveryAuthorization, bool) {
 	var authorizations []recoveryAuthorization
 	spent := map[string]bool{}
@@ -218,8 +218,19 @@ func (s *Server) liveRecoveryAuthorization(deviceID, owner string, now time.Time
 			Authorization string   `json:"recovery_authorization"`
 			Expires       string   `json:"expires_at"`
 			Revoked       []string `json:"revoked_certificate_serials"`
+			Voided        string   `json:"voided_recovery_authorization"`
 		}
-		if err := json.Unmarshal(line, &row); err != nil || row.Authorization == "" {
+		if err := json.Unmarshal(line, &row); err != nil {
+			return
+		}
+		// A transfer voids the authorization it names: the owner who gave it
+		// has given the device up, and the log must never hold a live
+		// authorization for somebody who is not the owner.
+		if row.Kind == lifecycle.KindTransfer && row.Voided != "" {
+			spent[row.Voided] = true
+			return
+		}
+		if row.Authorization == "" {
 			return
 		}
 		switch row.Kind {
