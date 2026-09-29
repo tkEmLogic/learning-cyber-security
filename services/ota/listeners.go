@@ -126,9 +126,11 @@ func (s *Server) operatorRoutes() []deviceRoute {
 
 		// Tier 8's two revocations. Both are the Owner's, so both sit behind the
 		// same Owner credential the claim approval does, and both refuse a
-		// caller who is not the device's owner at owner-of-record. The service
-		// is the only writer of the Owner's revocations: a certificate serial
-		// goes to revoked.jsonl, a device to a revocation record in the log.
+		// caller who is not the device's owner at owner-of-record, a retired
+		// device at device-in-service and a revoked one at device-unrevoked.
+		// The service is the only writer of the Owner's revocations: a
+		// certificate serial goes to revoked.jsonl, a device to a revocation
+		// record in the log.
 		{pattern: "POST /v1/certificates/{serial}/revoke",
 			handler: s.requireOwner(http.HandlerFunc(s.revokeCertificate))},
 		{pattern: "POST /v1/devices/{device_id}/revoke",
@@ -146,6 +148,13 @@ func (s *Server) operatorRoutes() []deviceRoute {
 		// renews on its own identity, with no person in the renewal itself.
 		{pattern: "POST /v1/devices/{device_id}/renewal-request",
 			handler: s.requireOwner(http.HandlerFunc(s.requestRenewal))},
+
+		// Tier 8's Ownership transfer, the first of its two acts: the owner of
+		// record gives the device up, which revokes its certificates and leaves
+		// it transferred. The second act is the unchanged claim route above,
+		// run by whoever holds the device.
+		{pattern: "POST /v1/devices/{device_id}/transfer",
+			handler: s.requireOwner(http.HandlerFunc(s.transferDevice))},
 	}
 }
 

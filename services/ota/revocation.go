@@ -79,14 +79,28 @@ func (s *Server) revokeCertificate(w http.ResponseWriter, r *http.Request) {
 
 	state := s.provisioningState()
 	certOwner, deviceID, found := operationalCertOwner(state, serial)
-	if !found || certOwner != owner {
+	device := state.devices[deviceID]
+	notYours := !found || certOwner != owner || device.Owner != owner
+	if found && device.State == lifecycle.Decommissioned {
+		// The device checks every Owner operation runs, in the same order; see
+		// ownerRouteRefusal. device-in-service first, because a decommission
+		// clears the owner of record and owner-of-record would hide it.
+		notYours = false
+	}
+	if notYours {
 		// owner-of-record: silent about who the owner is, and about whether the
 		// serial was ever issued at all. The caller learns only that it is not
-		// an Operational certificate they own.
+		// an Operational certificate they own. The claim record naming the
+		// caller is not enough: the device must still be theirs, so an owner who
+		// gave a device up in a transfer cannot reach its old certificates.
 		s.Refuse(w, r, http.StatusForbidden, Refusal{
 			Check:  CheckOwnerOfRecord,
 			Reason: fmt.Sprintf("certificate serial %s is not an Operational certificate you own", serial),
 		})
+		return
+	}
+	if refusal := ownerRouteRefusal(deviceID, device, owner, "revoked"); refusal != nil {
+		s.Refuse(w, r, http.StatusForbidden, *refusal)
 		return
 	}
 	if s.revokedSerials()[serial] {
@@ -142,23 +156,14 @@ func (s *Server) revokeDevice(w http.ResponseWriter, r *http.Request) {
 
 	state := s.provisioningState()
 	device := state.devices[deviceID]
-	if device.Owner != owner {
-		// owner-of-record. An unowned device and one owned by somebody else are
-		// one answer here, and it names neither the owner nor whether the device
-		// exists beyond the identifier the caller already sent.
-		s.Refuse(w, r, http.StatusForbidden, Refusal{
-			Check:    CheckOwnerOfRecord,
-			Reason:   "you are not the owner of record for this device",
-			DeviceID: deviceID,
-		})
-		return
-	}
-	if device.State == lifecycle.Revoked {
-		writeJSON(w, http.StatusOK, map[string]any{
-			"result":          "already-revoked",
-			"device_id":       deviceID,
-			"lifecycle_state": lifecycle.Revoked,
-		})
+	// device-in-service, owner-of-record, device-unrevoked. An unowned device
+	// and one owned by somebody else are one owner-of-record answer, naming
+	// neither the owner nor whether the device exists beyond the identifier the
+	// caller already sent. A device revoked already is refused at
+	// device-unrevoked rather than answered as a success: it is the one fact
+	// the owner is asking about, and it already has a check name.
+	if refusal := ownerRouteRefusal(deviceID, device, owner, "revoked"); refusal != nil {
+		s.Refuse(w, r, http.StatusForbidden, *refusal)
 		return
 	}
 	next := lifecycle.Record{Kind: lifecycle.KindRevocation, DeviceID: deviceID, OwnerID: owner}
