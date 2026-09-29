@@ -271,6 +271,20 @@ func (s *Server) authorizeDevice(route deviceRoute) http.Handler {
 			return
 		}
 
+		// device-in-service, beside device-unrevoked and on every route the
+		// claim route included: a decommissioned board is retired, and the
+		// record is the authority for that, not the device. No serial of its is
+		// revoked, so certificate-active passes and this is the check that names
+		// the reason. Only a remanufacture leaves the state.
+		if state.devices[identity.DeviceID].State == lifecycle.Decommissioned {
+			s.Refuse(w, r, http.StatusForbidden, Refusal{
+				Check:    CheckDeviceInService,
+				Reason:   "this device is decommissioned, and a decommissioned device is refused on every route until it is remanufactured",
+				DeviceID: identity.DeviceID,
+			})
+			return
+		}
+
 		if route.record {
 			device := state.devices[identity.DeviceID]
 			if !device.Owned() {

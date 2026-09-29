@@ -42,6 +42,13 @@ const (
 	// route included, and only a remanufacture leaves the state.
 	CheckDeviceUnrevoked = "device-unrevoked"
 
+	// CheckDeviceInService runs beside device-unrevoked, on every device route:
+	// a decommissioned board is refused everywhere until a remanufacture record
+	// lets it back in. Its serials are deliberately left out of revoked.jsonl,
+	// because certificate-active runs first and revoking them too would refuse
+	// the certificate before this check could name the real reason.
+	CheckDeviceInService = "device-in-service"
+
 	// The operator listener. The three credential checks refuse 401 and the
 	// four claim checks 403. Issue #146 builds the Owner credential store and
 	// the claim endpoints that emit them; the listener, the refusal shape and

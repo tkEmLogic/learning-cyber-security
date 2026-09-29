@@ -59,7 +59,13 @@ const (
 	recordEnrollment       = lifecycle.KindEnrollment
 	recordDelivery         = "delivery_confirmed"
 	recordRemanufacture    = lifecycle.KindRemanufacture
+	recordDecommission     = lifecycle.KindDecommission
 	recordFixtureReset     = "fixture_reset"
+	// recordFactoryLoss is an observation, not a transition: the station
+	// appends it when a board re-enrols while an earlier identity of its still
+	// shows live, which is the service-side trace of an unrecorded erase. It
+	// moves no state, so internal/lifecycle ignores it.
+	recordFactoryLoss = "factory_loss"
 	// recordClaim is written by the OTA service rather than by the
 	// provisioning station, which is why the store's definition is the device
 	// lifecycle record rather than the manufacturing record. Tier 7's claim is
@@ -115,6 +121,20 @@ type provisionRecord struct {
 
 	Result string `json:"result,omitempty"`
 	Detail string `json:"detail,omitempty"`
+
+	// Board is the MAC suffix that keys the physical board, from Tier 8. It is
+	// written on the board-level records — decommission, remanufacture and the
+	// factory_loss observation — so that two identifiers on one board are read
+	// as one unit. The identifier's suffix is the hardware key, the convention
+	// validateDeviceID's comment already states.
+	Board string `json:"board,omitempty"`
+
+	// Reason is the manufacturer's stated reason on a remanufacture.
+	Reason string `json:"reason,omitempty"`
+
+	// Replaced is the earlier identifier a factory_loss observation names: the
+	// live identity the board carried before it re-enrolled without a record.
+	Replaced string `json:"replaced_device_id,omitempty"`
 }
 
 // credentialLifetime is how long a Bootstrap credential may be used.
@@ -138,7 +158,7 @@ func (a *app) deviceCADir() string {
 
 func (a *app) provision(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: ./course provision credential|enroll|register|extract|export|erase|revoke|bypass|record")
+		return errors.New("usage: ./course provision credential|enroll|register|extract|export|erase|revoke|bypass|record|decommission|remanufacture")
 	}
 	switch args[0] {
 	case "credential":
@@ -147,6 +167,10 @@ func (a *app) provision(args []string) error {
 		return a.provisionRevoke(args[1:])
 	case "enroll":
 		return a.provisionEnroll(args[1:])
+	case "decommission":
+		return a.provisionDecommission(args[1:])
+	case "remanufacture":
+		return a.provisionRemanufacture(args[1:])
 	case "register":
 		return a.provisionRegister(args[1:])
 	case "extract":
@@ -160,7 +184,7 @@ func (a *app) provision(args []string) error {
 	case "record":
 		return a.provisionShowRecord(args[1:])
 	default:
-		return fmt.Errorf("unknown provision command %q; use credential, enroll, register, extract, export, erase, revoke, bypass or record", args[0])
+		return fmt.Errorf("unknown provision command %q; use credential, enroll, register, extract, export, erase, revoke, bypass, record, decommission or remanufacture", args[0])
 	}
 }
 
@@ -480,6 +504,24 @@ func (a *app) enroll(request enrollmentRequest, credential string) (enrollmentOu
 		return outcome, a.recordRefusal(request, outcome)
 	}
 
+	// hardware-in-service, after credential-binding and before credential-known:
+	// a decommissioned board is refused before the station ever looks at the
+	// credential, so a fresh credential and a brand-new identifier on the same
+	// board are refused here too, not sent down the used-credential path. The
+	// board is keyed by its MAC suffix, so this holds across identifiers, and
+	// only a remanufacture record lifts it.
+	records, err := a.readRecords()
+	if err != nil {
+		return enrollmentOutcome{}, err
+	}
+	if boardDecommissioned(records, boardOf(request.DeviceID)) {
+		outcome := enrollmentOutcome{
+			Check:  "hardware-in-service",
+			Reason: fmt.Sprintf("the board carrying %s is decommissioned; only ./course provision remanufacture lets it enrol again", request.DeviceID),
+		}
+		return outcome, a.recordRefusal(request, outcome)
+	}
+
 	state, err := a.credentialStateFor(request.DeviceID, credential)
 	if err != nil {
 		return enrollmentOutcome{}, err
@@ -543,6 +585,14 @@ func (a *app) enroll(request enrollmentRequest, credential string) (enrollmentOu
 		Result:             "issued",
 	}
 	if err := a.writeRecord(record); err != nil {
+		return enrollmentOutcome{}, err
+	}
+
+	// Factory loss is observed, not refused. If this board already held a live
+	// identity under another name, the enrolment stands and the station notes
+	// which identity was lost, so an unrecorded erase is visible on the service
+	// side at the latest when the board re-enrols.
+	if err := a.appendFactoryLoss(request.DeviceID); err != nil {
 		return enrollmentOutcome{}, err
 	}
 
