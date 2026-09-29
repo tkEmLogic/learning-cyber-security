@@ -335,7 +335,7 @@ Each device receives a unique, high-entropy Bootstrap credential through a chann
 
 ### Rotation and renewal
 
-Operational certificates are short-lived relative to the five-year support period and are renewed before expiry. Renewal creates a new key pair and certificate, and the current operational identity authenticates the request. The old and new certificates overlap for a bounded period, and the device proves the new identity works before the old certificate is revoked. If routine renewal fails, the device keeps its current valid identity, reports the failure, and retries with bounded backoff. The Factory identity is long-lived but not assumed permanent, and its replacement requires the controlled recovery flow and an updated manufacturing record.
+Operational certificates are short-lived relative to the five-year support period, and the service instructs renewal before expiry. A device that cannot reach the service is not renewed, and its Time floor records the loss. Renewal creates a new key pair and certificate, and the current operational identity authenticates the request. The old and new certificates overlap for a bounded period, and the device proves the new identity works before the old certificate is revoked. If routine renewal fails, the device keeps its current valid identity, reports the failure, and retries with bounded backoff. The Factory identity is long-lived but not assumed permanent, and its replacement requires the controlled recovery flow and an updated manufacturing record.
 
 ### Revocation
 
@@ -351,7 +351,7 @@ Loss or corruption of the operational identity requires physical presence, the F
 
 ### Decommissioning
 
-**Implementation requirement.** Revoke operational and Factory access at the services, mark the device identifier as decommissioned so old certificates and Bootstrap credentials cannot enroll it again, remove operational keys, owner configuration, Wi-Fi credentials, and customer data where the hardware permits reliable erasure, and retain only the manufacturing, support, vulnerability, and decommissioning records required by policy. Re-entry requires an explicit remanufacturing process with a new lifecycle record. A normal factory reset is not enough.
+**Implementation requirement.** Refuse operational and Factory access at the services by recording the decommissioning, and mark the board as decommissioned, keyed by its hardware rather than by a device identifier, so old certificates, Bootstrap credentials, and new identifiers cannot enroll it again. The serials are not revoked, so each refusal names decommissioning as its reason. Then remove operational keys, owner configuration, Wi-Fi credentials, and customer data where the hardware permits reliable erasure, and retain only the manufacturing, support, vulnerability, and decommissioning records required by policy. Re-entry requires an explicit remanufacturing process with a new lifecycle record. A normal factory reset is not enough.
 
 ### Development and production boundary
 
@@ -588,7 +588,7 @@ Source: resolved decision ticket [#12](https://github.com/tkEmLogic/learning-cyb
 | Failure criteria | Recovery uses a universal secret, restores a copied backend key, or a factory reset silently reverses decommissioning. |
 | Mentor review gate | None unless combined with Tier 7 by course scheduling. |
 | Lab artifact | Lifecycle event records, rotation and revocation tests, transfer record, decommissioning statement, and residual risks. |
-| Expected time | 4 hours. |
+| Expected time | 12 hours. |
 
 #### Tier 9: Manage dependencies, vulnerabilities, and support
 
@@ -618,7 +618,7 @@ Source: resolved decision ticket [#12](https://github.com/tkEmLogic/learning-cyb
 | Lab artifact | Incident timeline, diagnostic evidence, corrected release record, canary result, recovery proof, final claim matrix, and residual-risk summary. |
 | Expected time | 5 hours. |
 
-**Fixed decision.** The expected core hands-on time is about 47 hours. Reading, setup variation, Mentor scheduling, and optional extension work are additional. Tier 7 is about twice the length of any other module, so its estimate is set from measured length rather than from the band the other tiers sit in.
+**Fixed decision.** The expected core hands-on time is about 55 hours. Reading, setup variation, Mentor scheduling, and optional extension work are additional. Tier 7 is about twice the length of any other module and Tier 8 about three times, so their estimates are set from measured length rather than from the band the other tiers sit in.
 
 ### Advanced hardening tiers
 
