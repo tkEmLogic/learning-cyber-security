@@ -183,12 +183,22 @@ func stripPrompt(line string) string {
 // what arrived, so a transfer that stopped early is an error here rather than
 // a short structure that fails to parse a long way downstream.
 func (c *console) readChunked(tag string, timeout time.Duration) ([]byte, error) {
+	return c.readChunkedObserving(tag, timeout, nil)
+}
+
+// readChunkedObserving is readChunked that also shows every line before the
+// transfer ends to observe, so a caller can pick out a line the board prints
+// beside the transfer, such as Tier 8's provision.mac, without a second read.
+func (c *console) readChunkedObserving(tag string, timeout time.Duration, observe func(line string)) ([]byte, error) {
 	var hex strings.Builder
 	declared := 0
 	began := false
 	var failure string
 
 	_, err := c.collect(timeout, func(line string) bool {
+		if observe != nil {
+			observe(line)
+		}
 		switch {
 		case strings.HasPrefix(line, tag+" begin "):
 			fmt.Sscanf(line, tag+" begin %d", &declared)
