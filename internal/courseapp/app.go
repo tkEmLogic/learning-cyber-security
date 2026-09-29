@@ -835,7 +835,7 @@ var firmwareApps = map[string]string{
 // the property is "this tier's bootloader checks who published an image", and
 // every tier from Tier 3 on has it.
 func tierSignsItsOwnImage(tier string) bool {
-	return tier == "03" || tier == "04" || tier == "05" || tier == "06" || tier == "07"
+	return tier == "03" || tier == "04" || tier == "05" || tier == "06" || tier == "07" || tier == tier08
 }
 
 func variantsForTier(tier string) map[string]firmwareVariant {
@@ -852,6 +852,8 @@ func variantsForTier(tier string) map[string]firmwareVariant {
 		return tier06Variants
 	case "07":
 		return tier07Variants
+	case tier08:
+		return tier08Variants
 	default:
 		return firmwareVariants
 	}
@@ -873,6 +875,9 @@ func (a *app) buildFirmware(args []string) error {
 			return fmt.Errorf("unknown firmware option %s", args[0])
 		}
 		args = args[2:]
+	}
+	if tier == tier08 {
+		return tier08NoFirmware
 	}
 	variants := variantsForTier(tier)
 	variant, ok := variants[name]
@@ -1747,6 +1752,9 @@ func (a *app) deviceFlash(args []string) error {
 			return fmt.Errorf("unknown flash option %s", args[0])
 		}
 		args = args[2:]
+	}
+	if tier == tier08 {
+		return tier08NoFirmware
 	}
 	if destroyIdentity && !tierErasesIdentity(tier) {
 		return fmt.Errorf("--destroy-identity applies only to images below Tier 6; a tier %s image keeps the storage partition", tier)
