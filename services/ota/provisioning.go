@@ -15,8 +15,9 @@ import (
 // `.course-state/provisioning` is the host CLI's territory: the provisioning
 // station enrols a device there. From Tier 7 the service appends the `claim`
 // line that ownership is derived from, and from Tier 8 the `activation` line
-// that makes a device active. Everything else here crosses that boundary read
-// only, on the requests that need it.
+// that makes a device active, the `renewal` line that issues a device its next
+// Operational certificate, and the Owner's `renewal_request`. Everything else
+// here crosses that boundary read only, on the requests that need it.
 //
 // Nothing here unmarshals the whole record shape. The station owns that shape
 // and adds fields to it; the service reads the few values the derivation needs
@@ -42,9 +43,8 @@ type provisioningState struct {
 	records []lifecycle.Record
 	devices map[string]lifecycle.Device
 
-	// serials is every serial that appears in any claim or recovery record,
-	// which is what
-	// clause 3 of certificate-active joins on.
+	// serials is every serial that appears in any claim, recovery or renewal
+	// record, which is what clause 3 of certificate-active joins on.
 	//
 	// Any claim record, not this device's. The narrower form could never be
 	// wrong and could never be useful: an unclaimed device has no claim record
@@ -55,36 +55,105 @@ type provisioningState struct {
 	// sentence survives either way — a CA signature is not an authorization,
 	// the record is — and it gains a second beside it: the record binds a
 	// serial, and a serial is not a certificate.
+	//
 	serials map[string]bool
+
+	// issuances is every issuing line, claim, recovery or renewal, by the
+	// serial it issued. It is what renewal reads: whose certificate a serial is, where
+	// in the log it was issued, which key it certified, and which serial a
+	// renewal replaced.
+	issuances map[string]issuance
+
+	// certifiedKeys is, per device, the fingerprint of every public key any
+	// line has recorded certifying for it: the Factory key at enrollment and
+	// every Operational key since. key-unused refuses a renewal onto any of
+	// them, which is what makes section 8's "a new key pair" a control.
+	certifiedKeys map[string]map[string]bool
+}
+
+// issuance is one line that issued an Operational certificate.
+type issuance struct {
+	kind     string
+	deviceID string
+	ownerID  string
+
+	// index is the line's position in the log. A renewal_request applies to
+	// the serials issued before it and to none issued after it.
+	index int
+
+	// publicKey is the fingerprint of the certified SubjectPublicKeyInfo,
+	// which is what key-unused compares.
+	publicKey string
+
+	// renewedFrom is the serial a renewal replaced; empty on a claim and a
+	// recovery.
+	renewedFrom string
+}
+
+// provisioningLine is what the service reads of one record line: the fields the
+// derivation reads, and the three renewal needs that move no state.
+type provisioningLine struct {
+	lifecycle.Record
+	PublicKey   string `json:"certificate_public_key"`
+	RenewedFrom string `json:"renewed_from_serial"`
 }
 
 func (s *Server) provisioningState() provisioningState {
-	records := s.readProvisioningRecords()
-	state := provisioningState{
-		records: records,
-		devices: lifecycle.Derive(records),
-		serials: map[string]bool{},
+	lines := s.readProvisioningLines()
+	records := make([]lifecycle.Record, len(lines))
+	for i, line := range lines {
+		records[i] = line.Record
 	}
-	for _, record := range records {
-		// A recovery issues a certificate exactly as a claim does, so its serial
-		// joins the same set, or clause 3 would refuse what recovery issued.
-		if (record.Kind == lifecycle.KindClaim || record.Kind == lifecycle.KindRecovery) &&
-			record.DeviceID != "" && record.CertSerial != "" {
-			state.serials[record.CertSerial] = true
+	state := provisioningState{
+		records:       records,
+		devices:       lifecycle.Derive(records),
+		serials:       map[string]bool{},
+		issuances:     map[string]issuance{},
+		certifiedKeys: map[string]map[string]bool{},
+	}
+	for i, line := range lines {
+		certifies := line.Kind == lifecycle.KindClaim || line.Kind == lifecycle.KindRecovery ||
+			line.Kind == lifecycle.KindRenewal ||
+			(line.Kind == lifecycle.KindEnrollment && line.Result == "issued")
+		if certifies && line.DeviceID != "" && line.PublicKey != "" {
+			if state.certifiedKeys[line.DeviceID] == nil {
+				state.certifiedKeys[line.DeviceID] = map[string]bool{}
+			}
+			state.certifiedKeys[line.DeviceID][line.PublicKey] = true
+		}
+		// A recovery and a renewal each issue a certificate exactly as a claim
+		// does, so their serials join the same set, or clause 3 would refuse
+		// what they issued.
+		switch line.Kind {
+		case lifecycle.KindClaim, lifecycle.KindRecovery, lifecycle.KindRenewal:
+		default:
+			continue
+		}
+		if line.DeviceID == "" || line.CertSerial == "" {
+			continue
+		}
+		state.serials[line.CertSerial] = true
+		state.issuances[line.CertSerial] = issuance{
+			kind:        line.Kind,
+			deviceID:    line.DeviceID,
+			ownerID:     line.OwnerID,
+			index:       i,
+			publicKey:   line.PublicKey,
+			renewedFrom: line.RenewedFrom,
 		}
 	}
 	return state
 }
 
-func (s *Server) readProvisioningRecords() []lifecycle.Record {
-	var records []lifecycle.Record
-	forEachJSONLine(filepath.Join(s.cfg.MutualTLS.ProvisioningDir, "records.jsonl"), func(line []byte) {
-		var record lifecycle.Record
-		if err := json.Unmarshal(line, &record); err == nil {
-			records = append(records, record)
+func (s *Server) readProvisioningLines() []provisioningLine {
+	var lines []provisioningLine
+	forEachJSONLine(filepath.Join(s.cfg.MutualTLS.ProvisioningDir, "records.jsonl"), func(raw []byte) {
+		var line provisioningLine
+		if err := json.Unmarshal(raw, &line); err == nil {
+			lines = append(lines, line)
 		}
 	})
-	return records
+	return lines
 }
 
 // revokedSerials reads the revocation file. A missing file means nothing has

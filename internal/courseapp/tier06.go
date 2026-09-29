@@ -76,6 +76,13 @@ const (
 	// recordActivation is the OTA service's too, from Tier 8: the first use
 	// of each Operational certificate, which is what makes a device active.
 	recordActivation = lifecycle.KindActivation
+	// recordRenewal and recordRenewalRequest are the OTA service's as well:
+	// the next Operational certificate on a new key, and the Owner's request
+	// that a device renew now. The request moves no state, so it is the
+	// service's kind rather than the derivation's, and it is spelled again
+	// here as the Owner credential lines are.
+	recordRenewal        = lifecycle.KindRenewal
+	recordRenewalRequest = "renewal_request"
 )
 
 // provisionRecord is one line of the manufacturing record.
@@ -118,6 +125,10 @@ type provisionRecord struct {
 	CertSerial      string `json:"certificate_serial,omitempty"`
 	CertFingerprint string `json:"certificate_fingerprint,omitempty"`
 	CertPublicKey   string `json:"certificate_public_key,omitempty"`
+
+	// RenewedFrom is the serial a renewal record replaced. The service writes
+	// it; the station only shows it.
+	RenewedFrom string `json:"renewed_from_serial,omitempty"`
 
 	Result string `json:"result,omitempty"`
 	Detail string `json:"detail,omitempty"`
@@ -677,6 +688,12 @@ func (a *app) provisionShowRecord(args []string) error {
 		case recordActivation:
 			fmt.Fprintf(a.out, "    first used operational certificate %s, lifecycle %s\n",
 				record.CertSerial, record.Lifecycle)
+		case recordRenewal:
+			fmt.Fprintf(a.out, "    renewed operational certificate %s as %s, lifecycle %s\n",
+				record.RenewedFrom, record.CertSerial, record.Lifecycle)
+			fmt.Fprintf(a.out, "    new key %s\n", short(record.CertPublicKey))
+		case recordRenewalRequest:
+			fmt.Fprintf(a.out, "    renewal requested by %s\n", record.OwnerID)
 		}
 	}
 	fmt.Fprintf(a.out, "\nResult: %d record(s)\n", shown)

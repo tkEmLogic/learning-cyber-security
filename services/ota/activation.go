@@ -50,5 +50,10 @@ func (s *Server) recordActivation(identity DeviceIdentity) {
 	}
 	if err := s.appendProvisioningRecord(record); err != nil {
 		log.Printf("the activation of certificate %s could not be recorded: %v", identity.Serial, err)
+		return
 	}
+	// The first use of a renewed certificate is the proof that the new
+	// identity works, so the certificate it replaced is retired now, and only
+	// now.
+	s.retireRenewed(state, identity.Serial)
 }
