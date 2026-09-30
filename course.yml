@@ -71,6 +71,44 @@ components:
         # named by ./course release sign and by nothing else.
         public_key: artifacts/generated/signing/release.pub.pem
 
+# Tier 9 scans the firmware and the OTA service against vulnerability
+# databases that are pinned here, so every Learner gets the same matches on
+# any day. A scanner result is true only as of its database date, and a
+# different scanner version matches the same database differently, so the
+# scanner versions are pinned beside the databases. `./course scan` refuses a
+# scanner of any other version. The dev container installs these versions
+# (.devcontainer/Dockerfile). See issues #267, #272 and #277.
+scanning:
+  # Under the user cache directory (~/.cache on Linux), not the repository:
+  # the imported grype database is about 3.1 GB, and `./course clean` should
+  # not force a Learner to download 182 MB again.
+  cache: learning-cyber-security/tier-09
+  # The service is scanned and described as it shipped, built with the
+  # go1.24.0 toolchain the dev container uses, whichever Go the host has.
+  # go.mod has no toolchain line on purpose: adding one is the Learner's
+  # Tier 9 fix for the unsupported component (#272).
+  go_toolchain: go1.24.0
+  grype:
+    version: v0.119.0
+    database:
+      name: vulnerability-db_v6.1.9_2026-09-29T00:34:00Z_1790663551.tar.zst
+      # The single place to change if the course hosts its own copy. It is not
+      # known how long Anchore keeps old archives at this address, and
+      # `./course scan setup --archive <file>` accepts a copy from elsewhere.
+      url: https://grype.anchore.io/databases/v6/vulnerability-db_v6.1.9_2026-09-29T00:34:00Z_1790663551.tar.zst
+      sha256: 1e88821121dd3ec9bef68b4eb7c5524997f62da37215113ec256179d4e6da8cf
+      size: 182413359
+      built: "2026-09-29T06:32:31Z"
+  govulncheck:
+    version: v1.8.0
+    database:
+      # Small enough to commit, so the service scan needs no download at all.
+      path: artifacts/pinned/tier-09/go-vulndb-2026-09-28.zip
+      url: https://vuln.go.dev/vulndb.zip
+      sha256: faa8c45538d259ae1fd3c34ae20632ee738d1190836c84ac95d5f2bc604d85bc
+      size: 3351093
+      modified: "2026-09-28T16:43:40Z"
+
 services:
   ota:
     protocol: http
