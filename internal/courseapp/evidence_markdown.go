@@ -89,7 +89,7 @@ func (a *app) checkLearnerMarkdownEvidence(tier string) error {
 	for _, template := range templates {
 		name := filepath.Base(template)
 		path := filepath.Join(learnerDir, name)
-		problems, err := checkEvidenceRecord(path)
+		problems, err := checkTierEvidenceRecord(tier, path)
 		if err != nil {
 			return err
 		}
@@ -120,6 +120,13 @@ func countProblems(n int) string {
 
 // checkEvidenceRecord runs the four structural checks over one copied template.
 func checkEvidenceRecord(path string) ([]string, error) {
+	return checkTierEvidenceRecord("", path)
+}
+
+// checkTierEvidenceRecord runs the four structural checks, then any rules that
+// belong to one tier alone. A tier with no rules of its own gets exactly the
+// four checks every tier gets.
+func checkTierEvidenceRecord(tier, path string) ([]string, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -132,7 +139,109 @@ func checkEvidenceRecord(path string) ([]string, error) {
 	problems := append([]string{}, checkMetadata(lines)...)
 	problems = append(problems, checkPlaceholders(lines)...)
 	problems = append(problems, checkObservedRows(lines)...)
+	for _, rule := range tierRecordRules[tier] {
+		problems = append(problems, rule(filepath.Base(path), lines)...)
+	}
 	return problems, nil
+}
+
+// recordRule is a structural check that only one tier's records carry.
+type recordRule func(name string, lines []string) []string
+
+// tierRecordRules are the checks a tier adds to the four. Tier 9 is the first
+// tier whose records touch the CRA, and two things about them are structural:
+// every record says it is not a conformity claim, and every row of the CRA
+// traceability matrix names a dated legal source and says whether a lawyer
+// must look at it. Neither rule reads what the Learner wrote.
+var tierRecordRules = map[string][]recordRule{
+	"09": {checkBoundaryLine, checkTraceabilityRows},
+}
+
+// craBoundaryLine is the fixed line every Tier 9 template opens with, as a
+// paragraph of its own. Issue #274 settled its wording, and a record that
+// drops it reads as if it claimed more than engineering evidence.
+const craBoundaryLine = "This is course evidence. It does not show CRA conformity, and it is not a legal determination."
+
+func checkBoundaryLine(_ string, lines []string) []string {
+	for _, line := range lines {
+		if strings.TrimSpace(line) == craBoundaryLine {
+			return nil
+		}
+	}
+	return []string{"the boundary line is missing: " + craBoundaryLine}
+}
+
+// traceabilityMatrixFile is the Tier 9 template that must hold the matrix. The
+// row rule applies to any table with the matrix's columns, but only this file
+// is required to have one, so deleting the table is reported rather than
+// passing silently.
+const traceabilityMatrixFile = "cra-traceability-matrix.md"
+
+var accessDatePattern = regexp.MustCompile(`^[0-9]{4}-[0-9]{2}-[0-9]{2}$`)
+
+// checkTraceabilityRows reports every CRA traceability matrix row with no legal
+// source, no access date, or a legal-review cell that is not exactly `yes` or
+// `no`. Law and guidance change, so a source without the date it was read
+// cannot be checked, and a legal-review cell reading "maybe" has not decided
+// anything.
+func checkTraceabilityRows(name string, lines []string) []string {
+	var problems []string
+	var header []string
+	found := false
+
+	for _, line := range lines {
+		cells := splitRow(line)
+		if cells == nil {
+			if strings.HasPrefix(strings.TrimSpace(line), "#") {
+				header = nil
+			}
+			continue
+		}
+		if columnOf(cells, "legal source") >= 0 && columnOf(cells, "legal review") >= 0 {
+			header = cells
+			found = true
+			continue
+		}
+		if header == nil {
+			continue
+		}
+
+		identifier := cells[0]
+		if identifier == "" {
+			identifier = "a matrix row"
+		}
+		cell := func(column string) (string, bool) {
+			at := columnOf(header, column)
+			if at < 0 {
+				return "", false
+			}
+			if at >= len(cells) {
+				return "", true
+			}
+			return cells[at], true
+		}
+
+		if source, _ := cell("legal source"); source == "" {
+			problems = append(problems, fmt.Sprintf("%s has no legal source", identifier))
+		}
+		if accessed, ok := cell("accessed"); !ok {
+			problems = append(problems, fmt.Sprintf("%s has no Accessed column for its legal source", identifier))
+		} else if !accessDatePattern.MatchString(accessed) {
+			problems = append(problems, fmt.Sprintf("%s has no access date, written as YYYY-MM-DD, for its legal source", identifier))
+		}
+		switch review, _ := cell("legal review"); review {
+		case "yes", "no":
+		case "":
+			problems = append(problems, fmt.Sprintf("%s has no legal review; write yes or no", identifier))
+		default:
+			problems = append(problems, fmt.Sprintf("%s: legal review must read yes or no, not %q", identifier, review))
+		}
+	}
+
+	if !found && name == traceabilityMatrixFile {
+		problems = append(problems, "the matrix has no table with Legal source and Legal review columns")
+	}
+	return problems
 }
 
 func readLines(text string) []string {
