@@ -109,7 +109,7 @@ func (a *app) tier09ModuleClean() error {
 	if strings.TrimSpace(string(out)) != "" {
 		return fmt.Errorf("%s has local changes, so it is not the tree Zephyr pins; "+
 			"run west %s clean in %s and build again",
-			tier09PatchedModule, strings.Join(a.tier09PatchArgs()[1:], " "), a.zephyrWorkspace())
+			tier09PatchedModule, strings.Join(a.tier09PatchArgs(), " "), a.zephyrWorkspace())
 	}
 	return nil
 }
@@ -127,12 +127,12 @@ func (a *app) withTier09Patches(variant firmwareVariant, build func() error) err
 	workspace := a.zephyrWorkspace()
 	west := filepath.Join(workspace, ".venv", "bin", "west")
 	args := a.tier09PatchArgs()
-	fmt.Fprintf(a.out, "+ west %s apply\n", strings.Join(args[1:], " "))
+	fmt.Fprintf(a.out, "+ west %s apply\n", strings.Join(args, " "))
 	if err := runAttachedFrom(a.root, workspace, a.out, a.errOut, nil, west, append(args, "apply")...); err != nil {
 		return fmt.Errorf("the CVE-2026-50583 patch did not apply: %w", err)
 	}
 	buildErr := build()
-	fmt.Fprintf(a.out, "+ west %s clean\n", strings.Join(args[1:], " "))
+	fmt.Fprintf(a.out, "+ west %s clean\n", strings.Join(args, " "))
 	if err := runAttachedFrom(a.root, workspace, a.out, a.errOut, nil, west, append(args, "clean")...); err != nil {
 		if buildErr != nil {
 			return buildErr
