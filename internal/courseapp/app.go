@@ -336,6 +336,8 @@ func (a *app) dispatch(args []string) error {
 		return a.clean(args[1:])
 	case "validate":
 		return a.validateRepository()
+	case "scan":
+		return a.scan(args[1:])
 	default:
 		a.usage(a.errOut)
 		return fmt.Errorf("unknown command %q", args[0])
