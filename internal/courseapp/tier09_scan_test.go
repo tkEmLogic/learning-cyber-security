@@ -361,7 +361,7 @@ func TestServiceBOMShape(t *testing.T) {
 	if main.PURL != "pkg:golang/github.com/tkEmLogic/learning-cyber-security@v0.0.0-20261001000000-0123456789ab%2Bdirty#services/ota/cmd/ota" {
 		t.Errorf("main purl %s", main.PURL)
 	}
-	if len(main.Hashes) != 2 || main.Hashes[0].Algorithm != "SHA-256" || main.Hashes[1].Algorithm != "SHA-512" {
+	if len(main.Hashes) != 2 || main.Hashes[0].Alg != "SHA-256" || main.Hashes[1].Alg != "SHA-512" {
 		t.Errorf("main hashes %+v", main.Hashes)
 	}
 	properties := map[string]string{}

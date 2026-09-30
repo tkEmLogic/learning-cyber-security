@@ -161,11 +161,16 @@ type cdxBOM struct {
 }
 
 type cdxMetadata struct {
-	Timestamp  string       `json:"timestamp"`
-	Tools      cdxTools     `json:"tools"`
-	Authors    []cdxContact `json:"authors"`
-	Component  cdxComponent `json:"component"`
-	Properties []cdxProp    `json:"properties,omitempty"`
+	Timestamp  string         `json:"timestamp"`
+	Lifecycles []cdxLifecycle `json:"lifecycles,omitempty"`
+	Tools      cdxTools       `json:"tools"`
+	Authors    []cdxContact   `json:"authors,omitempty"`
+	Component  cdxComponent   `json:"component"`
+	Properties []cdxProp      `json:"properties,omitempty"`
+}
+
+type cdxLifecycle struct {
+	Phase string `json:"phase"`
 }
 
 type cdxTools struct {
@@ -185,6 +190,7 @@ type cdxComponent struct {
 	Type        string       `json:"type"`
 	BOMRef      string       `json:"bom-ref,omitempty"`
 	Supplier    *cdxOrg      `json:"supplier,omitempty"`
+	Group       string       `json:"group,omitempty"`
 	Name        string       `json:"name"`
 	Version     string       `json:"version,omitempty"`
 	Description string       `json:"description,omitempty"`
@@ -235,7 +241,7 @@ type cdxProp struct {
 
 type cdxDependency struct {
 	Ref       string   `json:"ref"`
-	DependsOn []string `json:"dependsOn"`
+	DependsOn []string `json:"dependsOn,omitempty"`
 }
 
 // compiledFiles counts, for each root, the compiled sources under it. A

@@ -51,48 +51,8 @@ type cycloneDX struct {
 	Dependencies []cdxDependency `json:"dependencies"`
 }
 
-type cdxMetadata struct {
-	Timestamp  string         `json:"timestamp"`
-	Lifecycles []cdxLifecycle `json:"lifecycles"`
-	Tools      cdxTools       `json:"tools"`
-	Component  cdxComponent   `json:"component"`
-}
-
-type cdxLifecycle struct {
-	Phase string `json:"phase"`
-}
-
-type cdxTools struct {
-	Components []cdxComponent `json:"components"`
-}
-
-type cdxComponent struct {
-	BOMRef      string        `json:"bom-ref"`
-	Type        string        `json:"type"`
-	Group       string        `json:"group,omitempty"`
-	Name        string        `json:"name"`
-	Version     string        `json:"version,omitempty"`
-	Description string        `json:"description,omitempty"`
-	PURL        string        `json:"purl,omitempty"`
-	CPE         string        `json:"cpe,omitempty"`
-	Hashes      []cdxHash     `json:"hashes,omitempty"`
-	Properties  []cdxProperty `json:"properties,omitempty"`
-}
-
-type cdxHash struct {
-	Algorithm string `json:"alg"`
-	Content   string `json:"content"`
-}
-
-type cdxProperty struct {
-	Name  string `json:"name"`
-	Value string `json:"value"`
-}
-
-type cdxDependency struct {
-	Ref       string   `json:"ref"`
-	DependsOn []string `json:"dependsOn,omitempty"`
-}
+// The metadata, component, hash, property and dependency shapes are the ones
+// the firmware SBOM uses, in tier09_sbom.go, so both SBOMs are one format.
 
 // sbomService builds the service with the pinned toolchain and writes its
 // SBOM. args are the words after `sbom service`; it takes none.
@@ -227,10 +187,10 @@ func serviceBOM(info *debug.BuildInfo, hashes []cdxHash, courseVersion, serial s
 	main.BOMRef = main.PURL
 	for _, key := range []string{"vcs", "vcs.revision", "vcs.time", "vcs.modified", "GOOS", "GOARCH", "CGO_ENABLED"} {
 		if value, ok := settings[key]; ok {
-			main.Properties = append(main.Properties, cdxProperty{"go:build:" + key, value})
+			main.Properties = append(main.Properties, cdxProp{"go:build:" + key, value})
 		}
 	}
-	main.Properties = append(main.Properties, cdxProperty{"go:build:toolchain", info.GoVersion})
+	main.Properties = append(main.Properties, cdxProp{"go:build:toolchain", info.GoVersion})
 
 	// The standard library, spelled as grype matches it: the version without
 	// the "go" prefix, and the golang:go CPE. A version of "go1.24.0" makes
@@ -266,10 +226,10 @@ func serviceBOM(info *debug.BuildInfo, hashes []cdxHash, courseVersion, serial s
 		}
 		c.BOMRef = c.PURL
 		if module.Sum != "" {
-			c.Properties = append(c.Properties, cdxProperty{"go:module:sum", module.Sum})
+			c.Properties = append(c.Properties, cdxProp{"go:module:sum", module.Sum})
 		}
 		if dep.Replace != nil {
-			c.Properties = append(c.Properties, cdxProperty{"go:module:replaces", dep.Path + "@" + dep.Version})
+			c.Properties = append(c.Properties, cdxProp{"go:module:replaces", dep.Path + "@" + dep.Version})
 		}
 		components = append(components, c)
 	}

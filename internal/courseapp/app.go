@@ -345,7 +345,7 @@ func (a *app) dispatch(args []string) error {
 }
 
 func (a *app) usage(w io.Writer) {
-	fmt.Fprintln(w, "usage: ./course doctor|setup|tier|build|service|device|keys|release|provision|owner|claim|attack|verify|evidence|clean")
+	fmt.Fprintln(w, "usage: ./course doctor|setup|tier|build|service|device|keys|release|sbom|scan|provision|owner|claim|attack|verify|evidence|clean")
 }
 
 func (a *app) context(target string) {
