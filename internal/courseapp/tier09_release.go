@@ -267,7 +267,11 @@ func (a *app) releaseTestTier09(variantName string) error {
 				}
 			}
 		}
-		check("sbom-purls", len(missing) == 0, "every component has a purl, so a VEX statement can bind to it; missing: "+strings.Join(missing, ", "))
+		detail := "every component has a purl, so a VEX statement can bind to it"
+		if len(missing) > 0 {
+			detail = "components with no purl, which no VEX statement can bind to: " + strings.Join(missing, ", ")
+		}
+		check("sbom-purls", len(missing) == 0, detail)
 		check("sbom-backport-matches-variant", patched == variant.westPatches,
 			fmt.Sprintf("the SBOM records the CVE-2026-50583 backport: %v; this variant carries it: %v", patched, variant.westPatches))
 	}
