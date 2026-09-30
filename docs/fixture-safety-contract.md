@@ -1,6 +1,6 @@
 # Fixture safety contract
 
-Status: Resolved design. Tier 0 rules are from the first runnable course release. Tier 2, Tier 3, Tier 4, Tier 6, Tier 7 and Tier 8 rules extend them. Tier 6 is the first to carry a named exception rather than only additions, and it is bounded in the section that takes it. Tier 7 takes no new exception, and it writes the tightest bounds in this document, because its adversary holds a signing key that a correctly configured service obeys.
+Status: Resolved design. Tier 0 rules are from the first runnable course release. Tier 2, Tier 3, Tier 4, Tier 6, Tier 7, Tier 8 and Tier 9 rules extend them. Tier 6 is the first to carry a named exception rather than only additions, and it is bounded in the section that takes it. Tier 7 takes no new exception, and it writes the tightest bounds in this document, because its adversary holds a signing key that a correctly configured service obeys. Tier 9 takes no new exception either, and it is the first tier whose attack fixture speaks to the board over the network rather than to the service.
 
 This contract lets a Learner demonstrate insecure behavior, and later watch a control refuse it, without turning a course fixture into a general network attack tool.
 
@@ -574,6 +574,165 @@ Tier 8 takes no new exception and no new authority. Its rows run under `./course
 
 The rows need no hardware and they say nothing about a board. Every row is labelled `host`, and a host result never stands in for a device result. That includes `E-8-11`: it runs the firmware's code, and still not on the firmware's board.
 
+## Tier 9 fixtures
+
+These rules bind the two pieces of Learner-facing machinery Tier 9 adds, and
+the one lab control they need, following the Tier 6, 7 and 8 precedent above.
+
+Tier 9 adds a **support-listener attack fixture** and a **synthetic canary
+fleet**, and only the first is a fixture. That distinction is the first rule
+here, for the reason Tier 6 gives: machinery on something that needs none
+implies a check happened, and the fleet demonstrates no insecure behavior and
+reads no refusal. It also adds one **lab control**, because the fixture reaches
+the board over the network and the board's address is nowhere the course
+already records it.
+
+Tier 9 takes no new exception and no new authority. The support fixture signs
+nothing and reads no key. The fleet is a legitimate account holding real,
+claimed identities, and it never uses the Operational CA key to mint. Every
+result either fixture prints is a host result, and a host result never stands in
+for a device result.
+
+### The support-listener attack fixture
+
+The planted flaw is an unauthenticated UDP support listener that the counter-5
+release added to the board (issue #269, `T9-W-34`). It answers `inventory` with
+the device id, running release and security counter, and it answers `reboot` by
+resetting the chip. The attack fixture is the small UDP sender the design calls
+for: it sends one one-word request and prints exactly what it sent and what came
+back.
+
+**It is a registered fixture**, `tier-09/support-listener`, so it keeps every
+Tier 0 guarantee through the ordinary attack runner: the dry run, the exact
+`--execute` identifier, the marker handshake over plain HTTP, the machine-
+readable evidence record, and the block-after-failed-reset. It is
+`hardware_required: true`, because the listener it tests is the board's.
+
+**Its marker handshake goes to the loopback OTA service, not to the board.**
+This is Tier 6's reading exactly: the handshake is about which Course
+environment a fixture may act in, not about which socket it opens. The board
+serves no Course environment marker of its own, and it must not, because a
+safety check must not depend on the control it is being used to test and the
+board is the thing under test. So the fixture confirms the environment against
+the loopback service, as the Tier 6 clone confirms it while acting on the
+manufacturing record.
+
+| Fixture | Permitted action | Refused behavior |
+| --- | --- | --- |
+| `tier-09/support-listener` | Send one manifest-owned request, `inventory` or `reboot`, as a single UDP datagram to the board's recorded address on the manifest-owned support-listener port, and print exactly what it sent and what came back. | A Learner-supplied request word, payload, port, or a board address on the fixture command line. A request outside the two the manifest names. Acting without the matching marker. Any second datagram, retry, scan or capture. |
+
+**The two requests are allowlisted behind `--request`, the same shape Tier 3's
+images use.** The destructive `reboot` is one of them, so it can never be
+reached without naming it, and `--execute` is forced on top of that. Neither
+request is a payload the Learner types; each is a manifest-owned value chosen by
+a selector, so a fixture cannot be turned into a general UDP sender.
+
+**A timeout is reported honestly as weak evidence.** When no reply arrives, the
+fixture prints `no reply within N s` and says plainly: a lost datagram looks the
+same, so read the boot log. This matters because the remediation release removes
+the listener, and the after case a Learner sees is exactly this timeout. The
+strong evidence that the listener is gone is the board's own boot log, not the
+absence of a reply, and the fixture says so rather than claiming the timeout
+proves the fix.
+
+**Its reset is an honest no-op.** The fixture touches no service state: it sends
+one datagram and reads the board's own answer, so there is nothing on the
+service to seed back. A reboot it may have caused is the board's, and it cannot
+be rewound from the host. The fixture does not pretend it can, in the same
+spirit as Tier 6's append-only clone reset.
+
+### The board address is a lab control, not a fixture command-line input
+
+The board serves no marker and the course records the board's LAN address
+nowhere: the device configuration holds the service's address, and the service's
+records of a device do not carry its remote address. So the smallest
+contract-compliant mechanism is a lab control that records the address once,
+and a fixture that reads it from generated state.
+
+**`./course device address <ip>` is a lab control**, not a fixture, for the same
+reason Tier 7's revoke command is: it opens no socket, has no target and changes
+no service state, so a marker handshake and a reset would guard nothing while
+implying a check had happened. It validates the address to the same literal
+private, link-local or loopback set every target in this course obeys — no DNS
+name, no range, no wildcard — and records it under `.course-state/`. The address
+a Learner passes is the one the board prints on its own console, the
+`wifi.address` line. The fixture reads it from state and re-validates it, and it
+never accepts an address on its own command line. This keeps the standing target
+rules intact: the one target the fixture reaches over the network is a literal
+private or loopback address the Learner selected through a validated setup step.
+
+### The synthetic canary fleet
+
+A rollout offers a release to a Canary group and then to the rest of the fleet.
+The board is the one real canary, so the rest of the fleet is otherwise
+invisible. The synthetic canary fleet supplies it as host-side devices with real
+mutual-TLS identities, so the fleet stage has devices to cover and a Learner can
+watch a rollout reach them.
+
+**It is not a fixture and not an adversary, so it has its own command**,
+`./course fleet`, and its own manifest block. It demonstrates no insecure
+behavior and reads no refusal, so `attack` and `service bypass` would both be
+the wrong home, for the reason Tier 5 recorded having no attack fixture: this
+contract exists to stop fixtures claiming refusals they did not see, not to
+require one per tier.
+
+**Its identities are obtained legitimately, through the same machinery the Tier
+7 and 8 fixtures use.** Each synthetic device is enrolled through the real
+provisioning station, which signs its Factory identity with the Manufacturer
+Device CA, and then claimed through a real, two-halves claim, after which the
+service issues its Operational identity. The Operational CA key is never used to
+mint: the fleet is the manufacturer and an owner doing what they may, not an
+insider forging anything.
+
+**Its owner is one legitimate account, bounded exactly as the adversary owner
+is.** The slug is fixed in the manifest, minted idempotently by the first
+command that needs it, and it is not `harbor-owner`, which owns the real board,
+and not the `rival-labs` adversary. Its credential is thirty-two random bytes,
+held in fleet state under `.course-state/`, never printed and never committed,
+and the owner store keeps a verifier.
+
+**The device identifiers are a bounded manifest list**, in the `beacon-fleet-e9-NN`
+shape, never supplied on a command line and never invented at run time. An
+unbounded loop enrolling devices is not a demonstration of scale.
+
+| Fixture | Permitted action | Refused behavior |
+| --- | --- | --- |
+| The synthetic canary fleet, `./course fleet` | Enrol a bounded list of manifest-owned synthetic devices through the real station, claim them as the one manifest-owned fleet owner, have each report its running release, and poll `GET /v1/releases/current` over mutual TLS to show the release the service offers each device. | A Learner-supplied device identifier, owner slug, endpoint, port or count. An identifier outside the manifest list. Acting without the matching marker. Signing anything with the Operational CA key. Downloading or installing any firmware. Writing to any store other than the manufacturing record, the owner store and its own state. |
+
+**It never downloads or installs anything.** It polls the assignment route and
+prints the release the service offers; it never fetches the image, because the
+board is the canary and only the board can show a release installing or being
+refused. Every line it prints is labelled `HOST`.
+
+**Its reset clears live authorization state and rewinds no history**, exactly as
+the Tier 7 fixture's reset does. The synthetic fleet devices stay in the
+append-only manufacturing record forever, and the keys the fleet holds stay with
+them, because those enrollments cannot be taken back. What goes is the fleet
+owner's account, which would otherwise be a live credential after the lab is
+over. Reset appends a `fixture_reset` line naming what it removed.
+
+### Manifest entries these read
+
+Every mutable input stays allowlisted, so both pieces of machinery and the lab
+control read the manifest and generated state and nothing else.
+
+| Entry | Read by | For |
+| --- | --- | --- |
+| `fixtures.tier-09/support-listener.target`, `.interface` | the support fixture | the marker handshake against the loopback service and the interface check |
+| `fixtures.tier-09/support-listener.requests` | the support fixture | the two allowlisted requests, so `reboot` is never reachable without naming it |
+| `fixtures.tier-09/support-listener.port` | the support fixture | the board's support-listener UDP port, so no port is on a command line |
+| `.course-state/support/board-address.json` | the support fixture | the one network target, recorded by the lab control and re-validated on read |
+| `fleet.owner` | the fleet | the one legitimate fleet owner, minted idempotently and never Learner-supplied |
+| `fleet.device_ids` | the fleet | the bounded list, so the count is bounded and names are not invented at run time |
+| `fleet.device_port`, `.operator_port`, `.service_name` | the fleet | so no endpoint, port or name is ever supplied on a command line |
+| `fleet.target`, `.interface` | the fleet | the marker handshake and the interface check |
+| `paths.state`, `paths.generated_artifacts` | both | where the records, the fleet state, the recorded address and the evidence live |
+
+The support fixture and the fleet talk to no board except that the support
+fixture sends one datagram to the board's recorded address. The fleet requires
+no hardware of its own: a synthetic fleet does not need the boards it stands in
+for, and what it may not claim is anything about a device.
+
 ## Capture rules
 
 A fixture may capture traffic only under these bounds.
@@ -624,7 +783,7 @@ The fixture exits nonzero and names the failed check.
 
 It never falls back to a weaker target check, a wider address scope, a default device, or an unrestricted command.
 
-Sources: [Define the Tier 0 fixture safety contract](https://github.com/tkEmLogic/learning-cyber-security/issues/24) for the Tier 0 rules, [Extend the fixture safety contract to HTTPS and a named service](https://github.com/tkEmLogic/learning-cyber-security/issues/41) for the transport, service name, and capture rules, [Extend the fixture safety contract to hostile firmware images and signing keys](https://github.com/tkEmLogic/learning-cyber-security/issues/53) for the key material and Tier 3 rules, [What does the fixture safety contract need for Tier 4?](https://github.com/tkEmLogic/learning-cyber-security/issues/70) for the manifest signing and replay rules, [Write the Tier 6 section of the fixture safety contract](https://github.com/tkEmLogic/learning-cyber-security/issues/122) for the compiled-in credential exception, the append-only reset, and the flash dump rules, [Write the Tier 7 section of the fixture safety contract](https://github.com/tkEmLogic/learning-cyber-security/issues/149) for the Operational CA signing bounds, the reset split between history and live authorization state, and the naming-convention limitation, [Build the Tier 8 attack fixture](https://github.com/tkEmLogic/learning-cyber-security/issues/257) for the Tier 8 rows, and [Show the Time floor refusing a far-future manifest on the host](https://github.com/tkEmLogic/learning-cyber-security/issues/262) for `E-8-11`.
+Sources: [Define the Tier 0 fixture safety contract](https://github.com/tkEmLogic/learning-cyber-security/issues/24) for the Tier 0 rules, [Extend the fixture safety contract to HTTPS and a named service](https://github.com/tkEmLogic/learning-cyber-security/issues/41) for the transport, service name, and capture rules, [Extend the fixture safety contract to hostile firmware images and signing keys](https://github.com/tkEmLogic/learning-cyber-security/issues/53) for the key material and Tier 3 rules, [What does the fixture safety contract need for Tier 4?](https://github.com/tkEmLogic/learning-cyber-security/issues/70) for the manifest signing and replay rules, [Write the Tier 6 section of the fixture safety contract](https://github.com/tkEmLogic/learning-cyber-security/issues/122) for the compiled-in credential exception, the append-only reset, and the flash dump rules, [Write the Tier 7 section of the fixture safety contract](https://github.com/tkEmLogic/learning-cyber-security/issues/149) for the Operational CA signing bounds, the reset split between history and live authorization state, and the naming-convention limitation, [Build the Tier 8 attack fixture](https://github.com/tkEmLogic/learning-cyber-security/issues/257) for the Tier 8 rows, [Show the Time floor refusing a far-future manifest on the host](https://github.com/tkEmLogic/learning-cyber-security/issues/262) for `E-8-11`, and [Build the Tier 9 rollout commands, attack fixture and synthetic canary fleet](https://github.com/tkEmLogic/learning-cyber-security/issues/279) for the Tier 9 support-listener fixture, the board-address lab control and the synthetic canary fleet.
 
 ## Where each rule is enforced
 
@@ -674,5 +833,11 @@ A rule with no named enforcement point is a wish. This table says where each rul
 | `E-8-11` signs only with a throwaway key it never writes down, and writes no private key | `writeTimeFloorInputs` in `internal/courseapp/tier08_time_floor.go`, and `TestE811InputsAreOneRunsThrowawayMaterial` | Enforced |
 | `E-8-11` opens no socket and reaches no service or board | `runLocalBypassRow` in `internal/courseapp/tier08_time_floor.go`, which has no target and no marker fetch, and `TestE811DryRunTouchesNothing` | Enforced |
 | `E-8-11`'s verdict comes from the firmware's own Time floor | `firmware/tier-08-time-floor-host/CMakeLists.txt`, which compiles `time_floor.c`, `release_policy.c` and `recovery_state.c` from `firmware/tier-08-credential-lifecycle/src`; `TestE811OnNativeSim` with `COURSE_NATIVE_SIM=1` | Enforced in the Zephyr workspace only |
+| The support fixture sends only a manifest-owned request, `inventory` or `reboot`, so `reboot` is never reachable without naming it | `supportListenerFixture` in `internal/courseapp/tier09_support.go`, reading `fixtures.tier-09/support-listener.requests` through the attack runner's selector, and `TestSupportFixtureRequestsAreBounded`, `TestSupportFixtureRefusesUnknownRequest` | Enforced |
+| The support fixture reaches only a validated literal private or loopback board address, read from state and never from a command line | `boardAddress` in `internal/courseapp/tier09_support.go`, re-validating with `validateBind`, recorded by the `./course device address` lab control, and `TestDeviceAddressValidatesAndRoundTrips` | Enforced |
+| A timeout is reported as weak evidence, pointing at the boot log | `supportListenerFixture` in `internal/courseapp/tier09_support.go`, and `TestSupportFixtureReportsTimeoutAsWeakEvidence` | Enforced |
+| The synthetic canary fleet uses one manifest-owned owner that is not the board owner or the adversary, and never signs with the Operational CA key | `ensureFleetOwner` and `fleetClaim` in `internal/courseapp/tier09_fleet.go`, against `fleet.owner` in `course.yml`, and `TestFleetOwnerIsNotTheBoardOwnerOrAdversary` | Enforced |
+| The fleet enrols only bounded manifest identifiers and never downloads or installs firmware | `fleetAllowed` and `fleetOfferedRelease` in `internal/courseapp/tier09_fleet.go`, against `fleet.device_ids`, and `TestFleetRefusesUnknownDevice`, `TestFleetEnrollBaselinePollAndReset` | Enforced |
+| The fleet's reset removes the fleet owner, keeps the devices and their keys, and appends a `fixture_reset` line | `fleetReset` in `internal/courseapp/tier09_fleet.go`, reusing `removeOwnerEntries`, and `TestFleetEnrollBaselinePollAndReset` | Enforced |
 
 When a rule moves, this table moves with it.

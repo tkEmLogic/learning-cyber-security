@@ -404,7 +404,7 @@ var hostileImages = []struct {
 
 func (a *app) release(args []string) error {
 	if len(args) == 0 {
-		return errors.New("release requires sign, assign, test, approve, or hostile")
+		return errors.New("release requires sign, assign, test, approve, withdraw, or hostile")
 	}
 	switch args[0] {
 	case "sign":
@@ -442,6 +442,11 @@ func (a *app) release(args []string) error {
 			return errors.New("release test is Tier 9's pre-release check; pass --tier 09 --variant <release>")
 		}
 		return a.releaseTestTier09(releaseVariantOption(args[1:]))
+	case "withdraw":
+		if releaseTierOption(args[1:]) != tier09 {
+			return errors.New("release withdraw is Tier 9's; pass --tier 09 --variant <release> --reason <record> --actor <name>")
+		}
+		return a.releaseWithdrawTier09(args[1:])
 	case "approve":
 		if releaseTierOption(args[1:]) != tier09 {
 			return errors.New("release approve is Tier 9's; pass --tier 09 --variant <release> --approver <name>")
@@ -453,7 +458,7 @@ func (a *app) release(args []string) error {
 		}
 		return a.releaseHostile()
 	default:
-		return fmt.Errorf("unknown release command %q; use sign, assign, test, approve, or hostile", args[0])
+		return fmt.Errorf("unknown release command %q; use sign, assign, test, approve, withdraw, or hostile", args[0])
 	}
 }
 

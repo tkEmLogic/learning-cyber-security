@@ -293,6 +293,31 @@ fixtures:
     reset: ./course attack reset tier-06/clone-shared-identity
     hardware_required: false
 
+  # Tier 9's support-listener attack fixture: the small UDP sender the design
+  # calls for (#269). It sends one one-word request to the board's
+  # unauthenticated support listener and prints exactly what it sent and what
+  # came back. The two requests are allowlisted here behind --request, the same
+  # shape Tier 3's images use, so the destructive reboot can never be reached
+  # without naming it. The marker handshake goes to the loopback OTA service, as
+  # the Tier 6 clone's does: the board serves no marker of its own, and the
+  # handshake is about which environment a fixture may act in. The board's
+  # address is not on this fixture's command line; it is recorded once with
+  # ./course device address and read from generated state. See
+  # docs/fixture-safety-contract.md, "Tier 9 fixtures".
+  tier-09/support-listener:
+    tier: "09"
+    target: http://127.0.0.1:8080
+    interface: loopback
+    port: 7700
+    expected_effect: The unauthenticated support listener answers an inventory query with the device id, release and security counter, and restarts the board on a reboot request.
+    requests:
+      inventory: inventory
+      reboot: reboot
+    changes:
+      - artifacts/generated/attacks/tier-09/support-listener
+    reset: ./course attack reset tier-09/support-listener
+    hardware_required: true
+
 # The Tier 7 adversary is one actor rather than a set of fixtures, so it is
 # not a `fixtures:` entry: it is not registered, `./course attack list` does
 # not show it, and `./course attack run` never reaches it. It lives under
@@ -384,6 +409,40 @@ bypass:
       - .course-state/bypass/tier-07
       - artifacts/generated/attacks/tier-08
     reset: ./course service bypass reset
+
+# The synthetic canary fleet (#279). Host-side devices with real Factory and
+# real, claimed, active Operational identities, obtained through the same
+# station and claim machinery the Tier 7 and 8 fixtures use, legitimately, as
+# the manufacturer and an owner would. They poll GET /v1/releases/current over
+# mutual TLS so the rest of the fleet is visible in a rollout while the board is
+# the canary. Every line the command prints is a HOST result, and a host result
+# never stands in for a device result. It is not a fixture and not an adversary,
+# so it has its own block and its own command, ./course fleet. See
+# docs/fixture-safety-contract.md, "Tier 9 fixtures".
+fleet:
+  tier: "09"
+  # The plain target, for the marker handshake and nothing else.
+  target: http://127.0.0.1:8080
+  interface: loopback
+  device_port: 8443
+  operator_port: 8444
+  service_name: ota.course.example
+  # One legitimate fleet owner, minted idempotently. It is not harbor-owner,
+  # which owns the real board, and not the rival-labs adversary.
+  owner: beacon-fleet-ops
+  # The bounded list of synthetic fleet devices. Names are never invented at
+  # run time and never supplied on a command line.
+  device_ids:
+    - beacon-fleet-e9-01
+    - beacon-fleet-e9-02
+    - beacon-fleet-e9-03
+    - beacon-fleet-e9-04
+  changes:
+    - .course-state/provisioning/records.jsonl
+    - .course-state/provisioning/owners.jsonl
+    - .course-state/ota/events.jsonl
+    - .course-state/fleet
+  reset: ./course fleet reset
 
 evidence:
   schema_version: 1
