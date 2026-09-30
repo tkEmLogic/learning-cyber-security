@@ -66,6 +66,37 @@ RUN ARCH=$(dpkg --print-architecture) \
     && rm /tmp/go.tar.gz
 ENV PATH="/usr/local/go/bin:${PATH}"
 
+# Tier 9's two vulnerability scanners, at the versions course.yml pins under
+# `scanning:`. The same database gives a different match list under a
+# different scanner version, so `./course scan` refuses any other version, and
+# a change here must change course.yml too.
+#
+# grype is the official release binary, checked against the sha256 in the
+# release's checksums file, so a changed download fails the build.
+ARG GRYPE_VERSION=0.119.0
+ARG GRYPE_SHA256_AMD64=3fa2dc4b924621ab65404cf08d0b8438d896d80ab949c9d5a4ca283c36004c9b
+ARG GRYPE_SHA256_ARM64=29f0ec7c549ddb0e2b6a0ca714851f7399438afc399b80c12808e065edc9a8f8
+RUN ARCH=$(dpkg --print-architecture) \
+    && case "${ARCH}" in \
+        amd64) SHA="${GRYPE_SHA256_AMD64}" ;; \
+        arm64) SHA="${GRYPE_SHA256_ARM64}" ;; \
+        *) echo "no pinned grype for ${ARCH}" >&2; exit 1 ;; \
+    esac \
+    && curl -fsSL "https://github.com/anchore/grype/releases/download/v${GRYPE_VERSION}/grype_${GRYPE_VERSION}_linux_${ARCH}.tar.gz" -o /tmp/grype.tar.gz \
+    && echo "${SHA}  /tmp/grype.tar.gz" | sha256sum -c - \
+    && tar -C /usr/local/bin -xzf /tmp/grype.tar.gz grype \
+    && rm /tmp/grype.tar.gz
+
+# govulncheck publishes no release binaries, so it is built from its module at
+# the pinned version; go.sum checking through the Go checksum database pins
+# its source. It needs Go 1.26 to build, which the go command fetches for this
+# one step. The module cache, with that toolchain in it, is removed afterwards
+# so the image does not carry it.
+ARG GOVULNCHECK_VERSION=v1.8.0
+RUN GOPATH=/tmp/gopath GOBIN=/usr/local/bin \
+        go install "golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION}" \
+    && chmod -R u+w /tmp/gopath && rm -rf /tmp/gopath /root/.cache/go-build
+
 # `plugdev` matches the group most distros use for USB serial adapters; add
 # the default remote user so it can open /dev/ttyACM* without running the
 # container as root.
