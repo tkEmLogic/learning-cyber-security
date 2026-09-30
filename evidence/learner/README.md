@@ -9,7 +9,7 @@ mkdir -p evidence/learner/tier-00
 cp evidence/templates/tier-00/*.json evidence/learner/tier-00/
 ```
 
-Templates exist for Tier 0 to Tier 7. Tier 0 uses JSON records. Every tier from Tier 1 onwards uses Markdown records, so the copy command for those tiers ends in `*.md` instead.
+Templates exist for Tier 0 to Tier 9. Tier 0 uses JSON records. Every tier from Tier 1 onwards uses Markdown records, so the copy command for those tiers ends in `*.md` instead.
 
 Do not use files under `evidence/examples/` as proof of your own observation.
 
@@ -26,5 +26,7 @@ From Tier 1 onwards, check the structure of one tier's records like this.
 ```
 
 That reports four things and nothing else: a template you have not copied yet, a metadata field left empty, a placeholder such as `(date)` still standing, and a row marked `observed` with no observation written under it. It never reads what you wrote. Whether your threat model is right, or your claim is honest, is not something a command can answer, and the Mentor review gates are where those are read.
+
+Tier 9 adds two checks of the same kind. Every Tier 9 record must keep its boundary line, which says the record is course evidence and not a statement of CRA conformity. Every row of the CRA traceability matrix must name a legal source, the date you read it, and a legal-review answer of exactly `yes` or `no`.
 
 Keeping a record honest is your own work: when you did not observe something, you record it as `pending`, and you never write down a result you did not see.
