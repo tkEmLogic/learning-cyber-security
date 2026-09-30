@@ -142,33 +142,6 @@ func (a *app) withTier09Patches(variant firmwareVariant, build func() error) err
 	return buildErr
 }
 
-// releaseSignTier09 signs one Tier 9 release and publishes it, by Tier 7's
-// sequence unchanged.
-func (a *app) releaseSignTier09(variantName string) error {
-	variant, err := tier09Variant(variantName)
-	if err != nil {
-		return err
-	}
-	release, err := a.signTierRelease(tier09, variant, a.tier09RawImage(variant), tier09Versions[variant.label])
-	if err != nil {
-		return err
-	}
-	fmt.Fprintf(a.out, "Result: published %s, %d bytes\n", variant.releaseID, release["image_size"])
-	fmt.Fprintf(a.out, "Its counter is %d. A device running it refuses every release below that.\n",
-		variant.securityCounter)
-	return nil
-}
-
-// releaseAssignTier09 points the service at a Tier 9 release that is already
-// signed.
-func (a *app) releaseAssignTier09(variantName string) error {
-	variant, err := tier09Variant(variantName)
-	if err != nil {
-		return err
-	}
-	return a.assignTierRelease(tier09, variant)
-}
-
 // kconfigBool spells a Go bool the way a Kconfig fragment does.
 func kconfigBool(on bool) string {
 	if on {

@@ -318,6 +318,8 @@ func (a *app) dispatch(args []string) error {
 		return a.keys(args[1:])
 	case "release":
 		return a.release(args[1:])
+	case "sbom":
+		return a.sbom(args[1:])
 	case "provision":
 		return a.provision(args[1:])
 	case "owner":
@@ -973,7 +975,13 @@ func (a *app) buildFirmware(args []string) error {
 	// Tier 9 builds through its patch guard, which refuses a patched module
 	// and applies the West patch around the remediation build alone.
 	if tier == tier09 {
+		// The tree's state is read before the build, because that is the
+		// tree the image is made from.
+		clean, revision := a.treeIsClean(), a.fullSourceRevision()
 		if err := a.withTier09Patches(variant, runBuild); err != nil {
+			return err
+		}
+		if err := a.writeTier09BuildRecord(variant, buildDir, confPath, clean, revision); err != nil {
 			return err
 		}
 	} else if err := runBuild(); err != nil {
@@ -1264,6 +1272,7 @@ func (a *app) service(args []string) error {
 	case "start":
 		https := false
 		mutualTLS := false
+		releaseApproval := false
 		present := ""
 		rangeBehaviour := ""
 		for i := 1; i < len(args); i++ {
@@ -1272,6 +1281,8 @@ func (a *app) service(args []string) error {
 				https = true
 			case "--mutual-tls":
 				mutualTLS = true
+			case "--release-approval":
+				releaseApproval = true
 			case "--present":
 				if i+1 >= len(args) {
 					return errors.New("--present requires service, untrusted, or wrong-name")
@@ -1299,10 +1310,16 @@ func (a *app) service(args []string) error {
 		if mutualTLS && !https {
 			return errors.New("--mutual-tls applies only with --https")
 		}
+		// Tier 9's opt-in, the same shape: the baseline PUT then needs an
+		// approved release (#271). Approvals live in the manufacturing record,
+		// which only a mutual-TLS service keeps.
+		if releaseApproval && !mutualTLS {
+			return errors.New("--release-approval applies only with --https --mutual-tls")
+		}
 		if err := checkRangeBehaviour(rangeBehaviour); err != nil {
 			return err
 		}
-		return a.serviceStart(https, mutualTLS, present, rangeBehaviour)
+		return a.serviceStart(https, mutualTLS, releaseApproval, present, rangeBehaviour)
 	case "stop":
 		return a.serviceStop()
 	case "status":
@@ -1396,7 +1413,7 @@ func checkRangeBehaviour(behaviour string) error {
 	return fmt.Errorf("unknown --range value %q; use ignore or interrupt:<bytes>", behaviour)
 }
 
-func (a *app) serviceStart(https, mutualTLS bool, present string, rangeBehaviour string) error {
+func (a *app) serviceStart(https, mutualTLS, releaseApproval bool, present string, rangeBehaviour string) error {
 	if _, running := a.runningService(); running {
 		return errors.New("the OTA service is already running; run ./course service stop first")
 	}
@@ -1433,6 +1450,9 @@ func (a *app) serviceStart(https, mutualTLS bool, present string, rangeBehaviour
 				return errors.New("no Operational Device CA exists; run ./course keys create operational-ca first")
 			}
 			arguments = append(arguments, "--mutual-tls")
+			if releaseApproval {
+				arguments = append(arguments, "--release-approval")
+			}
 		}
 		if present == "" {
 			present = "service"
