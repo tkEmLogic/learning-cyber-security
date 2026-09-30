@@ -241,6 +241,26 @@ The manufacturer's record of one vulnerability: its triage, affected versions,
 reproduction, decision, and remediation.
 _Avoid_: Ticket, scan result
 
+**Scanner match**:
+A scanner's claim that a component version in an SBOM is covered by a published
+advisory. Like a vulnerability report, it is a claim to be triaged, not a
+finding: it can be false, and a scanner cannot match code that has no identity
+in its database.
+_Avoid_: Vulnerability, finding, scan result
+
+**VEX statement**:
+A machine-readable statement of whether one product version is affected by one
+vulnerability, and why not if it is not. It exports the decision in a
+vulnerability record so that a later scan shows only matches nobody has
+reviewed. It is true as of the date it was made.
+_Avoid_: Suppression, ignore list, waiver
+
+**Unsupported component**:
+A component the product depends on whose supplier no longer publishes security
+fixes for the version in use. It is affected by every later advisory whether or
+not a scanner reports it.
+_Avoid_: Outdated dependency, legacy component
+
 **Remediation release**:
 A signed release at a higher security counter that moves devices off a
 vulnerable version through the ordinary release path.
