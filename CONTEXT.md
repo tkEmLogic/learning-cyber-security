@@ -201,6 +201,21 @@ It is observed and recorded, not refused, because the device cannot know what
 it lost and an accidental erase looks the same as a deliberate one.
 _Avoid_: Factory reset, re-enrollment
 
+**Vulnerability report**:
+A description of a suspected vulnerability that an outside party sends to the
+manufacturer. It is a claim to be triaged, not a finding.
+_Avoid_: Bug report, finding
+
+**Vulnerability record**:
+The manufacturer's record of one vulnerability: its triage, affected versions,
+reproduction, decision, and remediation.
+_Avoid_: Ticket, scan result
+
+**Remediation release**:
+A signed release at a higher security counter that moves devices off a
+vulnerable version through the ordinary release path.
+_Avoid_: Patch, hotfix
+
 **Residual risk**:
 A known security risk that remains after the selected controls are applied,
 including its rationale, owner, and planned treatment or acceptance.
