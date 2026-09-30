@@ -71,6 +71,13 @@ again, because the release is vulnerable. Devices already running it move away
 only through a later rollout of a newer release at a higher security counter.
 _Avoid_: Recall, revocation, rollback
 
+**Release approval**:
+A manufacturer's recorded decision that one release, identified by the digests
+of its image, manifest, signature, build manifest and SBOM, may be offered to
+devices. The device never checks it, and it is not Mentor approval or a
+conformity decision.
+_Avoid_: Sign-off, release signature, approval record
+
 **OTA service**:
 The service that provides update assignments, release manifests, firmware
 images, and update event records. It does not hold firmware release-signing
