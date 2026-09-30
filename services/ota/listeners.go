@@ -87,7 +87,7 @@ func (s *Server) deviceRoutes() []deviceRoute {
 		{"GET /v1/releases/{release_id}/manifest.sig", RoleOperational, identifierNone, true,
 			http.HandlerFunc(s.releaseManifestSignature)},
 		{"GET /v1/firmware/{name}", RoleOperational, identifierNone, true,
-			http.HandlerFunc(s.firmware)},
+			http.HandlerFunc(s.deviceFirmware)},
 		{"POST /v1/devices/{device_id}/events", RoleOperational, identifierPathAndBody, true,
 			http.HandlerFunc(s.deviceEvent)},
 		{"POST /v1/devices/{device_id}/claim", RoleFactory, identifierPath, false,
@@ -116,7 +116,7 @@ func (s *Server) deviceRoutes() []deviceRoute {
 // different questions — what am I assigned, from the device; what did I just
 // set, from the lab bench — and the two listeners keep those questions apart.
 func (s *Server) operatorRoutes() []deviceRoute {
-	return []deviceRoute{
+	routes := []deviceRoute{
 		{pattern: "GET /v1/releases/current", handler: http.HandlerFunc(s.currentRelease)},
 		{pattern: "PUT /v1/releases/current", handler: http.HandlerFunc(s.updateRelease)},
 		{pattern: "POST /v1/lab/seed", handler: http.HandlerFunc(s.seed)},
@@ -156,6 +156,10 @@ func (s *Server) operatorRoutes() []deviceRoute {
 		{pattern: "POST /v1/devices/{device_id}/transfer",
 			handler: s.requireOwner(http.HandlerFunc(s.transferDevice))},
 	}
+	// Tier 9's rollout, withdrawal and approval routes. They are the
+	// manufacturer's, so they keep the marker header like the baseline PUT and
+	// take no Owner credential. See rollout.go for the list.
+	return append(routes, s.rolloutRoutes()...)
 }
 
 // DeviceHandler serves the seven device routes behind mutual TLS. Every refusal
