@@ -1,0 +1,39 @@
+&flash0 {
+	reg = <0x000000 0x400000>;
+};
+
+&boot_partition {
+	reg = <0x000000 0x010000>;
+};
+
+&sys_partition {
+	reg = <0x010000 0x010000>;
+};
+
+&slot0_partition {
+	reg = <0x020000 0x1c0000>;
+};
+
+&slot1_partition {
+	reg = <0x1e0000 0x1c0000>;
+};
+
+&slot0_lpcore_partition {
+	reg = <0x3a0000 0x008000>;
+};
+
+&slot1_lpcore_partition {
+	reg = <0x3a8000 0x008000>;
+};
+
+&storage_partition {
+	reg = <0x3b0000 0x030000>;
+};
+
+&scratch_partition {
+	reg = <0x3e0000 0x01f000>;
+};
+
+&coredump_partition {
+	reg = <0x3ff000 0x001000>;
+};

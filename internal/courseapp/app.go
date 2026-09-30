@@ -772,6 +772,13 @@ type firmwareVariant struct {
 	// variant, where --time-floor-seed sets it (#263). Empty means the moment
 	// of the build, which is the only honest seed for a release.
 	timeFloorSeed string
+	// supportListener is true for Tier 9's support-listener release only,
+	// the one image in the course that compiles in T9-W-34 (#269).
+	supportListener bool
+	// westPatches is true for Tier 9's remediation release only: its build
+	// applies the Tier 9 application's West patch to the workspace and
+	// cleans it afterwards (#278).
+	westPatches bool
 }
 
 var firmwareVariants = map[string]firmwareVariant{
@@ -830,6 +837,7 @@ var firmwareApps = map[string]string{
 	"06": "firmware/tier-06-factory-identity",
 	"07": "firmware/tier-07-operational-identity",
 	"08": "firmware/tier-08-credential-lifecycle",
+	"09": "firmware/tier-09-vulnerability-support",
 }
 
 // tierSignsItsOwnImage names the tiers whose bootloader is built separately
@@ -840,7 +848,7 @@ var firmwareApps = map[string]string{
 // the property is "this tier's bootloader checks who published an image", and
 // every tier from Tier 3 on has it.
 func tierSignsItsOwnImage(tier string) bool {
-	return tier == "03" || tier == "04" || tier == "05" || tier == "06" || tier == "07" || tier == tier08
+	return tier == "03" || tier == "04" || tier == "05" || tier == "06" || tier == "07" || tier == tier08 || tier == tier09
 }
 
 func variantsForTier(tier string) map[string]firmwareVariant {
@@ -859,6 +867,8 @@ func variantsForTier(tier string) map[string]firmwareVariant {
 		return tier07Variants
 	case tier08:
 		return tier08Variants
+	case tier09:
+		return tier09Variants
 	default:
 		return firmwareVariants
 	}
@@ -930,7 +940,7 @@ func (a *app) buildFirmware(args []string) error {
 	// can verify a Release manifest. It is a separate variable from the trust
 	// anchor because it answers a separate question: the anchor says which
 	// service to talk to, this says whose release metadata to believe.
-	if tier == "04" || tier == "05" || tier == "06" || tier == "07" || tier == tier08 {
+	if tier == "04" || tier == "05" || tier == "06" || tier == "07" || tier == tier08 || tier == tier09 {
 		keyDir, err := a.writeSigningPublicKeyInc()
 		if err != nil {
 			return err
@@ -956,9 +966,17 @@ func (a *app) buildFirmware(args []string) error {
 		fmt.Fprintln(a.out, "Note: this build compiles the fleet's private key into the image. That is")
 		fmt.Fprintln(a.out, "Note: what Tier 6 is about, and it is the only build in the course that does it.")
 	}
-	fmt.Fprintf(a.out, "+ %s ./scripts/build-zephyr-baseline.sh\n", strings.Join(printed, " "))
-	if err := runAttachedEnv(a.root, a.out, a.errOut, buildEnv,
-		"./scripts/build-zephyr-baseline.sh"); err != nil {
+	runBuild := func() error {
+		fmt.Fprintf(a.out, "+ %s ./scripts/build-zephyr-baseline.sh\n", strings.Join(printed, " "))
+		return runAttachedEnv(a.root, a.out, a.errOut, buildEnv, "./scripts/build-zephyr-baseline.sh")
+	}
+	// Tier 9 builds through its patch guard, which refuses a patched module
+	// and applies the West patch around the remediation build alone.
+	if tier == tier09 {
+		if err := a.withTier09Patches(variant, runBuild); err != nil {
+			return err
+		}
+	} else if err := runBuild(); err != nil {
 		return err
 	}
 
@@ -1085,7 +1103,7 @@ CONFIG_COURSE_TRUST_ANCHOR_FINGERPRINT=%q
 	//
 	// The hardware revision is asserted here and nowhere read. The channel is
 	// a policy choice, not a property of the device.
-	if tier == "04" || tier == "05" || tier == "06" || tier == "07" || tier == tier08 {
+	if tier == "04" || tier == "05" || tier == "06" || tier == "07" || tier == tier08 || tier == tier09 {
 		body += fmt.Sprintf(`CONFIG_COURSE_SECURITY_COUNTER=%d
 CONFIG_COURSE_HARDWARE_REVISION=%d
 CONFIG_COURSE_RELEASE_CHANNEL=%q
@@ -1104,7 +1122,7 @@ CONFIG_COURSE_RELEASE_CHANNEL=%q
 	// swapping in. Both copies are covered by the image signature. It
 	// identifies the build and not the release, and a Learner's own build
 	// carries their hash and will usually be dirty.
-	if tier == "05" || tier == "06" || tier == "07" || tier == tier08 {
+	if tier == "05" || tier == "06" || tier == "07" || tier == tier08 || tier == tier09 {
 		symbol, err := trialBehaviourSymbol(variant.trialBehaviour)
 		if err != nil {
 			return "", "", err
@@ -1122,7 +1140,7 @@ CONFIG_COURSE_RELEASE_CHANNEL=%q
 	// that Tier 7 keeps: CONFIG_COURSE_IDENTITY_FACTORY is a plain bool there
 	// rather than half of a choice, so the generated line configures both
 	// trees and the two tiers stay readable side by side.
-	if tier == "06" || tier == "07" || tier == tier08 {
+	if tier == "06" || tier == "07" || tier == tier08 || tier == tier09 {
 		symbol, err := identityModelSymbol(variant.identityModel)
 		if err != nil {
 			return "", "", err
@@ -1130,13 +1148,22 @@ CONFIG_COURSE_RELEASE_CHANNEL=%q
 		body += fmt.Sprintf("%s=y\n", symbol)
 	}
 
-	// Tier 8 seeds its Time floor with the moment of this build (#217).
-	if tier == tier08 {
+	// Tier 8 seeds its Time floor with the moment of this build (#217), and
+	// Tier 9 keeps the floor.
+	if tier == tier08 || tier == tier09 {
 		seed := variant.timeFloorSeed
 		if seed == "" {
 			seed = tier08TimeFloorSeed(time.Now())
 		}
 		body += fmt.Sprintf("CONFIG_COURSE_TIME_FLOOR_SEED=%q\n", seed)
+	}
+
+	// Tier 9's two releases differ in exactly these two lines. Both are
+	// written for both variants, so neither image inherits the other's
+	// setting from a stale configuration.
+	if tier == tier09 {
+		body += fmt.Sprintf("CONFIG_COURSE_SUPPORT_LISTENER=%s\n", kconfigBool(variant.supportListener))
+		body += fmt.Sprintf("CONFIG_COURSE_TF_PSA_CRYPTO_BACKPORT=%s\n", kconfigBool(variant.westPatches))
 	}
 
 	// The filename carries the tier as well as the variant. Tier 0 and Tier 2
