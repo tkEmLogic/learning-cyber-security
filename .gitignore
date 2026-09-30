@@ -4,3 +4,7 @@ build/
 artifacts/generated/
 evidence/learner/*
 !evidence/learner/README.md
+
+# Claude Code keeps per-user settings here. They are never course content, and
+# an untracked copy would mark every Tier 9 build as from a dirty tree.
+.claude/settings.local.json
