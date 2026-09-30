@@ -679,8 +679,7 @@ func parseScanServiceArgs(args []string) (bool, error) {
 // SBOM and the module refers to these files by name.
 const (
 	serviceSBOMName  = "ota-service.cdx.json"
-	serviceScanName  = "ota-service.govulncheck.json"
-	serviceVEXName   = "ota-service.govulncheck.openvex.json"
+	serviceScanBase  = "ota-service.govulncheck"
 	servicePackages  = "./services/ota/..."
 	liveGoVulnSuffix = "-live"
 )
@@ -716,12 +715,10 @@ func (a *app) scanService(args []string) error {
 
 	a.step(1, "Scan the service source for reachable Go vulnerabilities")
 	var dbArgs []string
-	scanPath := filepath.Join(a.sbomDir(), serviceScanName)
-	vexPath := filepath.Join(a.sbomDir(), serviceVEXName)
+	base := filepath.Join(a.sbomDir(), serviceScanBase)
 	if live {
 		fmt.Fprintln(a.out, "LIVE: today's Go vulnerability database, not the pinned one. This result is not the one the triage is graded against.")
-		scanPath = strings.TrimSuffix(scanPath, ".json") + liveGoVulnSuffix + ".json"
-		vexPath = strings.TrimSuffix(vexPath, ".json") + liveGoVulnSuffix + ".json"
+		base += liveGoVulnSuffix
 	} else {
 		cache, err := a.scanCacheDir(s)
 		if err != nil {
@@ -737,6 +734,7 @@ func (a *app) scanService(args []string) error {
 	// shipped with. On a host with a newer Go it would otherwise scan that
 	// Go's standard library and report nothing, which is the wrong answer.
 	env := []string{"GOTOOLCHAIN=" + s.GoToolchain}
+	scanPath, vexPath := base+".json", base+".openvex.json"
 	if err := os.MkdirAll(a.sbomDir(), 0o700); err != nil {
 		return err
 	}
