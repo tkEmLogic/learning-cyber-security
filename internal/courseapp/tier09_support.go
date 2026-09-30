@@ -28,6 +28,7 @@ import (
 	"net"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -161,6 +162,15 @@ func (a *app) supportListenerFixture(id string) (string, string, map[string]stri
 		observed := fmt.Sprintf("no reply within %d s from the support listener; weak evidence, read the boot log", seconds)
 		return observed, "the board's own boot log is the strong evidence, not this timeout", hashes, nil
 	}
+	if errors.Is(err, errSupportRefused) {
+		// Stronger than a timeout: the board's own network stack answered
+		// that nothing listens on the port. It still says nothing about
+		// what the image contains, so the boot log remains the record.
+		a.got("port unreachable: the board's network stack says nothing listens on UDP %d", port)
+		a.note("That is the board's answer, not a lost datagram. The boot log says why.")
+		observed := fmt.Sprintf("the board answered that nothing listens on UDP %d (ICMP port unreachable)", port)
+		return observed, "", hashes, nil
+	}
 	if err != nil {
 		return "", "", hashes, err
 	}
@@ -188,6 +198,10 @@ func (a *app) resetSupportListener() error {
 // send or receive error, so the caller can word the two differently.
 var errSupportTimeout = errors.New("support listener did not reply")
 
+// errSupportRefused is the board's ICMP port unreachable, which a connected
+// UDP socket reports as a refused read.
+var errSupportRefused = errors.New("nothing listens on the support port")
+
 // sendSupportRequest sends one UDP datagram and reads at most one reply. It is
 // deliberately tiny: one datagram out, one datagram in or a timeout, and no
 // retry, so what the Learner sees is exactly one exchange on the wire.
@@ -208,6 +222,9 @@ func sendSupportRequest(target, request string, timeout time.Duration) (string, 
 	if err != nil {
 		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 			return "", errSupportTimeout
+		}
+		if errors.Is(err, syscall.ECONNREFUSED) {
+			return "", errSupportRefused
 		}
 		return "", err
 	}
