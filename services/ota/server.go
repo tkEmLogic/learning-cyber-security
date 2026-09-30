@@ -49,6 +49,14 @@ type Config struct {
 	// or reconfigure one.
 	MutualTLS *MutualTLS
 
+	// ReleaseApproval is false unless the service was started with
+	// --release-approval, and false is what Tiers 0 to 8 run with. It turns
+	// on one thing: the release-approved Check on the baseline PUT, so that
+	// from Tier 9 the PUT is not an unapproved side door around a rollout.
+	// Rollout start, advance and resume check the approval whatever this
+	// says, because no earlier tier has a rollout to change.
+	ReleaseApproval bool
+
 	// Claim and OwnerCredentials are the seams issue #146 fills: the two
 	// halves of the claim exchange, and the store behind the three
 	// owner-credential checks. This ticket builds the listeners they sit on
@@ -57,9 +65,15 @@ type Config struct {
 	OwnerCredentials OwnerVerifier
 }
 
-// Release is the Update assignment: the service's mutable choice of which
-// release it is currently offering. It is not the Release manifest. See
+// Release is the record an Update assignment is made of: the mutable choice of
+// which release a device is offered. It is not the Release manifest. See
 // manifest.go for that, and CONTEXT.md for why they are different objects.
+//
+// An Update assignment is per device. The copy stored in current-release.json
+// is the Fleet baseline, which PUT /v1/releases/current sets and every device
+// outside a rollout is offered; a rollout offers its own record of this shape
+// to the devices it covers. Until Tier 9 no rollout exists, so every device is
+// offered the baseline. See rollout.go.
 //
 // This shape does not change, and no field is added to it. Tiers 0, 2 and 3 are
 // published and quote what this record looks like on the wire, down to `signed`
@@ -281,6 +295,15 @@ func (s *Server) updateRelease(w http.ResponseWriter, r *http.Request) {
 	}
 	release.Mutable = true
 	release.Signed = false
+	// Under claimMu, so a rollout cannot start between the rollout checks and
+	// the write. Without mutual TLS there is no log, the checks ask nothing,
+	// and the PUT is the one Tiers 0 to 6 publish.
+	s.claimMu.Lock()
+	defer s.claimMu.Unlock()
+	if refusal := s.baselineRefusal(release); refusal != nil {
+		s.Refuse(w, r, http.StatusConflict, *refusal)
+		return
+	}
 	if err := s.saveRelease(release); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -297,6 +320,18 @@ func (s *Server) firmware(w http.ResponseWriter, r *http.Request) {
 	release, err := s.loadRelease()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+	s.serveFirmware(w, r, release)
+}
+
+// serveFirmware serves the image one release record names, and nothing else.
+// The Tier 0 route asks it about the Fleet baseline, and the device listener
+// asks it about the device's own assignment.
+func (s *Server) serveFirmware(w http.ResponseWriter, r *http.Request, release Release) {
+	name := r.PathValue("name")
+	if name == "" || filepath.Base(name) != name {
+		http.Error(w, "invalid firmware name", http.StatusBadRequest)
 		return
 	}
 	if filepath.Base(release.ImagePath) != name {

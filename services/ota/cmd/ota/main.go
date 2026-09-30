@@ -27,18 +27,26 @@ func main() {
 	}
 	https := false
 	mutualTLS := false
+	releaseApproval := false
 	for _, arg := range os.Args[1:] {
 		switch arg {
 		case "--https":
 			https = true
 		case "--mutual-tls":
 			mutualTLS = true
+		case "--release-approval":
+			releaseApproval = true
 		default:
 			log.Fatalf("unknown option %q", arg)
 		}
 	}
 	if mutualTLS && !https {
 		log.Fatal("--mutual-tls applies only with --https")
+	}
+	// Tier 9's flag. Release approvals live in the manufacturing record, which
+	// only a mutual-TLS service reads, so it means nothing without one.
+	if releaseApproval && !mutualTLS {
+		log.Fatal("--release-approval applies only with --mutual-tls")
 	}
 
 	bind := env("COURSE_BIND", "127.0.0.1")
@@ -63,6 +71,9 @@ func main() {
 		// Tier 5 is the only tier that sets it.
 		RangeBehaviour: os.Getenv("COURSE_RANGE_BEHAVIOUR"),
 		MutualTLS:      mutual,
+		// false unless a Tier 9 Learner started the service with it: the
+		// baseline PUT then needs an approved release, like a rollout does.
+		ReleaseApproval: releaseApproval,
 	})
 	if err != nil {
 		log.Fatal(err)

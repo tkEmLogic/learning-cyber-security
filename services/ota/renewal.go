@@ -115,13 +115,28 @@ func renewalRequested(state provisioningState, identity DeviceIdentity) bool {
 // byte for byte what Tier 7 serves, and a Tier 7 board, which has never heard
 // of the field, reads the same answer it always has. The operator listener's
 // copy of this route never carries it: there is no certificate there to be due.
+//
+// The release record is the Fleet baseline unless a Tier 9 rollout covers this
+// device, and then it is the rollout's release, in the same shape. The first
+// time a rollout's release is offered to a device the service records that it
+// served it, which is what a pause keeps serving. See rollout.go.
 func (s *Server) deviceAssignment(w http.ResponseWriter, r *http.Request) {
-	release, err := s.loadRelease()
+	identity, ok := DeviceFrom(r.Context())
+	var release Release
+	var err error
+	if ok {
+		var fromRollout bool
+		release, fromRollout, err = s.assignmentFor(identity.DeviceID)
+		if err == nil && fromRollout {
+			s.recordServed(identity.DeviceID, release)
+		}
+	} else {
+		release, err = s.loadRelease()
+	}
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusServiceUnavailable)
 		return
 	}
-	identity, ok := DeviceFrom(r.Context())
 	if !ok || !s.renewalDue(identity, s.provisioningState()) {
 		writeJSON(w, http.StatusOK, release)
 		return
