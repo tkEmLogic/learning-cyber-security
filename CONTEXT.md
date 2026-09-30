@@ -48,6 +48,29 @@ The OTA service's choice of which release, if any, a specific device should
 install. It refers to a release manifest but does not change the signed release.
 _Avoid_: Manifest, deployment
 
+**Fleet baseline**:
+The release a device is offered when no rollout covers it. It is normally the
+release the device already runs, so the device refuses it as already confirmed.
+_Avoid_: Default release, current release
+
+**Rollout**:
+The manufacturer's offer of one release to the fleet in two stages: first the
+canary group, then every other claimed, active device. Only one rollout is open
+at a time, and moving to the second stage is a separate, deliberate step. A
+paused rollout offers its release only to devices it was already offered to.
+_Avoid_: Deployment, campaign, channel
+
+**Canary group**:
+The devices a rollout names explicitly to receive its release first, so the
+result can be reviewed before the rest of the fleet receives it.
+_Avoid_: Pilot, beta group, test fleet
+
+**Release withdrawal**:
+The manufacturer's act of closing a rollout and never offering its release
+again, because the release is vulnerable. Devices already running it move away
+only through a later rollout of a newer release at a higher security counter.
+_Avoid_: Recall, revocation, rollback
+
 **OTA service**:
 The service that provides update assignments, release manifests, firmware
 images, and update event records. It does not hold firmware release-signing
