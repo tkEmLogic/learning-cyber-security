@@ -73,6 +73,12 @@ type manifest struct {
 	// here. See docs/fixture-safety-contract.md, "Tier 7 fixtures".
 	Bypass map[string]bypassManifest `yaml:"bypass"`
 
+	// Fleet is the synthetic canary fleet: host-side devices with real
+	// mutual-TLS identities that make the rest of a rollout visible while the
+	// board is the canary. It is not a fixture and not an adversary, so it has
+	// its own block. See docs/fixture-safety-contract.md, "Tier 9 fixtures".
+	Fleet fleetManifest `yaml:"fleet"`
+
 	Safety struct {
 		SyntheticDataOnly         bool   `yaml:"synthetic_data_only"`
 		MarkerRequired            bool   `yaml:"marker_required"`
@@ -171,6 +177,19 @@ type fixture struct {
 	// fixtures".
 	Image      string   `yaml:"image"`
 	PhantomIDs []string `yaml:"phantom_ids"`
+
+	// Requests are the one-word messages the Tier 9 support-listener fixture
+	// may send, keyed by the selector the Learner types with --request. It is
+	// the same allowlist shape Tier 3's images and Tier 4's releases use: the
+	// selector names a manifest-owned value, never an arbitrary payload. The
+	// destructive reboot is one of these, so it can never be reached without
+	// naming it. See docs/fixture-safety-contract.md, "Tier 9 fixtures".
+	Requests map[string]string `yaml:"requests"`
+
+	// Port is the UDP port a network-listener fixture speaks to on the board,
+	// read from here so no port is ever on a command line. Zero means the
+	// fixture defines no such port.
+	Port int `yaml:"port"`
 }
 
 // selectors returns the allowlist a fixture's selector must come from, and the
@@ -178,6 +197,9 @@ type fixture struct {
 func (f fixture) selectors() (map[string]string, string) {
 	if len(f.Releases) > 0 {
 		return f.Releases, "--release"
+	}
+	if len(f.Requests) > 0 {
+		return f.Requests, "--request"
 	}
 	return f.Images, "--image"
 }
@@ -322,6 +344,8 @@ func (a *app) dispatch(args []string) error {
 		return a.sbom(args[1:])
 	case "rollout":
 		return a.rollout(args[1:])
+	case "fleet":
+		return a.fleet(args[1:])
 	case "provision":
 		return a.provision(args[1:])
 	case "owner":
@@ -345,7 +369,7 @@ func (a *app) dispatch(args []string) error {
 }
 
 func (a *app) usage(w io.Writer) {
-	fmt.Fprintln(w, "usage: ./course doctor|setup|tier|build|service|device|keys|release|sbom|rollout|provision|owner|claim|attack|verify|evidence|clean")
+	fmt.Fprintln(w, "usage: ./course doctor|setup|tier|build|service|device|keys|release|sbom|rollout|fleet|provision|owner|claim|attack|verify|evidence|clean")
 }
 
 func (a *app) context(target string) {
@@ -1678,11 +1702,13 @@ func (a *app) serviceCertificate() error {
 
 func (a *app) device(args []string) error {
 	if len(args) == 0 {
-		return errors.New("device requires flash, logs, status, dump, reset, update, or recover")
+		return errors.New("device requires flash, address, logs, status, dump, reset, update, or recover")
 	}
 	switch args[0] {
 	case "flash":
 		return a.deviceFlash(args[1:])
+	case "address":
+		return a.deviceAddress(args[1:])
 	case "logs":
 		return a.deviceLogs()
 	case "dump":
@@ -1946,7 +1972,7 @@ func (a *app) attackRun(args []string) error {
 		case "--interface":
 			selectedInterface = args[i+1]
 			interfaceSpecified = true
-		case "--image", "--release":
+		case "--image", "--release", "--request":
 			if len(allowed) == 0 {
 				return fmt.Errorf("%s takes no %s", id, args[i])
 			}
@@ -2017,6 +2043,10 @@ func (a *app) attackRun(args []string) error {
 	if strings.HasPrefix(id, "tier-06/") {
 		plans = tier06Plan
 		proofs = tier06Proves
+	}
+	if strings.HasPrefix(id, "tier-09/") {
+		plans = tier09Plan
+		proofs = tier09Proves
 	}
 	if plan, ok := plans[id]; ok {
 		fmt.Fprintln(a.out, "Plan:")
@@ -2226,6 +2256,8 @@ func (a *app) executeFixture(id, target string, env environment) (string, string
 	switch id {
 	case "tier-06/clone-shared-identity":
 		return a.cloneSharedIdentity(env)
+	case "tier-09/support-listener":
+		return a.supportListenerFixture(id)
 	case "tier-00/plaintext-inspection":
 		a.step(1, "Ask the service which firmware release it is handing out.")
 		a.note("No credential is sent, because the service asks for none.")
@@ -2483,6 +2515,14 @@ func (a *app) resetFixtureState(id, target string, env environment) error {
 	// restore a seed, so it returns before the service reset below.
 	if id == "tier-06/clone-shared-identity" {
 		return a.resetClone()
+	}
+	// The support-listener fixture touches no service state: it sends one
+	// datagram to the board and reads the board's own answer. There is nothing
+	// on the service to seed back. A reboot it may have caused is the board's
+	// and cannot be rewound from the host, which the module states rather than
+	// hides, so reset is honestly a no-op here.
+	if id == "tier-09/support-listener" {
+		return a.resetSupportListener()
 	}
 	// Tier 2 moved the lab endpoints behind TLS, so the reset goes there and
 	// verifies the certificate like everything else. The marker check that
