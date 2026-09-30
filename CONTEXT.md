@@ -266,6 +266,33 @@ A signed release at a higher security counter that moves devices off a
 vulnerable version through the ordinary release path.
 _Avoid_: Patch, hotfix
 
+**Actively exploited vulnerability**:
+A vulnerability for which there is reliable evidence that someone has exploited
+it in a product without the owner's permission. A vulnerability report alone
+does not make a vulnerability actively exploited.
+_Avoid_: Zero-day, critical vulnerability
+
+**Severe incident**:
+An incident that harms, or can harm, the product's ability to protect the
+availability, authenticity, integrity or confidentiality of data or functions,
+or that lets malicious code into the product or its user's network. It is a
+different report type from an actively exploited vulnerability, even when a
+known weakness made it possible.
+_Avoid_: Breach, security event
+
+**Awareness time**:
+The moment, recorded in UTC, when the manufacturer has a reasonable degree of
+certainty after a prompt assessment that a reportable event has happened. Every
+reporting deadline counts from it except the final report, which counts from
+its own anchor event.
+_Avoid_: Discovery time, detection time
+
+**Scenario clock**:
+A script of timestamped events that a reporting exercise follows instead of the
+wall clock. The Learner works out the awareness time and every deadline from
+it.
+_Avoid_: Timer, simulation
+
 **Residual risk**:
 A known security risk that remains after the selected controls are applied,
 including its rationale, owner, and planned treatment or acceptance.
