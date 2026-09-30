@@ -320,6 +320,8 @@ func (a *app) dispatch(args []string) error {
 		return a.release(args[1:])
 	case "sbom":
 		return a.sbom(args[1:])
+	case "rollout":
+		return a.rollout(args[1:])
 	case "provision":
 		return a.provision(args[1:])
 	case "owner":
@@ -343,7 +345,7 @@ func (a *app) dispatch(args []string) error {
 }
 
 func (a *app) usage(w io.Writer) {
-	fmt.Fprintln(w, "usage: ./course doctor|setup|tier|build|service|device|keys|release|provision|owner|claim|attack|verify|evidence|clean")
+	fmt.Fprintln(w, "usage: ./course doctor|setup|tier|build|service|device|keys|release|sbom|rollout|provision|owner|claim|attack|verify|evidence|clean")
 }
 
 func (a *app) context(target string) {
