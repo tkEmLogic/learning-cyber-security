@@ -293,6 +293,31 @@ wall clock. The Learner works out the awareness time and every deadline from
 it.
 _Avoid_: Timer, simulation
 
+**Support period**:
+The fixed span, counted from when the product is first placed on the market,
+during which the manufacturer handles vulnerabilities and issues security
+updates free of charge. It is a property of the product, not of any one
+release, and users are told its end month and year.
+_Avoid_: Lifetime, warranty, supported until
+
+**Annex I control map**:
+One row per Annex I requirement of the CRA, each naming the security controls
+that address it, the evidence for them, and a status. It shows where the
+product stands against a requirement, not that it meets it.
+_Avoid_: Compliance checklist, conformity map
+
+**CRA traceability matrix**:
+One row per CRA duty, linking it to product assumptions, requirements,
+controls, evidence, status, residual risk, the responsible role and a dated
+legal source, and saying whether legal review is required.
+_Avoid_: Compliance matrix, conformity record
+
+**Coordinated vulnerability disclosure policy**:
+The manufacturer's public statement of how outside parties report a suspected
+vulnerability, how the manufacturer responds, and when the vulnerability is
+disclosed.
+_Avoid_: Bug bounty, security policy
+
 **Residual risk**:
 A known security risk that remains after the selected controls are applied,
 including its rationale, owner, and planned treatment or acceptance.
