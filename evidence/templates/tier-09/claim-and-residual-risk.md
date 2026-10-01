@@ -37,7 +37,7 @@ Revise the records you already hold. Do not create a second record for a claim t
 | --- | --- | --- | --- | --- | --- |
 | SC-01 | Only firmware authored by the manufacturer runs on the Reference product |  |  |  |  |
 | SC-02 | The device installs only the release the manufacturer currently approves, and never an earlier one | partly_supported |  |  |  |
-| SC-?? | (the Tier 9 claim, allocated when the module is written) | (new) |  |  |  |
+| SC-09 | A release reaches devices only after it is approved with its source, build manifest, SBOM, tests and signatures linked, and a vulnerability found in a released version is triaged, and answered by withdrawing that release and offering a signed Remediation release at a higher security counter | (new) |  |  |  |
 
 Add a row for any other claim your Tier 9 work moved.
 
@@ -45,14 +45,14 @@ Add a row for any other claim your Tier 9 work moved.
 
 | ID | Requirement | Acceptance criterion | Supports |
 | --- | --- | --- | --- |
-| REQ-?? | (the Tier 9 requirement, allocated when the module is written) |  | SC-?? |
+| REQ-10 | The service offers a release to devices only while a recorded approval names the current digests of all its linked evidence, offers it to a named group of devices before the rest of the fleet, and never offers a withdrawn release again |  | SC-09 |
 
 ## Controls
 
 | ID | Control | Meets requirement | Status before | Status after | Evidence |
 | --- | --- | --- | --- | --- | --- |
-| CTL-?? | Release approval: the service offers a release only when an approval names the digests of its image, manifest, signature, build manifest, SBOM and test report, and those digests still match | REQ-?? | (new) | implemented |  |
-| CTL-?? | Rollout and Release withdrawal: a release reaches the Canary group first, the rest of the fleet only by a separate step, and a withdrawn release is never offered again | REQ-?? | (new) | implemented |  |
+| CTL-17 | Release approval: the service offers a release only when an approval names the digests of its image, manifest, signature, build manifest, SBOM and test report, and those digests still match | REQ-10 | (new) | implemented |  |
+| CTL-18 | Rollout and Release withdrawal: a release reaches the Canary group first, the rest of the fleet only by a separate step, and a withdrawn release is never offered again | REQ-10 | (new) | implemented |  |
 
 No control in this course has reached `verified`, and this tier does not change that.
 

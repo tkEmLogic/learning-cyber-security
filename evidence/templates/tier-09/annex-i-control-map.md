@@ -56,7 +56,7 @@ A named control is not the same as a supported row. A row is `supported` only wh
 | II.4 | Once a security update is available, share and publicly disclose information about fixed vulnerabilities, unless a delay is duly justified |  |  |  |  | you |
 | II.5 | Put in place and enforce a policy on coordinated vulnerability disclosure | The Tier 9 Coordinated vulnerability disclosure policy |  |  |  | course |
 | II.6 | Facilitate the sharing of information about potential vulnerabilities in the product and its third-party components, including a contact address for reporting vulnerabilities | The Tier 9 Coordinated vulnerability disclosure policy and user security information |  |  |  | course |
-| II.7 | Mechanisms to securely distribute updates so that vulnerabilities are fixed or mitigated in a timely manner, and automatically where applicable | CTL-01, CTL-02, CTL-03, CTL-06, and CTL-?? for the Tier 9 Rollout and Release approval |  |  |  | course |
+| II.7 | Mechanisms to securely distribute updates so that vulnerabilities are fixed or mitigated in a timely manner, and automatically where applicable | CTL-01, CTL-02, CTL-03, CTL-06, and CTL-17 and CTL-18 for the Tier 9 Release approval and Rollout |  |  |  | course |
 | II.8 | Security updates disseminated without delay and free of charge, with advisory messages that tell users what they may need to do | The Tier 9 support statement and Rollout |  |  |  | course |
 
 ## The four judgment rows
