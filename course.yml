@@ -1273,7 +1273,7 @@ tiers:
     title: Manage dependencies, vulnerabilities, and support
     kind: lifecycle
     track: core
-    status: planned
+    status: implemented
     start_checkpoint: course-v1.0-tier-08-complete
     complete_checkpoint: course-v1.0-tier-09-complete
     module: course-material/tiers/tier-09-vulnerability-support/index.md

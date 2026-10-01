@@ -1713,7 +1713,7 @@ Tier 9 builds the software bill of materials, handles a reported vulnerability t
 
 Start it from a claimed and active board holding its Operational identity.
 
-Tier 9 has not been published yet. Until it is, [the course page](../../index.md) lists every tier and where the work goes next.
+Continue with [Tier 9: Manage dependencies, vulnerabilities, and support](../tier-09-vulnerability-support/index.md).
 
 ## Primary references
 

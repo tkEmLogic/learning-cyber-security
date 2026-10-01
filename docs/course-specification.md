@@ -255,7 +255,7 @@ The manufacturer creates a versioned firmware image on a release workstation. Th
 
 ### Discovery and rollout
 
-Devices pull update assignments. The course does not require inbound device connections or push messaging. The service assigns releases by device identity and release channel. The course starts with one device, then demonstrates a small canary group followed by the remaining classroom devices. Rollout selection is deterministic and reviewable, and a device receives only one active target release at a time. Pausing a rollout prevents new assignments but does not revoke an image a device has already verified and started installing. Emergency withdrawal stops new assignments, and devices that must move away from a vulnerable version receive a newer signed release with a higher security counter.
+Devices pull update assignments. The course does not require inbound device connections or push messaging. The service assigns releases by device identity and rollout stage: a rollout offers one release to an explicit canary group, then, after a manual advance, to every other claimed and active device, and every device outside a rollout is offered the fleet baseline. The release channel in the manifest is a single implicit channel, and the course points to production update systems for real channels. The course starts with one device as the canary, then the remaining devices, which in the course are synthetic devices on the host and never stand in for a device result. Rollout selection is deterministic and reviewable, and a device receives only one active target release at a time. Pausing a rollout prevents new assignments but does not revoke an image a device has already verified and started installing. A completed rollout makes its release the fleet baseline and closes. Emergency withdrawal stops new assignments, and devices that must move away from a vulnerable version receive a newer signed release with a higher security counter. Decided in issues [#270](https://github.com/tkEmLogic/learning-cyber-security/issues/270) and [#276](https://github.com/tkEmLogic/learning-cyber-security/issues/276).
 
 ### Download and failure handling
 
@@ -602,7 +602,7 @@ Source: resolved decision ticket [#12](https://github.com/tkEmLogic/learning-cyb
 | Failure criteria | Scanner output is accepted without triage, a fix is shipped outside the signed release path, or the evidence claims conformity. |
 | Mentor review gate | Required lifecycle and evidence gate. |
 | Lab artifact | SBOM review, vulnerability record, remediation release evidence, reporting exercise, support statement, user information, and CRA traceability update. |
-| Expected time | 5 hours. |
+| Expected time | 10 hours. |
 
 #### Tier 10: Defend the integrated reference product
 
@@ -618,7 +618,7 @@ Source: resolved decision ticket [#12](https://github.com/tkEmLogic/learning-cyb
 | Lab artifact | Incident timeline, diagnostic evidence, corrected release record, canary result, recovery proof, final claim matrix, and residual-risk summary. |
 | Expected time | 5 hours. |
 
-**Fixed decision.** The expected core hands-on time is about 55 hours. Reading, setup variation, Mentor scheduling, and optional extension work are additional. Tier 7 is about twice the length of any other module and Tier 8 about three times, so their estimates are set from measured length rather than from the band the other tiers sit in.
+**Fixed decision.** The expected core hands-on time is about 60 hours. Reading, setup variation, Mentor scheduling, and optional extension work are additional. Tier 7 is about twice the length of any other module, Tier 8 about three times, and Tier 9 about two and a half times, so their estimates are set from measured length rather than from the band the other tiers sit in.
 
 ### Advanced hardening tiers
 
