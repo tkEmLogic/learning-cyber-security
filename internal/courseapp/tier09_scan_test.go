@@ -429,3 +429,18 @@ func TestSBOMServiceTakesNoOptions(t *testing.T) {
 		t.Error("an option was accepted")
 	}
 }
+
+// A toolchain line in go.mod is what ships, so it overrides the pin; with no
+// line the pin reproduces the service as it shipped.
+func TestGoModToolchainOverridesThePin(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "go.mod")
+	_ = os.WriteFile(path, []byte("module x\n\ngo 1.24\n"), 0o600)
+	if got := goModToolchain(path); got != "" {
+		t.Errorf("no toolchain line = %q, want empty", got)
+	}
+	_ = os.WriteFile(path, []byte("module x\n\ngo 1.24\n\ntoolchain go1.26.8\n"), 0o600)
+	if got := goModToolchain(path); got != "go1.26.8" {
+		t.Errorf("toolchain line = %q, want go1.26.8", got)
+	}
+}

@@ -90,10 +90,12 @@ Each row is a way to ship a fix outside the signed release path. Record the chec
 
 | Attempt | Expected result | Check that refused it | Actual result | Observed on | Record state |
 | --- | --- | --- | --- | --- | --- |
-| Start a rollout of a signed release that has no Release approval | Refused |  |  | host | pending |
-| Change one linked artifact after the approval, then offer the release | Refused |  |  | host | pending |
-| Approve a release whose build manifest says the tree was not clean | Refused |  |  | host | pending |
-| Offer the withdrawn release again | Refused |  |  | host | pending |
+| E-9-01: Approve a release that is already approved | Refused |  |  | host | pending |
+| E-9-02: Set a signed release that has no Release approval as the Fleet baseline, through the PUT | Refused |  |  | host | pending |
+| E-9-03: Change one linked artifact after the approval, then start the release's rollout | Refused |  |  | host | pending |
+| E-9-04 and E-9-05: Offer the withdrawn release again, as a rollout and as the Fleet baseline | Refused |  |  | host | pending |
+| E-9-06: Advance a paused rollout | Refused |  |  | host | pending |
+| E-9-07: Approve a release whose build manifest says the tree was not clean | Refused |  |  | host | pending |
 
 Add a row for every other attempt you made. A host refusal is a result about the service, never about the device.
 
