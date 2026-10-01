@@ -293,6 +293,19 @@ wall clock. The Learner works out the awareness time and every deadline from
 it.
 _Avoid_: Timer, simulation
 
+**Integration scenario**:
+A prepared sequence of scenario events that mixes real attacks and operational
+failures, staged one event at a time on the hardened device. The Learner sees
+only what an operator would see and decides what each event was.
+_Avoid_: Campaign, exercise, drill
+
+**Scenario event**:
+One staged occurrence in an integration scenario. The Learner records a first
+classification, attack or failure, the boundary it reached and the control
+expected to answer, before the next event is staged. The answer key holds the
+final classification.
+_Avoid_: Incident, step, stage
+
 **Support period**:
 The fixed span, counted from when the product is first placed on the market,
 during which the manufacturer handles vulnerabilities and issues security
