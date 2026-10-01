@@ -85,6 +85,13 @@ func (a *app) scanning() (scanningManifest, error) {
 	if !strings.HasPrefix(s.GoToolchain, "go1.") {
 		return s, errors.New("course.yml scanning.go_toolchain must name a Go release, such as go1.24.0")
 	}
+	// The pin reproduces the service as it shipped, on any machine, while
+	// go.mod names no toolchain. Once go.mod does, that toolchain is what
+	// ships, so it is what the SBOM and the scans describe. That is how the
+	// Learner's Tier 9 fix, a toolchain line, shows up as fixed.
+	if toolchain := goModToolchain(filepath.Join(a.root, "go.mod")); toolchain != "" {
+		s.GoToolchain = toolchain
+	}
 	if s.Grype.Version == "" || s.Govulncheck.Version == "" {
 		return s, errors.New("course.yml must pin the grype and govulncheck versions")
 	}
@@ -844,4 +851,20 @@ func summarizeGovulncheck(data []byte) (govulncheckSummary, error) {
 	}
 	sort.Strings(summary.Reachable)
 	return summary, nil
+}
+
+// goModToolchain returns the toolchain directive in go.mod, or "" when there
+// is none or the file cannot be read.
+func goModToolchain(path string) string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) == 2 && fields[0] == "toolchain" && strings.HasPrefix(fields[1], "go1.") {
+			return fields[1]
+		}
+	}
+	return ""
 }

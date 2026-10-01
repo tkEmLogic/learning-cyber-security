@@ -119,6 +119,25 @@ This table holds the course's own roles and records. The security words themselv
 | Decommissioning | The manufacturer retiring a board for good. What stops the board coming back is the service's record, not the erase |
 | Factory loss | A board enrolling again while the record still shows a live identity for it, which means the old identity was lost with no record of why. It is recorded, not refused |
 | Time floor | The latest moment the device has signed proof that the time has reached. It only rises, and it can prove a certificate expired but never that one is still valid |
+| Fleet baseline | The release a device is offered when no rollout covers it. It is normally the release the device already runs, so the device refuses it as already confirmed |
+| Rollout | The manufacturer's offer of one release to the fleet in two stages: first the Canary group, then every other claimed, active device. Moving to the second stage is a separate step |
+| Canary group | The devices a rollout names to receive its release first, so the result can be reviewed before the rest of the fleet receives it |
+| Release withdrawal | Closing a rollout and never offering its release again, because the release is vulnerable. Devices already running it move away only through a newer release at a higher security counter |
+| Release approval | The manufacturer's recorded decision that one release, identified by the digests of its files, may be offered to devices. The device never checks it |
+| Vulnerability report | A description of a suspected vulnerability that an outside party sends to the manufacturer. It is a claim to be triaged, not a finding |
+| Vulnerability record | The manufacturer's record of one vulnerability: its triage, affected versions, reproduction, decision and remediation |
+| Scanner match | A scanner's claim that a component version in an SBOM is covered by a published advisory. It can be false, and a scanner cannot match code that has no identity in its database |
+| VEX statement | A machine-readable statement of whether one product version is affected by one vulnerability, and why not if it is not. It is true as of the date it was made |
+| Unsupported component | A component whose supplier no longer publishes security fixes for the version in use |
+| Remediation release | A signed release at a higher security counter that moves devices off a vulnerable version through the ordinary release path |
+| Actively exploited vulnerability | A vulnerability for which there is reliable evidence that someone has exploited it without the owner's permission. A vulnerability report alone does not make it one |
+| Severe incident | An incident that harms, or can harm, the product's ability to protect its data or functions, or that lets malicious code into the product or its user's network |
+| Awareness time | The moment, recorded in UTC, when the manufacturer has a reasonable degree of certainty, after a prompt assessment, that a reportable event has happened |
+| Scenario clock | A script of timestamped events that a reporting exercise follows instead of the wall clock |
+| Support period | The fixed span, counted from when the product is first placed on the market, during which the manufacturer handles vulnerabilities and issues free security updates |
+| Annex I control map | One row per Annex I requirement of the CRA, naming the controls that address it, the evidence and a status. It shows where the product stands, not that it meets the requirement |
+| CRA traceability matrix | One row per CRA duty, linking it to requirements, controls, evidence, status, residual risk, the responsible role and a dated legal source |
+| Coordinated vulnerability disclosure policy | The manufacturer's public statement of how outside parties report a suspected vulnerability, how it responds, and when the vulnerability is disclosed |
 | Secure element | A separate security component that generates or stores private keys and performs cryptographic operations without exporting those private keys |
 
 ## Safety
