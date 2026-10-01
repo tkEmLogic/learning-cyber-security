@@ -1077,6 +1077,50 @@ verification:
       # USB cable. The private half was not searched for.
       warm_reset_leaves_key_material_in_sram: validated
 
+  tier_09:
+    hardware:
+      # Issue #280, on the ESP32-C6-DevKitC-1, 2026-10-01, with no BOOT press.
+      # The board started as beacon-t08c-206ef1170d64, claimed by harbor-owner,
+      # restored to Tier 8 at counter 4 by a serial flash, and ended on
+      # tier-09-remediation at counter 6. The synthetic fleet rows are host
+      # results (four devices claimed by beacon-fleet-ops) and are not listed
+      # here; neither are the SBOM and scan rows, which run on the host.
+
+      # The shipped release. Approved once (the second approval was refused at
+      # first-approval), offered to the board as the only canary, installed
+      # over the air at counter 5 and confirmed; then advanced to the fleet.
+      support_listener_release_installs_as_canary: validated
+      # The prepared report reproduced with the attack fixture: an
+      # unauthenticated inventory reply naming the device, release and
+      # counter 5, and an unauthenticated reboot that reset the chip.
+      support_listener_answers_inventory_unauthenticated: validated
+      support_listener_reboots_unauthenticated: validated
+
+      # Withdrawal closed the open rollout. The board was then offered the
+      # Tier 8 baseline and refused it at security-counter (4 against 5): the
+      # fix-not-yet-available gap. The withdrawn release was refused at
+      # release-withdrawn as a rollout and as a baseline.
+      withdrawal_leaves_board_refusing_the_baseline: validated
+
+      # The remediation. The unapproved baseline PUT was refused at
+      # release-approved; after approval, a test report changed by one byte
+      # was refused by name, and the byte-for-byte restore started the
+      # rollout. The board installed counter 6 as the canary, printed the
+      # listener absent and the TF-PSA-Crypto backport, and kept mutual TLS.
+      remediation_installs_as_canary_at_counter_6: validated
+      remediation_boot_log_states_listener_absent: validated
+      # Paused at the canary stage, the board kept being offered counter 6
+      # while the fleet was offered the baseline; advance while paused was
+      # refused at rollout-running; complete made the remediation the Fleet
+      # baseline and closed the rollout.
+      pause_keeps_the_served_canary: validated
+
+      # The replay: inventory and reboot both drew ICMP port unreachable from
+      # the board, no reset appeared on serial, and the service's polls ran on
+      # every 47 seconds across it. On an earlier run the board stayed silent
+      # instead; it rate-limits port-unreachable replies.
+      replay_counter_6_no_reply_no_reset: validated
+
 tiers:
   "00":
     title: Build the unsecured reference product
