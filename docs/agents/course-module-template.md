@@ -55,17 +55,16 @@ file, in this order.
 
 ## Tier variants
 
-Three shapes exist. They share every heading. Only the content of five sections
-changes.
+Four shapes exist. They share every heading. Between the first three, only the
+content of five sections changes. The Integration variant changes more, and
+"The Integration variant" below sets it out.
 
 | Variant | Tiers | What the tier does |
 | --- | --- | --- |
 | Baseline | Tier 0 | Builds the unsecured product. No control to add, no attack to defeat. Records the successful attack as its result. |
 | Analysis | Tier 1 | Produces analysis artifacts. Changes no code and adds no control. Reclassifies the Tier 0 observation against threats, requirements, and planned controls. |
 | Control | Tier 2 to Tier 9, Advanced Tier A, Advanced Tier B | Reproduces an attack, adds one focused control, replays the attack, tests bypasses. Tier 2 is the worked example; see "What a control tier learned from Tier 2 and Tier 3". |
-
-Tier 10 uses a fourth shape for integrated diagnosis and regression. It is not
-covered here, because nothing on the current map writes it.
+| Integration | Tier 10 | Adds no control. Stages a symptoms-only scenario of attacks and failures, recovers a failed test boot, ships one corrected release, and reruns the fixture set as regression evidence. |
 
 ### There is no lifecycle variant
 
@@ -197,6 +196,14 @@ does not break the one-fact-one-place check below, because a Reveal is not
 restating the demonstration, it is scoring a commitment. A Reveal that only
 points at section numbers is an index, and it gives a Learner who got it wrong
 nothing.
+
+**The Integration variant closes its classifications at the gate.** Its
+Learner commits to a first classification for every scenario event, and the
+answer key lives only with the Mentor, because a Reveal on a public page is one
+scroll away from the question. A commitment recorded in the evidence pack and
+discharged by the Mentor key is closed, and no Reveal is owed for it. An
+Integration tier that also asks a tier-wide question still owes a Reveal for
+that question, and the Reveal never names an event's class.
 
 **Position and closure are independent.** Whether Predict is lifted to a
 level-2 section is decided by span alone. Whether it owes a close is decided by
@@ -371,6 +378,12 @@ A one-line mention here is not a compromise: it reintroduces the bug diary at
 lower resolution and still spends the Learner's attention on a bug they cannot
 hit.
 
+**A defect the tier staged is never a finding.** The Integration variant plants
+a regression and a health fault in a candidate release on purpose. They belong
+to the scenario, so they never appear here and never count toward the streak in
+"Expect to find a bug in the previous tier". Only something the tier turned up
+silently in a real earlier tier is admitted, by the test above.
+
 **The section is never omitted from a tier that has something to exercise.** A
 tier that found nothing says so in one line, and says why. Tier 2 is the worked
 example, because Tier 1 handed it a threat model rather than an implementation,
@@ -466,6 +479,31 @@ Only these five sections differ between variants.
 An analysis tier must state in its Scenario and its Learning result that
 it changes no code and adds no control, so a Learner does not expect the device
 to behave differently afterwards.
+
+### The Integration variant
+
+Tier 10 validates and repairs the accumulated controls rather than adding one.
+Its Learner works as an operator who sees symptoms, not causes, so the module
+must lay out a scenario under fixed headings without giving the answer away.
+Eight sections differ from the Control variant.
+
+| Section | Integration |
+| --- | --- |
+| 2 Scenario | A shift, not an incident. The Learner is the operator on duty, a teammate hands over a candidate release, and the fleet is live. Name no attacker and no event class. Say plainly that some of what follows is an attack and some is ordinary failure. |
+| 7 Reproduce | `## Work the scenario`. A `### Look before you act` dry run of the scenario runner shows how many events it stages and what each touches, never what each is. Then one neutral `### Event N` subsection per event, in three beats rather than four: what the operator sees, quoted from real output; where to look; and record your first classification. There is no "what it means" beat, because that is the answer. |
+| 8 Investigate | `## Investigate the boundaries`. One trust-boundary diagram of the whole integrated product, every accumulated boundary on it and no event plotted. The Learner places each event on a boundary and predicts the responsible control. The prose names who owns each boundary, never which event hit it. |
+| 9 The work | Two level-2 sections. `## Recover the failed test boot` carries the recovery proof: the last confirmed image kept, no USB flash, release approval still on. Then `## Correct and ship the release`: diagnose the candidate, fix both defects, sign, approve, canary, confirm healthy devices, complete. |
+| 10 Replay | `## Rerun the regression fixtures`. The regression command, with board results and host results in separately labelled blocks. The planted regression's replay shows its point of refusal against the corrected release. |
+| 11 Tests | `## Test safety and failure behavior`. An `E-10-NN` table showing that the product still refuses the unsafe shortcuts and that known-good state survives, such as a rollout pausing on a failed canary. The Mentor key names the traps a Learner reaches for; this table proves they were never needed. |
+| 12 Ledger after | Rows only for what the campaign surfaced, with the planted regression closed by the corrected release. |
+| 13 Claim | Every course claim with its final status. A claim moves only on regression evidence. Point at the final claim matrix rather than restating it. |
+
+Recovery comes before correction because the failed canary is the first thing
+the operator must make safe, and the rerun comes after shipping because it is
+evidence about the corrected release, not the candidate.
+
+Predict closes at the Mentor gate, as "Where Predict goes" says, and section 14
+never admits the staged defects, as its own text says.
 
 ## What a control tier learned from Tier 2 and Tier 3
 
@@ -642,8 +680,8 @@ problems across eight published modules. Three of them broke rules that were
 already written down, so this list is the place the rules are actually applied.
 Each one names the finding it exists to catch.
 
-9. Every Predict question is closed, by the next command's output or by a
-    `## Reveal`. Nothing promises an answer that never arrives (`F-04`).
+9. Every Predict question is closed, by the next command's output, by a
+    `## Reveal`, or in the Integration variant by the Mentor key. Nothing promises an answer that never arrives (`F-04`).
 10. Every technical term is defined or linked before its first unexplained use,
     with the cryptography nouns going to the primer (`F-01`). Every canonical
     term the tier introduces has reached the landing-page glossary (`F-09`).
