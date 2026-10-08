@@ -444,6 +444,95 @@ fleet:
     - .course-state/fleet
   reset: ./course fleet reset
 
+# The Tier 10 integration scenario (#288, #291). Not a fixture and not an
+# adversary: a runner that stages eight scenario events, one per
+# ./course scenario next, by calling machinery the course already has. Every
+# input it passes to that machinery is allowlisted here, so no fixture,
+# selector, row, device, count or interval is ever supplied on a command line.
+# The only Learner input is --device on start, and it must name an active
+# device in the manufacturing record.
+#
+# The event identifiers are permanent names, allocated once in the spirit of
+# docs/adr/0001-identifier-allocation.md: the incident record, the Mentor key
+# and the timeline template refer to them, so an event that is ever dropped
+# leaves its identifier unused rather than reassigned. `stage` names the
+# runner's step for the event; it is the answer key's mechanism, so the
+# Learner-facing output never prints it. See docs/fixture-safety-contract.md,
+# "Tier 10 scenario".
+scenario:
+  tier: "10"
+  # The plain target, for the marker handshake and nothing else.
+  target: http://127.0.0.1:8080
+  interface: loopback
+  # The Tier 9 end state the scenario starts from.
+  baseline_release: tier-09-remediation
+  # The teammate's release, and the role that approves, rolls out and
+  # advances it. A role, never a person's name.
+  candidate_variant: candidate
+  candidate_release: tier-10-candidate
+  actor: teammate
+  # Event 6 cuts every firmware transfer after this share of the candidate's
+  # size, so one cut and one resume complete it.
+  interrupt_fraction: 0.6
+  # Bounded waits for what the board does on its own schedule.
+  transfer_wait_seconds: 600
+  revert_wait_seconds: 600
+  # Event 8 is a bounded series of separate single-datagram fixture runs, one
+  # every interval, stopping at the first answer.
+  listener_interval_seconds: 10
+  listener_max_seconds: 480
+  events:
+    - id: tier-10/event-01
+      number: 1
+      where: board
+      stage: present
+      present: wrong-name
+    - id: tier-10/event-02
+      number: 2
+      where: board
+      stage: fixture
+      fixture: tier-04/hostile-release
+      selector: wrong-key
+    - id: tier-10/event-03
+      number: 3
+      where: board
+      stage: fixture
+      fixture: tier-04/replay-release
+    - id: tier-10/event-04
+      number: 4
+      where: host
+      stage: bypass
+      row: e-8-07
+    - id: tier-10/event-05
+      number: 5
+      where: service
+      stage: rollout
+    - id: tier-10/event-06
+      number: 6
+      where: board
+      stage: transfer
+    - id: tier-10/event-07
+      number: 7
+      where: board
+      stage: revert
+    - id: tier-10/event-08
+      number: 8
+      where: board
+      stage: fixture-series
+      fixture: tier-09/support-listener
+      selector: inventory
+  changes:
+    - .course-state/scenario
+    - .course-state/ota/ota.log
+    - .course-state/ota/current-release.json
+    - .course-state/ota/events.jsonl
+    - .course-state/provisioning/records.jsonl
+    - artifacts/generated/releases
+    - artifacts/generated/attacks/tier-04
+    - artifacts/generated/attacks/tier-08
+    - artifacts/generated/attacks/tier-09/support-listener
+  reset: ./course scenario reset
+
 evidence:
   schema_version: 1
   tier_00:

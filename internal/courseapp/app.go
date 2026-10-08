@@ -79,6 +79,12 @@ type manifest struct {
 	// its own block. See docs/fixture-safety-contract.md, "Tier 9 fixtures".
 	Fleet fleetManifest `yaml:"fleet"`
 
+	// Scenario is the Tier 10 integration scenario (#291): the events the
+	// runner stages and every input it passes to the machinery it calls. It
+	// is not a fixture either, so it has its own block. See
+	// docs/fixture-safety-contract.md, "Tier 10 scenario".
+	Scenario scenarioManifest `yaml:"scenario"`
+
 	Safety struct {
 		SyntheticDataOnly         bool   `yaml:"synthetic_data_only"`
 		MarkerRequired            bool   `yaml:"marker_required"`
@@ -231,6 +237,16 @@ type app struct {
 	// Tier 4. It is set by the attack runner after the key has been checked
 	// against the manifest, never taken as a path.
 	selector string
+
+	// scenario is set only by the Tier 10 scenario runner (#291). It changes
+	// four things and nothing else: the service it starts appends to ota.log
+	// rather than truncating it, so one continuous log survives the runner's
+	// restarts; that service logs in UTC, the clock the timeline lines the
+	// board console up against; a staged interruption logs like an ordinary
+	// cut transfer; and a fixture the runner stages keeps its state until the
+	// runner's next step resets it, and that reset never asks the service to
+	// reset the lab, which would delete events.jsonl and reseed Tier 0.
+	scenario bool
 }
 
 func Run(args []string, out, errOut io.Writer) int {
@@ -364,6 +380,8 @@ func (a *app) dispatch(args []string) error {
 		return a.validateRepository()
 	case "scan":
 		return a.scan(args[1:])
+	case "scenario":
+		return a.scenarioCommand(args[1:])
 	default:
 		a.usage(a.errOut)
 		return fmt.Errorf("unknown command %q", args[0])
@@ -371,7 +389,7 @@ func (a *app) dispatch(args []string) error {
 }
 
 func (a *app) usage(w io.Writer) {
-	fmt.Fprintln(w, "usage: ./course doctor|setup|tier|build|service|device|keys|release|sbom|scan|rollout|fleet|provision|owner|claim|attack|verify|evidence|clean")
+	fmt.Fprintln(w, "usage: ./course doctor|setup|tier|build|service|device|keys|release|sbom|scan|rollout|fleet|provision|owner|claim|attack|scenario|verify|evidence|clean")
 }
 
 func (a *app) context(target string) {
@@ -1455,7 +1473,7 @@ func (a *app) serviceStart(https, mutualTLS, releaseApproval bool, present strin
 	if err := runAttached(a.root, a.out, a.errOut, build[0], build[1:]...); err != nil {
 		return err
 	}
-	log, err := os.OpenFile(a.serviceLogPath(), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+	log, err := os.OpenFile(a.serviceLogPath(), a.serviceLogFlags(), 0o600)
 	if err != nil {
 		return err
 	}
@@ -1510,6 +1528,9 @@ func (a *app) serviceStart(https, mutualTLS, releaseApproval bool, present strin
 		"COURSE_RELEASE_DIR="+filepath.Join(a.root, a.manifest.Paths.GeneratedArtifacts, "releases"),
 		"COURSE_RANGE_BEHAVIOUR="+rangeBehaviour,
 	)
+	if a.scenario {
+		command.Env = append(command.Env, "COURSE_RANGE_LOG=plain", "TZ=UTC")
+	}
 	if https {
 		material, ok := presentedCertificate[present]
 		if !ok {
@@ -1583,6 +1604,17 @@ func (a *app) serviceStart(https, mutualTLS, releaseApproval bool, present strin
 	}
 	a.serviceStop()
 	return fmt.Errorf("OTA service did not become healthy, see %s", a.serviceLogPath())
+}
+
+// serviceLogFlags truncates ota.log on every start, which is what every tier
+// before Tier 10 has always done, except under the scenario runner. The
+// runner restarts the service between events, and the Learner reads one
+// continuous log across all eight (#291).
+func (a *app) serviceLogFlags() int {
+	if a.scenario {
+		return os.O_CREATE | os.O_WRONLY | os.O_APPEND
+	}
+	return os.O_CREATE | os.O_WRONLY | os.O_TRUNC
 }
 
 func (a *app) serviceStop() error {
@@ -2084,9 +2116,20 @@ func (a *app) attackRun(args []string) error {
 		fmt.Fprintf(a.out, "Watch it with ./course device logs in another terminal.\n")
 		time.Sleep(time.Duration(hold) * time.Second)
 	}
-	resetErr := a.resetFixtureState(id, target, env)
+	// The scenario runner holds a staged fixture's state until its next step,
+	// because the board polls on its own schedule and the Learner reads the
+	// event before the next one is staged. It resets through
+	// ./course attack reset then. A failed run is still reset at once.
+	held := a.scenario && runErr == nil
+	var resetErr error
+	if !held {
+		resetErr = a.resetFixtureState(id, target, env)
+	}
 	result := "passed"
 	resetResult := "passed"
+	if held {
+		resetResult = "held by ./course scenario until its next step"
+	}
 	if runErr != nil {
 		result = "failed"
 	}
@@ -2530,6 +2573,12 @@ func (a *app) resetFixtureState(id, target string, env environment) error {
 	// verifies the certificate like everything else. The marker check that
 	// authorised this run stayed in the clear; the reset is data, and data
 	// travels the way the tier says data travels.
+	// The lab reset deletes events.jsonl and reseeds Tier 0. Under the scenario
+	// runner that would erase the incident the Learner is reconstructing and
+	// the Tier 9 end state it runs on, so it is refused outright (#291).
+	if a.scenario {
+		return fmt.Errorf("%s would reset the service to the Tier 0 seed, which the Tier 10 scenario never does", id)
+	}
 	resetURL := target + "/v1/lab/reset"
 	client := a.client
 	if fixtureUsesTLS(id) {
