@@ -444,6 +444,291 @@ fleet:
     - .course-state/fleet
   reset: ./course fleet reset
 
+# The Tier 10 integration scenario (#288, #291). Not a fixture and not an
+# adversary: a runner that stages eight scenario events, one per
+# ./course scenario next, by calling machinery the course already has. Every
+# input it passes to that machinery is allowlisted here, so no fixture,
+# selector, row, device, count or interval is ever supplied on a command line.
+# The only Learner input is --device on start, and it must name an active
+# device in the manufacturing record.
+#
+# The event identifiers are permanent names, allocated once in the spirit of
+# docs/adr/0001-identifier-allocation.md: the incident record, the Mentor key
+# and the timeline template refer to them, so an event that is ever dropped
+# leaves its identifier unused rather than reassigned. `stage` names the
+# runner's step for the event; it is the answer key's mechanism, so the
+# Learner-facing output never prints it. See docs/fixture-safety-contract.md,
+# "Tier 10 scenario".
+scenario:
+  tier: "10"
+  # The plain target, for the marker handshake and nothing else.
+  target: http://127.0.0.1:8080
+  interface: loopback
+  # The Tier 9 end state the scenario starts from.
+  baseline_release: tier-09-remediation
+  # The teammate's release, and the role that approves, rolls out and
+  # advances it. A role, never a person's name.
+  candidate_variant: candidate
+  candidate_release: tier-10-candidate
+  actor: teammate
+  # Event 6 cuts every firmware transfer after this share of the candidate's
+  # size, so one cut and one resume complete it.
+  interrupt_fraction: 0.6
+  # Bounded waits for what the board does on its own schedule.
+  transfer_wait_seconds: 600
+  revert_wait_seconds: 600
+  # Event 8 is a bounded series of separate single-datagram fixture runs, one
+  # every interval, stopping at the first answer.
+  listener_interval_seconds: 10
+  listener_max_seconds: 480
+  events:
+    - id: tier-10/event-01
+      number: 1
+      where: board
+      stage: present
+      present: wrong-name
+    - id: tier-10/event-02
+      number: 2
+      where: board
+      stage: fixture
+      fixture: tier-04/hostile-release
+      selector: wrong-key
+    - id: tier-10/event-03
+      number: 3
+      where: board
+      stage: fixture
+      fixture: tier-04/replay-release
+    - id: tier-10/event-04
+      number: 4
+      where: host
+      stage: bypass
+      row: e-8-07
+    - id: tier-10/event-05
+      number: 5
+      where: service
+      stage: rollout
+    - id: tier-10/event-06
+      number: 6
+      where: board
+      stage: transfer
+    - id: tier-10/event-07
+      number: 7
+      where: board
+      stage: revert
+    - id: tier-10/event-08
+      number: 8
+      where: board
+      stage: fixture-series
+      fixture: tier-09/support-listener
+      selector: inventory
+  changes:
+    - .course-state/scenario
+    - .course-state/ota/ota.log
+    - .course-state/ota/current-release.json
+    - .course-state/ota/events.jsonl
+    - .course-state/provisioning/records.jsonl
+    - artifacts/generated/releases
+    - artifacts/generated/attacks/tier-04
+    - artifacts/generated/attacks/tier-08
+    - artifacts/generated/attacks/tier-09/support-listener
+  reset: ./course scenario reset
+
+# Tier 10's regression rerun (#292), ./course regression run. It reruns the
+# board-capable fixtures against the release the board is running, and the
+# host fixtures and runners separately, as the regression evidence the final
+# claim matrix opens with (#289). Every result line carries the fixture id, a
+# result and a board or host label, and a host result never stands in for a
+# board result. The settled inputs are #284's 9 and 10, #287's T10-W-38 and
+# T10-W-39, and #289's "Carried forward".
+#
+# What the board did is read from the device's own records as the service
+# stored them, in .course-state/ota/events.jsonl, from the board's device id.
+# The board is the one device that reported over mutual TLS recently and is not
+# named by any synthetic list in this manifest. No id is ever typed.
+#
+# The expected outcomes below come from the earlier campaigns: Tier 3 #226,
+# Tier 4 #227, Tier 9 #280 (the verification rows above), and #287. A stored
+# event names the release, not the check: the check name is printed on the
+# board's serial console only (release.refused check=...), so `check` here says
+# which serial line witnesses the refusal and is compared only if the event
+# ever carries one.
+regression:
+  tier: "10"
+  # The plain target, for the marker handshake and nothing else, as for every
+  # fixture.
+  target: http://127.0.0.1:8080
+  interface: loopback
+  device_port: 8443
+  operator_port: 8444
+  service_name: ota.course.example
+  # The bound on one wait for a board reaction. The board polls every 30 s; a
+  # refusal after a download, or one at the next boot, needs the download and a
+  # reboot on top. A wait that runs out is "no result", never a pass.
+  board_wait_seconds: 240
+  # How recent the board's last status report must be for the run to say which
+  # release it is running. A candidate trial reports nothing until it is over,
+  # so this is wider than a trial: download, reboot and the 60 s health window.
+  board_fresh_seconds: 600
+  # The support listener is asked up to four times, 15 s apart, and the run
+  # stops at the first answer. Only silence is retried. 45 s covers the boot
+  # of a trial image that a run started a little early. The command caps both.
+  support_attempts: 4
+  support_interval_seconds: 15
+
+  # Board results, in the order they run.
+  #
+  # The release entries publish through the Fleet baseline, as the fixtures
+  # do, and on this service that is a compromised hosting side writing the
+  # state file (docs/fixture-safety-contract.md, "Tier 10"). A device in an
+  # open rollout is offered the rollout's release instead, so while a rollout
+  # is open every release entry is "no result: not offered". The full run is
+  # therefore after the corrected rollout completes; before it advances, the
+  # support listener and the host results are what can run.
+  board:
+    # First, and only inventory. The planted regression (T10-W-38) is live only
+    # while the candidate is on trial, so this must be the first thing a run
+    # does, and a run started in that window catches it. Against the corrected
+    # release the listener is absent and the board's stack answers port
+    # unreachable. Silence is no result: a lost datagram looks the same, and
+    # the boot log's "absent" line is the strong evidence (#287).
+    - id: tier-09/support-listener
+      request: inventory
+      expect: absent
+
+    # Tier 4's seven hostile manifests and the replay test the application's
+    # release policy, which is code the Tier 10 release carries and so can
+    # regress. All of them run.
+    #
+    # The board stores update.refused (or update.failed after a download)
+    # naming the release, and the check name only on its serial console, so
+    # `check` is the serial line that witnesses each one. The seven are
+    # derived from the newest Tier 4 release, at counter 2. Checks run in the
+    # order signature, hardware, counter, channel, so on a counter-8 board
+    # only the first three reach their own check and the other four are
+    # refused at security-counter. The run shows the policy refuses all seven;
+    # it does not show the channel, size and digest checks firing on Tier 10.
+    - id: tier-04/hostile-release
+      release: modified
+      expect: refused
+      check: manifest-signature
+    - id: tier-04/hostile-release
+      release: wrong-key
+      expect: refused
+      check: manifest-signature
+    - id: tier-04/hostile-release
+      release: hardware
+      expect: refused
+      check: hardware-compatibility
+    - id: tier-04/hostile-release
+      release: channel
+      expect: refused
+      check: security-counter
+    - id: tier-04/hostile-release
+      release: size
+      expect: refused
+      check: security-counter
+    - id: tier-04/hostile-release
+      release: digest
+      expect: refused
+      check: security-counter
+    # On a Tier 4 board this one reached MCUboot (#227). At counter 2 against
+    # 8 the application refuses it first.
+    - id: tier-04/hostile-release
+      release: counter-mismatch
+      expect: refused
+      check: security-counter
+    # The newest good release from Tiers 4 to 9 below the baseline's counter
+    # that was not withdrawn: tier-09-remediation at 6 on a Tier 10 bench. The
+    # Time floor never refuses an older manifest; it only stays where it is.
+    - id: tier-04/replay-release
+      expect: refused
+      check: security-counter
+
+    # Tier 0's and Tier 3's images carry no Release manifest, so from Tier 4 the
+    # board finds none for them (404 at the manifest fetch) and refuses before
+    # downloading a byte. The bootloader behind that check is not reached. Two
+    # Tier 3 variants and the Tier 0 image show it: the outsider's unsigned
+    # image, one signed by another key, and Tier 0's altered build.
+    - id: tier-03/hostile-image
+      image: unsigned
+      expect: refused
+    - id: tier-03/hostile-image
+      image: wrong-key
+      expect: refused
+    - id: tier-00/altered-image
+      expect: refused
+
+  # Host results, reported apart from the board results.
+  host:
+    # The Tier 0 and Tier 2 attacks, replayed as one request each against the
+    # running Tier 10 service. They are not run through ./course attack run:
+    # those fixtures publish to the TLS port without a client certificate and
+    # reset by asking the service to reseed, which on this service would drop
+    # the event log the board results are read from.
+    - id: tier-00/plaintext-inspection
+      probe: plain-release-record
+      expect: not-served
+    - id: tier-02/plaintext-inspection
+      probe: client-certificate-required
+      expect: refused
+    - id: tier-02/service-impersonation
+      probe: untrusted-certificate
+      expect: refused
+    - id: tier-02/name-mismatch
+      probe: wrong-name-certificate
+      expect: refused
+    # The refusal that answers the Tier 6 clone: the hardened station enrolls
+    # only a device carrying a Bootstrap credential.
+    - id: e-6-07
+      answers: tier-06/clone-shared-identity
+      expect: refused
+    # Every Tier 7 and Tier 8 host runner, through ./course service bypass's
+    # own wrapper. ./course service bypass reset runs once after them.
+    - {id: e-7-03, expect: refused}
+    - {id: e-7-04, expect: refused}
+    - {id: e-7-05, expect: refused}
+    - {id: e-7-06, expect: refused}
+    - {id: e-7-07, expect: refused}
+    - {id: e-7-08, expect: refused}
+    - {id: e-7-09, expect: refused}
+    - {id: e-7-10, expect: refused}
+    - {id: e-7-11, expect: refused}
+    - {id: e-7-12, expect: refused}
+    - {id: e-7-13, expect: refused}
+    - {id: e-7-14, expect: refused}
+    - {id: e-7-15, expect: refused}
+    - {id: e-8-01, expect: refused}
+    - {id: e-8-02, expect: refused}
+    - {id: e-8-03, expect: refused}
+    - {id: e-8-04, expect: refused}
+    - {id: e-8-05, expect: refused}
+    - {id: e-8-06, expect: refused}
+    - {id: e-8-07, expect: refused}
+    - {id: e-8-08, expect: refused}
+    - {id: e-8-09, expect: refused}
+    - {id: e-8-10, expect: refused}
+
+  # Fixtures and variants this command does not rerun, each with its reason.
+  # The run prints every one as "not run", so the choice stays visible.
+  not_rerun:
+    - id: tier-09/support-listener
+      selector: reboot
+      reason: A reset during a candidate trial is a failed trial, so it would burn one of the board's three attempts and cause the revert it is meant to observe.
+    - id: tier-03/hostile-image
+      selector: modified
+      reason: Refused at the same point as unsigned and wrong-key, the missing Release manifest, so it adds no check.
+    - id: tier-03/hostile-image
+      selector: truncated
+      reason: Refused at the same point as unsigned and wrong-key, the missing Release manifest, so it adds no check.
+    - id: tier-00/service-impersonation
+      reason: Its imposter speaks plain HTTP, which no Tier 10 device uses for data; tier-02/service-impersonation is the same attack against TLS.
+    - id: tier-00/device-id-spoofing
+      reason: The plain port takes no events any more (tier-00/plaintext-inspection), and the identity form of the attack is E-7-09.
+    - id: tier-06/clone-shared-identity
+      reason: It demonstrates the shared variant, which no Tier 10 release carries, and each run appends to the manufacturing record; E-6-07 is the refusal that answers it.
+    - id: e-8-11
+      reason: It builds Tier 8's Time floor for native_sim in the Zephyr workspace; it says nothing about the running release.
+
 evidence:
   schema_version: 1
   tier_00:

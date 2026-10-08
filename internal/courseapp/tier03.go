@@ -785,6 +785,12 @@ func (a *app) tier03HostileImage(target string, env environment) (string, string
 // The service asks who is changing it in exactly the way Tier 0 showed: it does
 // not. Tier 3 changes nothing about that, which is why this is still one PUT.
 func (a *app) putRelease(target string, env environment, release map[string]any) error {
+	// From Tier 7 the service runs mutual TLS and this PUT cannot reach it.
+	// The fixture then writes the baseline as a compromised hosting side
+	// would; see tier10_hosting.go.
+	if a.hostingMode(a.fixtureID) {
+		return a.hostingPublish(a.fixtureID, release)
+	}
 	body, err := json.Marshal(release)
 	if err != nil {
 		return err
@@ -810,6 +816,9 @@ func (a *app) putRelease(target string, env environment, release map[string]any)
 }
 
 func (a *app) fetchFirmware(target, name string) ([]byte, error) {
+	if a.hostingMode(a.fixtureID) {
+		return a.hostingStoreFile(name)
+	}
 	client, endpoint := a.serviceClient(target)
 	a.sent(http.MethodGet, endpoint+"/v1/firmware/"+url.PathEscape(name))
 	response, err := client.Get(endpoint + "/v1/firmware/" + url.PathEscape(name))
