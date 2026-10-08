@@ -772,6 +772,94 @@ func (a *app) goodReleases() ([]goodRelease, error) {
 	return found, nil
 }
 
+// replayTiers are the tiers whose own good releases the replay may name. The
+// replay began in Tier 4, when only Tier 4's releases existed. From Tier 9 the
+// board runs a counter far above any of them and a Tier 4 release is not what
+// a real replay would pick, so the candidate set is every tier's manifest-owned
+// list of good releases (#292). It is still a list and never a directory scan:
+// the hostile manifests sit in the same directory and four of them verify.
+var replayTiers = []map[string]firmwareVariant{
+	tier04Variants, tier05Variants, tier06Variants, tier07Variants, tier08Variants, tier09Variants,
+}
+
+// replayCandidates is every good release this environment produced, from the
+// manifest-owned lists, whose stored signature verifies and which has not been
+// withdrawn, in counter order.
+//
+// A withdrawn release is left out because the service never offers it again
+// (Tier 9), so a replay of one would be the service refusing and not the
+// board. tier-09-support-listener at counter 5 is the one a Tier 10 bench has.
+func (a *app) replayCandidates() ([]goodRelease, error) {
+	key, err := a.releaseVerifyKey()
+	if err != nil {
+		return nil, err
+	}
+	withdrawn := a.withdrawnReleases()
+	var found []goodRelease
+	for _, variants := range replayTiers {
+		for _, variant := range variants {
+			// The Time floor lab image refuses its own board's certificate if
+			// it ever runs (#263). A replay is refused by its counter first,
+			// but a lab image is never what a replay offers.
+			if withdrawn[variant.releaseID] || variant.label == "time-floor" {
+				continue
+			}
+			if release, ok := a.signedRelease(key, variant.releaseID); ok {
+				release.variant = variant
+				found = append(found, release)
+			}
+		}
+	}
+	// Several tiers carry two releases at one counter, and the lists are maps,
+	// so the order is made total here: the same environment always replays
+	// the same release.
+	sort.Slice(found, func(i, j int) bool {
+		if found[i].manifest.SecurityCounter != found[j].manifest.SecurityCounter {
+			return found[i].manifest.SecurityCounter < found[j].manifest.SecurityCounter
+		}
+		return found[i].manifest.ReleaseID < found[j].manifest.ReleaseID
+	})
+	return found, nil
+}
+
+// signedRelease reads one stored release and returns it only if its manifest
+// names it and its signature verifies.
+func (a *app) signedRelease(key *ecdsa.PublicKey, releaseID string) (goodRelease, bool) {
+	manifest, body, err := a.loadStoredManifest(releaseID)
+	if err != nil {
+		return goodRelease{}, false
+	}
+	signature, err := os.ReadFile(a.manifestSignaturePath(releaseID))
+	if err != nil || manifest.ReleaseID != releaseID || !manifestVerifies(key, body, signature) {
+		return goodRelease{}, false
+	}
+	return goodRelease{manifest: manifest, body: body, signature: signature}, true
+}
+
+// releaseWithdrawnKind is the service's KindReleaseWithdrawn, spelled here so
+// the course helper keeps reading the record without importing the service.
+const releaseWithdrawnKind = "release.withdrawn"
+
+// withdrawnReleases reads the release.withdrawn lines from the record. Before
+// Tier 9 there are none, and a missing record is an empty set.
+func (a *app) withdrawnReleases() map[string]bool {
+	withdrawn := map[string]bool{}
+	data, err := os.ReadFile(a.provisionRecordPath())
+	if err != nil {
+		return withdrawn
+	}
+	for _, line := range bytes.Split(data, []byte("\n")) {
+		var record struct {
+			Kind      string `json:"kind"`
+			ReleaseID string `json:"release_id"`
+		}
+		if json.Unmarshal(line, &record) == nil && record.Kind == releaseWithdrawnKind {
+			withdrawn[record.ReleaseID] = true
+		}
+	}
+	return withdrawn
+}
+
 // newestRelease is the good release with the highest security counter that this
 // environment has signed.
 //
@@ -828,6 +916,13 @@ func (a *app) assignmentFor(manifest releaseManifest) map[string]any {
 // fetchReleaseArtifact asks the service for a stored manifest or its detached
 // signature, the way the device does, over the verified connection.
 func (a *app) fetchReleaseArtifact(target, releaseID, suffix string) ([]byte, error) {
+	if a.hostingMode(a.fixtureID) {
+		path := a.manifestPath(releaseID)
+		if suffix == "manifest.sig" {
+			path = a.manifestSignaturePath(releaseID)
+		}
+		return a.hostingStoreFile(filepath.Base(path))
+	}
 	client, endpoint := a.serviceClient(target)
 	address := endpoint + "/v1/releases/" + url.PathEscape(releaseID) + "/" + suffix
 	a.sent(http.MethodGet, address)
@@ -844,6 +939,9 @@ func (a *app) fetchReleaseArtifact(target, releaseID, suffix string) ([]byte, er
 
 // fetchAssignment reads the record that decides what every device installs.
 func (a *app) fetchAssignment(target string) (releaseRecord, error) {
+	if a.hostingMode(a.fixtureID) {
+		return a.hostingAssignment()
+	}
 	var record releaseRecord
 	client, endpoint := a.serviceClient(target)
 	address := endpoint + "/v1/releases/current"
@@ -1025,19 +1123,14 @@ func (a *app) tier04ReplayRelease(target string, env environment) (string, strin
 	}
 	a.got("release_id %s, version %s", assignment.ReleaseID, assignment.Version)
 
-	releases, err := a.goodReleases()
+	releases, err := a.replayCandidates()
 	if err != nil {
 		return "", "", nil, err
 	}
-	var current goodRelease
-	for _, release := range releases {
-		if release.manifest.ReleaseID == assignment.ReleaseID {
-			current = release
-		}
-	}
-	if current.body == nil {
+	current, ok := a.signedRelease(key, assignment.ReleaseID)
+	if !ok {
 		return "", "", nil, fmt.Errorf(
-			"the service is offering %s, which is not a signed Tier 4 release this environment produced; "+
+			"the service is offering %s, which is not a signed release this environment produced; "+
 				"a downgrade needs a counter to go backwards from, so publish one first with "+
 				"./course release sign --tier 04 --variant security-fix", assignment.ReleaseID)
 	}
