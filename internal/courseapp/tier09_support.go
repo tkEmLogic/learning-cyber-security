@@ -44,6 +44,16 @@ const supportListenerPortDefault = 7700
 // whole reason the timeout message calls itself weak evidence.
 const supportReplyTimeout = 3 * time.Second
 
+// fixtureReplyTimeout is the fixture's wait for one answer. Only the Tier 10
+// scenario shortens it, for Event 8's dense series inside a trial window of
+// about ten seconds (#293); an ordinary run always waits the full 3 s.
+func (a *app) fixtureReplyTimeout() time.Duration {
+	if a.supportTimeout > 0 && a.supportTimeout < supportReplyTimeout {
+		return a.supportTimeout
+	}
+	return supportReplyTimeout
+}
+
 // boardAddressRecord is the one allowlisted target this fixture reaches over
 // the network. The board serves no Course environment marker, so its address
 // cannot come from the marker handshake, and the contract keeps endpoints off
@@ -148,8 +158,9 @@ func (a *app) supportListenerFixture(id string) (string, string, map[string]stri
 		a.note("and not the default: the runner will not send it unless you name it.")
 	}
 
-	reply, err := sendSupportRequest(target, request, supportReplyTimeout)
-	seconds := int(supportReplyTimeout / time.Second)
+	timeout := a.fixtureReplyTimeout()
+	reply, err := sendSupportRequest(target, request, timeout)
+	seconds := int(timeout / time.Second)
 	hashes := map[string]string{}
 	if errors.Is(err, errSupportTimeout) {
 		// A timeout is weak evidence and the fixture says so plainly. After the

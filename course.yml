@@ -477,10 +477,17 @@ scenario:
   # Bounded waits for what the board does on its own schedule.
   transfer_wait_seconds: 600
   revert_wait_seconds: 600
-  # Event 8 is a bounded series of separate single-datagram fixture runs, one
-  # every interval, stopping at the first answer.
-  listener_interval_seconds: 10
-  listener_max_seconds: 480
+  # Event 8 waits for the board to report installing the candidate, because
+  # its trial boots about 20 s later and the listener is live for only about
+  # 10 s of it (#293). One candidate cycle is about two minutes.
+  trial_wait_seconds: 300
+  # Then a bounded series of separate single-datagram fixture runs, one
+  # starting every interval, each waiting at most listener_reply_seconds, and
+  # stopping at the first answer. The runner caps the interval at no less
+  # than 2 s and the series at 120 s.
+  listener_interval_seconds: 2
+  listener_reply_seconds: 1
+  listener_max_seconds: 70
   events:
     - id: tier-10/event-01
       number: 1

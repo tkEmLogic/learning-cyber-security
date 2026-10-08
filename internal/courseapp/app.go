@@ -252,6 +252,11 @@ type app struct {
 	// reset the lab, which would delete events.jsonl and reseed Tier 0.
 	scenario bool
 
+	// supportTimeout, when set, shortens the support-listener fixture's wait
+	// for an answer. Only the scenario's Event 8 series sets it, from
+	// scenario.listener_reply_seconds, and it can never lengthen the wait.
+	supportTimeout time.Duration
+
 	// fixtureID is the fixture being executed, set by the runner for the
 	// length of one execution. The publishing helpers read it to decide how a
 	// release reaches the board when the service runs mutual TLS (#292).

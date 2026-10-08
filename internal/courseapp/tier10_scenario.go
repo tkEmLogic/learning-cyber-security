@@ -22,8 +22,13 @@ package courseapp
 // Each `next` first undoes the temporary change the previous event left, so
 // two events never overlap. The one exception is planned: the interruption
 // behind Event 6 is switched on while Event 5 is staged, because the board
-// downloads within about 30 s of the rollout's advance, and Event 6 then waits
-// for the interrupted and resumed transfer and switches it off.
+// downloads within about 30 s of the rollout's advance, and it stays on until
+// Event 8 is over. Switching it off at Event 6 meant a service restart just as
+// the board finished its download, which cut the board's update.installed
+// report and printed a misleading TLS refusal on its console (#293). Later
+// trial downloads are cut and resumed too, which the Mentor key says. Event 8
+// restores the Tier 9 flags at its end, inside a trial window, when the board
+// is not polling.
 
 import (
 	"bufio"
@@ -59,7 +64,9 @@ type scenarioManifest struct {
 	InterruptFraction       float64 `yaml:"interrupt_fraction"`
 	TransferWaitSeconds     int     `yaml:"transfer_wait_seconds"`
 	RevertWaitSeconds       int     `yaml:"revert_wait_seconds"`
+	TrialWaitSeconds        int     `yaml:"trial_wait_seconds"`
 	ListenerIntervalSeconds int     `yaml:"listener_interval_seconds"`
+	ListenerReplySeconds    int     `yaml:"listener_reply_seconds"`
 	ListenerMaxSeconds      int     `yaml:"listener_max_seconds"`
 
 	Events  []scenarioEvent `yaml:"events"`
@@ -112,7 +119,17 @@ var scenarioWhereToLook = map[string][]string{
 
 // scenarioLongStages wait on the board, for minutes. The terminal says so in a
 // neutral line, so a Learner does not think the command hung.
+// scenarioKeepsRange are the steps that run while Event 5's interruption is
+// still in force.
+var scenarioKeepsRange = map[string]bool{stageTransfer: true, stageRevert: true, stageFixtureSeries: true}
+
 var scenarioLongStages = map[string]bool{stageTransfer: true, stageRevert: true, stageFixtureSeries: true}
+
+// The bounds on Event 8's series, whatever course.yml says.
+const (
+	minListenerIntervalSeconds = 2
+	maxListenerSeriesSeconds   = 120
+)
 
 // The flags the Tier 9 end state runs the service with. The runner restarts
 // the service with exactly these, plus the one event's change.
@@ -145,14 +162,25 @@ func validateScenarioManifest(m manifest) error {
 	for name, seconds := range map[string]int{
 		"transfer_wait_seconds": block.TransferWaitSeconds,
 		"revert_wait_seconds":   block.RevertWaitSeconds,
-		"listener_max_seconds":  block.ListenerMaxSeconds,
+		"trial_wait_seconds":    block.TrialWaitSeconds,
 	} {
 		if seconds <= 0 || seconds > maxFixtureHoldSeconds {
 			return fmt.Errorf("scenario %s must be between 1 and %d", name, maxFixtureHoldSeconds)
 		}
 	}
-	if block.ListenerIntervalSeconds < 5 || block.ListenerIntervalSeconds > block.ListenerMaxSeconds {
-		return errors.New("scenario listener_interval_seconds must be at least 5 and within listener_max_seconds")
+	// Event 8's series is dense because the candidate's listener is live for
+	// about ten seconds per trial: the gate gives up at its second 5 s sample
+	// once the beacon stops (#293). Dense is still bounded: one datagram per
+	// run, at most one run per interval, inside one trial's span.
+	if block.ListenerMaxSeconds <= 0 || block.ListenerMaxSeconds > maxListenerSeriesSeconds {
+		return fmt.Errorf("scenario listener_max_seconds must be between 1 and %d", maxListenerSeriesSeconds)
+	}
+	if block.ListenerIntervalSeconds < minListenerIntervalSeconds || block.ListenerIntervalSeconds > block.ListenerMaxSeconds {
+		return fmt.Errorf("scenario listener_interval_seconds must be at least %d and within listener_max_seconds", minListenerIntervalSeconds)
+	}
+	if block.ListenerReplySeconds < 1 || block.ListenerReplySeconds > block.ListenerIntervalSeconds ||
+		time.Duration(block.ListenerReplySeconds)*time.Second > supportReplyTimeout {
+		return errors.New("scenario listener_reply_seconds must be at least 1, within the interval and no longer than the fixture's own 3 s")
 	}
 	if len(block.Events) != len(scenarioStageOrder) {
 		return fmt.Errorf("the scenario has %d events; #288 settled %d", len(block.Events), len(scenarioStageOrder))
@@ -643,9 +671,9 @@ func (r *scenarioRunner) next() error {
 	logPath := r.a.relative(r.a.scenarioStagingLogPath())
 
 	// Undo first, so two events never overlap. The interruption Event 5
-	// switched on is the one change Event 6 needs, so it stays.
+	// switched on stays through Events 6 to 8; Event 8 switches it off.
 	r.logf("event %d (%s): undoing the previous event's temporary change", number, event.ID)
-	if err := r.undo(st, event.Stage == stageTransfer); err != nil {
+	if err := r.undo(st, scenarioKeepsRange[event.Stage]); err != nil {
 		r.logf("undo failed: %v", err)
 		_ = r.saveState(st)
 		return fmt.Errorf("the change the previous event left could not be undone, so Event %d was not staged; the reason is in %s", number, logPath)
@@ -881,25 +909,21 @@ func (r *scenarioRunner) eventsPath() string {
 }
 
 // stageTransfer waits for the candidate's interrupted transfer and its resume
-// in ota.log, then switches the interruption off, so a later trial attempt
-// downloads normally and the decoy happens once.
+// in ota.log. It leaves the interruption on: a restart here would land just as
+// the board reports the install (#293).
 func (r *scenarioRunner) stageTransfer(st *scenarioState, _ scenarioEvent) error {
 	candidate, _, err := r.a.loadStoredManifest(r.block.CandidateRelease)
 	if err != nil {
 		return err
 	}
 	name := filepath.Base(candidate.ImagePath)
-	err = r.waitFor("the interrupted and resumed transfer", r.block.TransferWaitSeconds, func() (bool, error) {
+	return r.waitFor("the interrupted and resumed transfer", r.block.TransferWaitSeconds, func() (bool, error) {
 		text, err := readFrom(r.a.serviceLogPath(), st.LogOffset)
 		if err != nil {
 			return false, err
 		}
 		return transferCutAndResumed(text, name), nil
 	})
-	if err != nil {
-		return err
-	}
-	return r.restartService(st, "", "")
 }
 
 var (
@@ -956,19 +980,78 @@ func revertReported(text, release string) bool {
 	return false
 }
 
-// stageFixtureSeries reaches the support listener inside a trial window. One
-// candidate cycle takes minutes and the window is 60 s, so the runner sends a
-// bounded series of separate single-datagram fixture runs and stops at the
-// first answer. Each run is an ordinary fixture run with its own evidence
-// record and its own no-op reset; nothing in one run retries. See
-// docs/fixture-safety-contract.md, "Tier 10 scenario".
-func (r *scenarioRunner) stageFixtureSeries(_ *scenarioState, event scenarioEvent) error {
+// stageFixtureSeries reaches the support listener inside a trial window, and
+// then restores the Tier 9 flags.
+//
+// The window is short. The candidate's gate gives up at its second 5 s sample
+// once the beacon stops, so the listener is live for about ten seconds per
+// trial, not the 60 s #287 assumed, and a series every 10 s missed both
+// windows it straddled on the board (#293). So the runner times the series
+// from the board's own report instead: the trial image boots about 20 s after
+// the board stores update.installed, and the series starts there, dense and
+// bounded. Each run is still an ordinary fixture run with its own marker
+// handshake, single datagram, evidence record and no-op reset, and nothing
+// retries inside a run. See docs/fixture-safety-contract.md, "Tier 10
+// scenario".
+func (r *scenarioRunner) stageFixtureSeries(st *scenarioState, event scenarioEvent) error {
+	err := r.reachListener(st, event)
+	if st.Range != "" || st.Present != "" {
+		if restoreErr := r.restartService(st, "", ""); restoreErr != nil && err == nil {
+			err = restoreErr
+		}
+		st.InterruptBytes = 0
+	}
+	return err
+}
+
+func (r *scenarioRunner) reachListener(st *scenarioState, event scenarioEvent) error {
+	rollout, err := r.rolloutState()
+	if err != nil {
+		return err
+	}
+	if !rollout.Open || rollout.ReleaseID != r.block.CandidateRelease {
+		return fmt.Errorf("no rollout of %s is open, so no further trial is coming", r.block.CandidateRelease)
+	}
+
+	// A trial whose install the board reported moments ago has not opened its
+	// window yet, so the series can start on it. An older one is over, or
+	// nearly, and the next trial is the one to wait for.
+	before := fileSize(r.eventsPath())
+	text, err := readFrom(r.eventsPath(), st.EventsOffset)
+	if err != nil {
+		return err
+	}
+	signal, at := nextCandidateTrial(text, st.BoardDeviceID, r.block.CandidateRelease)
+	switch {
+	case signal == trialRefused:
+		return errors.New("the board refuses the candidate at its trial limit, so no further trial is coming")
+	case signal == trialInstalled && r.now().Sub(at) <= scenarioFreshInstall:
+		r.logf("the board reported installing %s at %s; the trial boots next", r.block.CandidateRelease, at.Format(time.RFC3339))
+	default:
+		err = r.waitFor("the board's next install of the candidate", r.block.TrialWaitSeconds, func() (bool, error) {
+			text, err := readFrom(r.eventsPath(), before)
+			if err != nil {
+				return false, err
+			}
+			signal, _ := nextCandidateTrial(text, st.BoardDeviceID, r.block.CandidateRelease)
+			if signal == trialRefused {
+				return false, errors.New("the board refuses the candidate at its trial limit, so no further trial is coming")
+			}
+			return signal == trialInstalled, nil
+		})
+		if err != nil {
+			return err
+		}
+	}
+
 	// An ordinary run, reset at once: the listener fixture holds nothing.
 	r.a.scenario = false
-	defer func() { r.a.scenario = true }()
+	r.a.supportTimeout = time.Duration(r.block.ListenerReplySeconds) * time.Second
+	defer func() { r.a.scenario, r.a.supportTimeout = true, 0 }()
 	deadline := r.now().Add(time.Duration(r.block.ListenerMaxSeconds) * time.Second)
 	interval := time.Duration(r.block.ListenerIntervalSeconds) * time.Second
 	for attempt := 1; ; attempt++ {
+		began := r.now()
 		var captured bytes.Buffer
 		r.a.out = io.MultiWriter(r.staging, &captured)
 		r.logf("run %d: ./course attack run %s", attempt, strings.Join(r.fixtureArgs(event), " "))
@@ -980,11 +1063,62 @@ func (r *scenarioRunner) stageFixtureSeries(_ *scenarioState, event scenarioEven
 			r.logf("run %d was answered", attempt)
 			return nil
 		}
-		if !r.now().Add(interval).Before(deadline) {
+		// Runs start one interval apart, so a slow run is not followed by a
+		// wait as well.
+		next := began.Add(interval)
+		if !next.Before(deadline) {
 			return fmt.Errorf("no answer in %d runs over %d s", attempt, r.block.ListenerMaxSeconds)
 		}
-		r.sleep(interval)
+		if wait := next.Sub(r.now()); wait > 0 {
+			r.sleep(wait)
+		}
 	}
+}
+
+// scenarioFreshInstall is how recent an install report must be for its trial
+// window to be still ahead. The trial image's listener comes up about 20 s
+// after the report.
+const scenarioFreshInstall = 15 * time.Second
+
+type trialSignal int
+
+const (
+	trialNone trialSignal = iota
+	trialInstalled
+	trialRefused
+)
+
+// nextCandidateTrial reads the board's events in order and says where the
+// candidate's trials stand at the end: an install not yet followed by its
+// revert is a trial under way, a refusal at the trial limit means no trial is
+// coming, and anything else means none is under way. It returns when the
+// board reported the last install.
+func nextCandidateTrial(text, device, release string) (trialSignal, time.Time) {
+	signal := trialNone
+	var at time.Time
+	scanner := bufio.NewScanner(strings.NewReader(text))
+	scanner.Buffer(make([]byte, 0, 64*1024), 1<<20)
+	for scanner.Scan() {
+		var event struct {
+			Event      string `json:"event"`
+			DeviceID   string `json:"device_id"`
+			Detail     string `json:"detail"`
+			ReceivedAt string `json:"service_received_at"`
+		}
+		if json.Unmarshal(scanner.Bytes(), &event) != nil || event.DeviceID != device {
+			continue
+		}
+		switch {
+		case event.Event == "update.installed" && strings.HasPrefix(event.Detail, release):
+			signal = trialInstalled
+			at, _ = time.Parse(time.RFC3339Nano, event.ReceivedAt)
+		case event.Event == "update.reverted" && strings.Contains(event.Detail, release):
+			signal = trialNone
+		case event.Event == "update.refused" && strings.Contains(event.Detail, "trial-limit"):
+			signal = trialRefused
+		}
+	}
+	return signal, at
 }
 
 // listenerAnswered reads the fixture's own result line. It answers only when
