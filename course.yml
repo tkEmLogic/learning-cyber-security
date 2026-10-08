@@ -523,7 +523,7 @@ scenario:
       selector: inventory
   changes:
     - .course-state/scenario
-    - .course-state/ota/ota.log
+    - .course-state/ota.log
     - .course-state/ota/current-release.json
     - .course-state/ota/events.jsonl
     - .course-state/provisioning/records.jsonl

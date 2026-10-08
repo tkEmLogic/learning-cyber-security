@@ -101,11 +101,11 @@ var scenarioStageOrder = []string{
 // scenarioWhereToLook is the operator-visible place each step's symptom
 // shows. It names records and commands, never the mechanism.
 var scenarioWhereToLook = map[string][]string{
-	stagePresent:       {"the board's serial console (./course device logs)", ".course-state/ota/ota.log"},
-	stageFixture:       {"the board's serial console (./course device logs)", ".course-state/ota/ota.log"},
+	stagePresent:       {"the board's serial console (./course device logs)", ".course-state/ota.log"},
+	stageFixture:       {"the board's serial console (./course device logs)", ".course-state/ota.log"},
 	stageBypass:        {".course-state/ota/events.jsonl"},
 	stageRollout:       {"./course rollout status", ".course-state/ota/events.jsonl"},
-	stageTransfer:      {"the board's serial console (./course device logs)", ".course-state/ota/ota.log"},
+	stageTransfer:      {"the board's serial console (./course device logs)", ".course-state/ota.log"},
 	stageRevert:        {"the board's serial console (./course device logs)", ".course-state/ota/events.jsonl"},
 	stageFixtureSeries: {"the board's serial console (./course device logs)"},
 }
