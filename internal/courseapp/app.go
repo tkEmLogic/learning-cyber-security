@@ -805,10 +805,15 @@ type firmwareVariant struct {
 	// supportListener is true for Tier 9's support-listener release only,
 	// the one image in the course that compiles in T9-W-34 (#269).
 	supportListener bool
-	// westPatches is true for Tier 9's remediation release only: its build
-	// applies the Tier 9 application's West patch to the workspace and
-	// cleans it afterwards (#278).
+	// westPatches is true for Tier 9's remediation release and for both Tier 10
+	// releases: the build applies the tier application's TF-PSA-Crypto West
+	// patch to the workspace and cleans it afterwards (#278, #290).
 	westPatches bool
+	// handoverPatch is true for Tier 10's candidate release only: its build
+	// copies the application, applies the teammate's handover patch to the
+	// copy, and builds that, so the two planted defects live only in the
+	// candidate's image and never in the repository tree (#290, T10-W-38).
+	handoverPatch bool
 }
 
 var firmwareVariants = map[string]firmwareVariant{
@@ -868,6 +873,7 @@ var firmwareApps = map[string]string{
 	"07": "firmware/tier-07-operational-identity",
 	"08": "firmware/tier-08-credential-lifecycle",
 	"09": "firmware/tier-09-vulnerability-support",
+	"10": "firmware/tier-10-integrated-defense",
 }
 
 // tierSignsItsOwnImage names the tiers whose bootloader is built separately
@@ -878,7 +884,7 @@ var firmwareApps = map[string]string{
 // the property is "this tier's bootloader checks who published an image", and
 // every tier from Tier 3 on has it.
 func tierSignsItsOwnImage(tier string) bool {
-	return tier == "03" || tier == "04" || tier == "05" || tier == "06" || tier == "07" || tier == tier08 || tier == tier09
+	return tier == "03" || tier == "04" || tier == "05" || tier == "06" || tier == "07" || tier == tier08 || tier == tier09 || tier == tier10
 }
 
 func variantsForTier(tier string) map[string]firmwareVariant {
@@ -899,6 +905,8 @@ func variantsForTier(tier string) map[string]firmwareVariant {
 		return tier08Variants
 	case tier09:
 		return tier09Variants
+	case tier10:
+		return tier10Variants
 	default:
 		return firmwareVariants
 	}
@@ -938,6 +946,19 @@ func (a *app) buildFirmware(args []string) error {
 		return fmt.Errorf("tier %s has no firmware application", tier)
 	}
 
+	// Tier 10's candidate builds a throwaway copy of the application with the
+	// teammate's handover patch applied, so the repository tree is never
+	// touched (#290). The corrected variant, and every other tier, builds the
+	// committed tree. appDir is repo-relative either way.
+	if tier == tier10 {
+		tree, cleanup, err := a.tier10AppTree(variant)
+		if err != nil {
+			return err
+		}
+		defer cleanup()
+		appDir = tree
+	}
+
 	confPath, host, err := a.writeFirmwareConfig(variant, tier)
 	if err != nil {
 		return err
@@ -970,7 +991,7 @@ func (a *app) buildFirmware(args []string) error {
 	// can verify a Release manifest. It is a separate variable from the trust
 	// anchor because it answers a separate question: the anchor says which
 	// service to talk to, this says whose release metadata to believe.
-	if tier == "04" || tier == "05" || tier == "06" || tier == "07" || tier == tier08 || tier == tier09 {
+	if tier == "04" || tier == "05" || tier == "06" || tier == "07" || tier == tier08 || tier == tier09 || tier == tier10 {
 		keyDir, err := a.writeSigningPublicKeyInc()
 		if err != nil {
 			return err
@@ -1000,20 +1021,31 @@ func (a *app) buildFirmware(args []string) error {
 		fmt.Fprintf(a.out, "+ %s ./scripts/build-zephyr-baseline.sh\n", strings.Join(printed, " "))
 		return runAttachedEnv(a.root, a.out, a.errOut, buildEnv, "./scripts/build-zephyr-baseline.sh")
 	}
-	// Tier 9 builds through its patch guard, which refuses a patched module
-	// and applies the West patch around the remediation build alone.
-	if tier == tier09 {
-		// The tree's state is read before the build, because that is the
-		// tree the image is made from.
+	// Tier 9 and Tier 10 build through the patch guard, which refuses a patched
+	// module and applies the TF-PSA-Crypto West patch around the build. The
+	// tree's state is read before the build, because that is the tree the image
+	// is made from.
+	switch tier {
+	case tier09:
 		clean, revision := a.treeIsClean(), a.fullSourceRevision()
-		if err := a.withTier09Patches(variant, runBuild); err != nil {
+		if err := a.withTierPatches(tier, variant, runBuild); err != nil {
 			return err
 		}
 		if err := a.writeTier09BuildRecord(variant, buildDir, confPath, clean, revision); err != nil {
 			return err
 		}
-	} else if err := runBuild(); err != nil {
-		return err
+	case tier10:
+		clean, revision := a.treeIsClean(), a.fullSourceRevision()
+		if err := a.withTierPatches(tier, variant, runBuild); err != nil {
+			return err
+		}
+		if err := a.writeTier10BuildRecord(variant, buildDir, confPath, clean, revision); err != nil {
+			return err
+		}
+	default:
+		if err := runBuild(); err != nil {
+			return err
+		}
 	}
 
 	// Tier 3 and Tier 4 stop here. The image exists and it is unsigned, which
@@ -1139,7 +1171,7 @@ CONFIG_COURSE_TRUST_ANCHOR_FINGERPRINT=%q
 	//
 	// The hardware revision is asserted here and nowhere read. The channel is
 	// a policy choice, not a property of the device.
-	if tier == "04" || tier == "05" || tier == "06" || tier == "07" || tier == tier08 || tier == tier09 {
+	if tier == "04" || tier == "05" || tier == "06" || tier == "07" || tier == tier08 || tier == tier09 || tier == tier10 {
 		body += fmt.Sprintf(`CONFIG_COURSE_SECURITY_COUNTER=%d
 CONFIG_COURSE_HARDWARE_REVISION=%d
 CONFIG_COURSE_RELEASE_CHANNEL=%q
@@ -1158,7 +1190,7 @@ CONFIG_COURSE_RELEASE_CHANNEL=%q
 	// swapping in. Both copies are covered by the image signature. It
 	// identifies the build and not the release, and a Learner's own build
 	// carries their hash and will usually be dirty.
-	if tier == "05" || tier == "06" || tier == "07" || tier == tier08 || tier == tier09 {
+	if tier == "05" || tier == "06" || tier == "07" || tier == tier08 || tier == tier09 || tier == tier10 {
 		symbol, err := trialBehaviourSymbol(variant.trialBehaviour)
 		if err != nil {
 			return "", "", err
@@ -1176,7 +1208,7 @@ CONFIG_COURSE_RELEASE_CHANNEL=%q
 	// that Tier 7 keeps: CONFIG_COURSE_IDENTITY_FACTORY is a plain bool there
 	// rather than half of a choice, so the generated line configures both
 	// trees and the two tiers stay readable side by side.
-	if tier == "06" || tier == "07" || tier == tier08 || tier == tier09 {
+	if tier == "06" || tier == "07" || tier == tier08 || tier == tier09 || tier == tier10 {
 		symbol, err := identityModelSymbol(variant.identityModel)
 		if err != nil {
 			return "", "", err
@@ -1186,7 +1218,7 @@ CONFIG_COURSE_RELEASE_CHANNEL=%q
 
 	// Tier 8 seeds its Time floor with the moment of this build (#217), and
 	// Tier 9 keeps the floor.
-	if tier == tier08 || tier == tier09 {
+	if tier == tier08 || tier == tier09 || tier == tier10 {
 		seed := variant.timeFloorSeed
 		if seed == "" {
 			seed = tier08TimeFloorSeed(time.Now())

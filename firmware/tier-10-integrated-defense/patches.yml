@@ -1,0 +1,27 @@
+# West patches carried by Tier 10 (#275, #278, #290).
+#
+# Tier 10 carries Tier 9's remediation fix in both of its variants. ./course
+# build firmware --tier 10 --variant candidate|corrected applies these with
+# west patch apply before the build and removes them with west patch clean
+# after it, so the shared Zephyr workspace is patched only while the image
+# builds. This is Tier 9's own patch mechanism, reused unchanged.
+#
+# The patch is upstream Mbed-TLS/TF-PSA-Crypto pull request 60, taken whole
+# (the fix, its ChangeLog entry and its tests), from v1.1.0 to its merge. It
+# applies to Zephyr's fork at dc575a2dd with no conflict.
+patches:
+  - path: tf-psa-crypto/cve-2026-50583.patch
+    sha256sum: 1f2bfb6127b0188960a20475ac8791dabe6412104a6234c34d66f09ef0011cb5
+    module: modules/crypto/tf-psa-crypto
+    author: Gilles Peskine
+    email: Gilles.Peskine@arm.com
+    date: 2026-04-15
+    upstreamable: true
+    merge-pr: https://github.com/Mbed-TLS/TF-PSA-Crypto/pull/60
+    merge-status: true
+    merge-commit: ab2b4230d01bb2c94bf09c0d3da24d467faad1c7
+    apply-command: git apply
+    comments: |
+      CVE-2026-50583: a 1-byte buffer overread when parsing a malformed ECC
+      public key in the PK module. Fixed upstream in TF-PSA-Crypto 1.1.1 by
+      c99519080. Zephyr 4.4.2 pins 1.1.0 with no backport.

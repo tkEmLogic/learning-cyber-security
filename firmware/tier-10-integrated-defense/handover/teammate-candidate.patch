@@ -1,0 +1,71 @@
+From: teammate <teammate@harbor.example>
+Date: Tue, 06 Oct 2026 09:12:00 +0000
+Subject: [PATCH] support reachability during trials, and quieter beacons
+
+Two small changes before we cut the next candidate.
+
+1. Support asked to be able to reach a device while it is on trial, in
+   case a bad build leaves it stuck. So the network and the UDP 7700
+   support listener now come up before the health gate instead of after
+   it. I kept the gate's rule that a network that does not come up must
+   not fail the gate, so the bring-up does not block.
+
+2. The beacon was chattier than it needs to be, so I lengthened its
+   period. Fewer ticks, less traffic.
+
+Built and signed as tier-10-candidate, counter 7. Host tests pass.
+Handing this over for the canary.
+
+ -- teammate
+
+This patch is applied to a build-time copy of the application by
+./course build firmware --tier 10 --variant candidate. It is never
+applied to the repository tree. Its sha256 is recorded in the
+candidate's build manifest, so the manifest is honest that the image
+was built with it.
+diff --git a/prj.conf b/prj.conf
+--- a/prj.conf
++++ b/prj.conf
+@@ -334,7 +334,6 @@
+ # are the evidence. See firmware/tier-09-vulnerability-support for the origin.
+ CONFIG_COURSE_TF_PSA_CRYPTO_BACKPORT=y
+ 
+-# The support listener stays compiled out in the corrected tree, exactly as
+-# Tier 9's remediation release left it (T9-W-34). The teammate's handover patch
+-# turns it back on in the candidate build; see handover/teammate-candidate.patch.
+-# CONFIG_COURSE_SUPPORT_LISTENER is not set
++# Support engineers asked to reach devices during a trial, so the listener is
++# back on. It answers inventory and reboot on the local network (T9-W-34).
++CONFIG_COURSE_SUPPORT_LISTENER=y
+diff --git a/src/main.c b/src/main.c
+--- a/src/main.c
++++ b/src/main.c
+@@ -165,7 +165,7 @@
+  * a device whose beacon has stopped, and the window expires without a verdict.
+  * One second leaves a wide margin against the 60 second gate.
+  */
+-#define BEACON_PERIOD_SECONDS 1
++#define BEACON_PERIOD_SECONDS 90
+ 
+ /* The reference product's own work, in its own thread.
+  *
+@@ -664,12 +664,17 @@
+ 			NULL, NULL, NULL, K_PRIO_PREEMPT(10), 0, K_NO_WAIT);
+ 	k_thread_name_set(&beacon_thread_data, "beacon");
+ 
++	/* Bring networking and the support listener up before the health gate,
++	 * so support can reach a device that is stuck in a bad trial. A link that
++	 * fails to come up must still not fail the gate, so this does not block on
++	 * it: bring_up_network_and_listener returns and the gate runs regardless.
++	 */
++	online = bring_up_network_and_listener(address, sizeof(address));
++
+ 	if (!report_boot_state()) {
+ 		confirm_or_revert();
+ 	}
+ 
+-	online = bring_up_network_and_listener(address, sizeof(address));
+-
+ 	while (true) {
+ 		/* main is the thread the watchdog vouches for, so main is the
+ 		 * only thing that feeds it.

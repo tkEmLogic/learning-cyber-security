@@ -421,6 +421,8 @@ func (a *app) release(args []string) error {
 			return a.releaseSignTier08(releaseVariantOption(args[1:]))
 		case tier09:
 			return a.releaseSignTier09(releaseVariantOption(args[1:]))
+		case tier10:
+			return a.releaseSignTier10(releaseVariantOption(args[1:]))
 		}
 		return a.releaseSign()
 	case "assign":
@@ -435,23 +437,34 @@ func (a *app) release(args []string) error {
 			return a.releaseAssignTier08(releaseVariantOption(args[1:]))
 		case tier09:
 			return a.releaseAssignTier09(releaseVariantOption(args[1:]))
+		case tier10:
+			return a.releaseAssignTier10(releaseVariantOption(args[1:]))
 		}
-		return errors.New("release assign needs a tier that has more than one release; pass --tier 05, --tier 06, --tier 07, --tier 08 or --tier 09")
+		return errors.New("release assign needs a tier that has more than one release; pass --tier 05, --tier 06, --tier 07, --tier 08, --tier 09 or --tier 10")
 	case "test":
-		if releaseTierOption(args[1:]) != tier09 {
-			return errors.New("release test is Tier 9's pre-release check; pass --tier 09 --variant <release>")
+		switch releaseTierOption(args[1:]) {
+		case tier09:
+			return a.releaseTestTier09(releaseVariantOption(args[1:]))
+		case tier10:
+			return a.releaseTestTier10(releaseVariantOption(args[1:]))
 		}
-		return a.releaseTestTier09(releaseVariantOption(args[1:]))
+		return errors.New("release test is Tier 9's and Tier 10's pre-release check; pass --tier 09 or --tier 10 --variant <release>")
 	case "withdraw":
-		if releaseTierOption(args[1:]) != tier09 {
-			return errors.New("release withdraw is Tier 9's; pass --tier 09 --variant <release> --reason <record> --actor <name>")
+		switch releaseTierOption(args[1:]) {
+		case tier09:
+			return a.releaseWithdrawTier09(args[1:])
+		case tier10:
+			return a.releaseWithdrawTier10(args[1:])
 		}
-		return a.releaseWithdrawTier09(args[1:])
+		return errors.New("release withdraw is Tier 9's and Tier 10's; pass --tier 09 or --tier 10 --variant <release> --reason <record> --actor <name>")
 	case "approve":
-		if releaseTierOption(args[1:]) != tier09 {
-			return errors.New("release approve is Tier 9's; pass --tier 09 --variant <release> --approver <name>")
+		switch releaseTierOption(args[1:]) {
+		case tier09:
+			return a.releaseApproveTier09(args[1:])
+		case tier10:
+			return a.releaseApproveTier10(args[1:])
 		}
-		return a.releaseApproveTier09(args[1:])
+		return errors.New("release approve is Tier 9's and Tier 10's; pass --tier 09 or --tier 10 --variant <release> --approver <name>")
 	case "hostile":
 		if tier := releaseTierOption(args[1:]); tier == "04" {
 			return a.releaseHostileTier04()

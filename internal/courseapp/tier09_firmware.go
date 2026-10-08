@@ -84,23 +84,23 @@ func (a *app) tier09RawImage(variant firmwareVariant) string {
 // relative to the Zephyr workspace, as patches.yml names it.
 const tier09PatchedModule = "modules/crypto/tf-psa-crypto"
 
-// tier09PatchArgs are the west patch options every call shares: the patch
-// files and their list live in the Tier 9 application, not in Zephyr, and
-// only the one module is touched.
-func (a *app) tier09PatchArgs() []string {
-	appDir := filepath.Join(a.root, firmwareApps[tier09])
+// tierPatchArgs are the west patch options every call shares: the patch files
+// and their list live in the tier's own application, not in Zephyr, and only
+// the one module is touched. Tier 10 reuses this unchanged by passing tier10
+// (#290): the patch, the module and the mechanism are Tier 9's.
+func (a *app) tierPatchArgs(tier string) []string {
+	appDir := filepath.Join(a.root, firmwareApps[tier])
 	return []string{"patch",
 		"-b", filepath.Join(appDir, "patches"),
 		"-l", filepath.Join(appDir, "patches.yml"),
 		"-dm", tier09PatchedModule}
 }
 
-// tier09ModuleClean refuses to build either Tier 9 release on a patched
-// module. A remediation build that died between apply and clean would
-// otherwise leave the fix in place, and the next support-listener build would
-// silently carry it: the vulnerable release would not be the vulnerable
-// release, and nothing would say so.
-func (a *app) tier09ModuleClean() error {
+// tierModuleClean refuses to build on a patched module. A build that died
+// between apply and clean would otherwise leave the fix in place, and the next
+// build would silently carry it: an image would not be the image it claims to
+// be, and nothing would say so.
+func (a *app) tierModuleClean(tier string) error {
 	dir := filepath.Join(a.zephyrWorkspace(), tier09PatchedModule)
 	out, err := exec.Command("git", "-C", dir, "status", "--porcelain").Output()
 	if err != nil {
@@ -109,16 +109,16 @@ func (a *app) tier09ModuleClean() error {
 	if strings.TrimSpace(string(out)) != "" {
 		return fmt.Errorf("%s has local changes, so it is not the tree Zephyr pins; "+
 			"run west %s clean in %s and build again",
-			tier09PatchedModule, strings.Join(a.tier09PatchArgs(), " "), a.zephyrWorkspace())
+			tier09PatchedModule, strings.Join(a.tierPatchArgs(tier), " "), a.zephyrWorkspace())
 	}
 	return nil
 }
 
-// withTier09Patches runs build with the West patch applied, when the variant
+// withTierPatches runs build with the West patch applied, when the variant
 // carries one, and always cleans it afterwards, including when the build
 // fails. The shared workspace is patched only while this one image builds.
-func (a *app) withTier09Patches(variant firmwareVariant, build func() error) error {
-	if err := a.tier09ModuleClean(); err != nil {
+func (a *app) withTierPatches(tier string, variant firmwareVariant, build func() error) error {
+	if err := a.tierModuleClean(tier); err != nil {
 		return err
 	}
 	if !variant.westPatches {
@@ -126,7 +126,7 @@ func (a *app) withTier09Patches(variant firmwareVariant, build func() error) err
 	}
 	workspace := a.zephyrWorkspace()
 	west := filepath.Join(workspace, ".venv", "bin", "west")
-	args := a.tier09PatchArgs()
+	args := a.tierPatchArgs(tier)
 	fmt.Fprintf(a.out, "+ west %s apply\n", strings.Join(args, " "))
 	if err := runAttachedFrom(a.root, workspace, a.out, a.errOut, nil, west, append(args, "apply")...); err != nil {
 		return fmt.Errorf("the CVE-2026-50583 patch did not apply: %w", err)
