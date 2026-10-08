@@ -79,6 +79,10 @@ type manifest struct {
 	// its own block. See docs/fixture-safety-contract.md, "Tier 9 fixtures".
 	Fleet fleetManifest `yaml:"fleet"`
 
+	// Regression is Tier 10's regression rerun plan. See tier10_regression.go
+	// and docs/fixture-safety-contract.md, "Tier 10".
+	Regression regressionManifest `yaml:"regression"`
+
 	Safety struct {
 		SyntheticDataOnly         bool   `yaml:"synthetic_data_only"`
 		MarkerRequired            bool   `yaml:"marker_required"`
@@ -231,6 +235,11 @@ type app struct {
 	// Tier 4. It is set by the attack runner after the key has been checked
 	// against the manifest, never taken as a path.
 	selector string
+
+	// fixtureID is the fixture being executed, set by the runner for the
+	// length of one execution. The publishing helpers read it to decide how a
+	// release reaches the board when the service runs mutual TLS (#292).
+	fixtureID string
 }
 
 func Run(args []string, out, errOut io.Writer) int {
@@ -354,6 +363,8 @@ func (a *app) dispatch(args []string) error {
 		return a.claim(args[1:])
 	case "attack":
 		return a.attack(args[1:])
+	case "regression":
+		return a.regression(args[1:])
 	case "verify":
 		return a.verify(args[1:])
 	case "evidence":
@@ -371,7 +382,7 @@ func (a *app) dispatch(args []string) error {
 }
 
 func (a *app) usage(w io.Writer) {
-	fmt.Fprintln(w, "usage: ./course doctor|setup|tier|build|service|device|keys|release|sbom|scan|rollout|fleet|provision|owner|claim|attack|verify|evidence|clean")
+	fmt.Fprintln(w, "usage: ./course doctor|setup|tier|build|service|device|keys|release|sbom|scan|rollout|fleet|provision|owner|claim|attack|regression|verify|evidence|clean")
 }
 
 func (a *app) context(target string) {
@@ -2073,16 +2084,49 @@ func (a *app) attackRun(args []string) error {
 	if hold > 0 && !f.HardwareRequired {
 		return fmt.Errorf("--hold applies only to a fixture that needs hardware; %s does not", id)
 	}
+	// A device polls on its own schedule. Without a hold, the reset restores
+	// the baseline release before any board can read the insecure one, so the
+	// hardware effect could never be observed.
+	var holdFor func()
+	if hold > 0 {
+		holdFor = func() {
+			fmt.Fprintf(a.out, "Holding the insecure state for %d seconds so an attached device can poll.\n", hold)
+			fmt.Fprintf(a.out, "Watch it with ./course device logs in another terminal.\n")
+			time.Sleep(time.Duration(hold) * time.Second)
+		}
+	}
+	run, err := a.executeAndReset(id, selected, target, selectedInterface, env, fingerprint, holdFor)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(a.out, "Result: %s\n", run.observed)
+	return nil
+}
+
+// fixtureRun is what one guarded execution of a fixture produced.
+type fixtureRun struct {
+	observed string
+	evidence string
+}
+
+// executeAndReset is the side-effecting half of the runner, after the dry run,
+// the exact identifier and the marker handshake: execute, hold, reset, write
+// the evidence record, and block the fixture if the reset failed.
+//
+// hold runs between the execution and the reset, and only after a successful
+// execution. The attack runner's --hold sleeps there. Tier 10's regression
+// rerun waits there for the board's own reaction instead (#292), which is why
+// this is a function and not the tail of attackRun.
+func (a *app) executeAndReset(id, selected, target, selectedInterface string, env environment,
+	fingerprint string, hold func()) (fixtureRun, error) {
+	f := a.manifest.Fixtures[id]
 	start := time.Now().UTC()
 	a.selector = selected
+	a.fixtureID = id
+	defer func() { a.fixtureID = "" }()
 	observed, limitation, artifactHashes, runErr := a.executeFixture(id, target, env)
-	// A device polls on its own schedule. Without a hold, the reset below
-	// restores the baseline release before any board can read the insecure
-	// one, so the hardware effect could never be observed.
-	if hold > 0 && runErr == nil {
-		fmt.Fprintf(a.out, "Holding the insecure state for %d seconds so an attached device can poll.\n", hold)
-		fmt.Fprintf(a.out, "Watch it with ./course device logs in another terminal.\n")
-		time.Sleep(time.Duration(hold) * time.Second)
+	if hold != nil && runErr == nil {
+		hold()
 	}
 	resetErr := a.resetFixtureState(id, target, env)
 	result := "passed"
@@ -2105,17 +2149,17 @@ func (a *app) attackRun(args []string) error {
 	}
 	evidencePath, evidenceErr := a.writeAttackEvidence(id, record)
 	if evidenceErr != nil {
-		return evidenceErr
+		return fixtureRun{}, evidenceErr
 	}
 	fmt.Fprintf(a.out, "Evidence: %s\nReset result: %s\n", evidencePath, resetResult)
+	run := fixtureRun{observed: observed, evidence: evidencePath}
 	if resetErr != nil {
-		return fmt.Errorf("automatic reset failed: %v; run %s", resetErr, f.Reset)
+		return run, fmt.Errorf("automatic reset failed: %v; run %s", resetErr, f.Reset)
 	}
 	if runErr != nil {
-		return runErr
+		return run, runErr
 	}
-	fmt.Fprintf(a.out, "Result: %s\n", observed)
-	return nil
+	return run, nil
 }
 
 // An attack a Learner cannot see teaches nothing. These helpers narrate a
@@ -2355,6 +2399,21 @@ func (a *app) executeFixture(id, target string, env environment) (string, string
 		a.note("sha256: %s", hex.EncodeToString(sum[:]))
 
 		a.step(2, "Overwrite the record that decides which firmware every device installs.")
+		if a.hostingMode(id) {
+			if err := a.hostingPublish(id, release); err != nil {
+				return "", "", nil, err
+			}
+			a.step(3, "Read it back from the release store the device listener serves.")
+			body, err := a.hostingStoreFile(name)
+			if err != nil || !bytes.Equal(body, image) {
+				return "", "", nil, errors.New("altered image is not in the release store unchanged")
+			}
+			a.got("%d bytes, byte for byte the altered image.", len(body))
+			a.note("No Release manifest names it, so a device from Tier 4 on has nothing it could verify.")
+			return "a compromised hosting side made the altered unsigned image the Fleet baseline",
+				"the refusal under test is the device's; read the board",
+				map[string]string{name: "sha256:" + hex.EncodeToString(sum[:])}, nil
+		}
 		a.note("The record is mutable and the service does not ask who is changing it.")
 		data, _ := json.Marshal(release)
 		a.sent(http.MethodPut, target+"/v1/releases/current")
@@ -2526,6 +2585,19 @@ func (a *app) resetFixtureState(id, target string, env environment) error {
 	if id == "tier-09/support-listener" {
 		return a.resetSupportListener()
 	}
+	// On a mutual-TLS service the hosting fixtures wrote the baseline file
+	// themselves, so their reset writes back the bytes they saved. It never
+	// asks for the lab reset, which reseeds the Tier 0 release and deletes
+	// the event log every board result is read from (#292).
+	if a.hostingMode(id) {
+		if err := a.hostingRestore(id); err != nil {
+			return err
+		}
+		if id == "tier-00/altered-image" {
+			return a.removeAlteredPlaceholder()
+		}
+		return nil
+	}
 	// Tier 2 moved the lab endpoints behind TLS, so the reset goes there and
 	// verifies the certificate like everything else. The marker check that
 	// authorised this run stayed in the clear; the reset is data, and data
@@ -2557,18 +2629,24 @@ func (a *app) resetFixtureState(id, target string, env environment) error {
 		}
 	}
 	if id == "tier-00/altered-image" {
-		// A built altered image is a build output, not fixture state, so it
-		// survives the reset and the Learner can rerun the fixture without
-		// another firmware build. Reset still returns the service to the
-		// baseline release, which is what the device installs next.
-		var built map[string]any
-		builtPath := filepath.Join(a.root, a.manifest.Paths.State, "ota", "built-altered.json")
-		if err := readJSON(builtPath, &built); err == nil {
-			return nil
-		}
-		if err := os.Remove(filepath.Join(a.root, a.manifest.Paths.GeneratedArtifacts, "releases", "tier-00-altered.bin")); err != nil && !errors.Is(err, os.ErrNotExist) {
-			return err
-		}
+		return a.removeAlteredPlaceholder()
+	}
+	return nil
+}
+
+// removeAlteredPlaceholder removes the placeholder altered image and keeps a
+// built one. A built altered image is a build output, not fixture state, so it
+// survives the reset and the Learner can rerun the fixture without another
+// firmware build. Reset still returns the service to the baseline release,
+// which is what the device installs next.
+func (a *app) removeAlteredPlaceholder() error {
+	var built map[string]any
+	builtPath := filepath.Join(a.root, a.manifest.Paths.State, "ota", "built-altered.json")
+	if err := readJSON(builtPath, &built); err == nil {
+		return nil
+	}
+	if err := os.Remove(filepath.Join(a.root, a.manifest.Paths.GeneratedArtifacts, "releases", "tier-00-altered.bin")); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
 	}
 	return nil
 }
