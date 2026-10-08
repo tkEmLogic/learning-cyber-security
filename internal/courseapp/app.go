@@ -79,6 +79,16 @@ type manifest struct {
 	// its own block. See docs/fixture-safety-contract.md, "Tier 9 fixtures".
 	Fleet fleetManifest `yaml:"fleet"`
 
+	// Scenario is the Tier 10 integration scenario (#291): the events the
+	// runner stages and every input it passes to the machinery it calls. It
+	// is not a fixture either, so it has its own block. See
+	// docs/fixture-safety-contract.md, "Tier 10 scenario".
+	Scenario scenarioManifest `yaml:"scenario"`
+
+	// Regression is Tier 10's regression rerun plan. See tier10_regression.go
+	// and docs/fixture-safety-contract.md, "Tier 10".
+	Regression regressionManifest `yaml:"regression"`
+
 	Safety struct {
 		SyntheticDataOnly         bool   `yaml:"synthetic_data_only"`
 		MarkerRequired            bool   `yaml:"marker_required"`
@@ -231,6 +241,21 @@ type app struct {
 	// Tier 4. It is set by the attack runner after the key has been checked
 	// against the manifest, never taken as a path.
 	selector string
+
+	// scenario is set only by the Tier 10 scenario runner (#291). It changes
+	// four things and nothing else: the service it starts appends to ota.log
+	// rather than truncating it, so one continuous log survives the runner's
+	// restarts; that service logs in UTC, the clock the timeline lines the
+	// board console up against; a staged interruption logs like an ordinary
+	// cut transfer; and a fixture the runner stages keeps its state until the
+	// runner's next step resets it, and that reset never asks the service to
+	// reset the lab, which would delete events.jsonl and reseed Tier 0.
+	scenario bool
+
+	// fixtureID is the fixture being executed, set by the runner for the
+	// length of one execution. The publishing helpers read it to decide how a
+	// release reaches the board when the service runs mutual TLS (#292).
+	fixtureID string
 }
 
 func Run(args []string, out, errOut io.Writer) int {
@@ -354,6 +379,8 @@ func (a *app) dispatch(args []string) error {
 		return a.claim(args[1:])
 	case "attack":
 		return a.attack(args[1:])
+	case "regression":
+		return a.regression(args[1:])
 	case "verify":
 		return a.verify(args[1:])
 	case "evidence":
@@ -364,6 +391,8 @@ func (a *app) dispatch(args []string) error {
 		return a.validateRepository()
 	case "scan":
 		return a.scan(args[1:])
+	case "scenario":
+		return a.scenarioCommand(args[1:])
 	default:
 		a.usage(a.errOut)
 		return fmt.Errorf("unknown command %q", args[0])
@@ -371,7 +400,7 @@ func (a *app) dispatch(args []string) error {
 }
 
 func (a *app) usage(w io.Writer) {
-	fmt.Fprintln(w, "usage: ./course doctor|setup|tier|build|service|device|keys|release|sbom|scan|rollout|fleet|provision|owner|claim|attack|verify|evidence|clean")
+	fmt.Fprintln(w, "usage: ./course doctor|setup|tier|build|service|device|keys|release|sbom|scan|rollout|fleet|provision|owner|claim|attack|regression|scenario|verify|evidence|clean")
 }
 
 func (a *app) context(target string) {
@@ -805,10 +834,15 @@ type firmwareVariant struct {
 	// supportListener is true for Tier 9's support-listener release only,
 	// the one image in the course that compiles in T9-W-34 (#269).
 	supportListener bool
-	// westPatches is true for Tier 9's remediation release only: its build
-	// applies the Tier 9 application's West patch to the workspace and
-	// cleans it afterwards (#278).
+	// westPatches is true for Tier 9's remediation release and for both Tier 10
+	// releases: the build applies the tier application's TF-PSA-Crypto West
+	// patch to the workspace and cleans it afterwards (#278, #290).
 	westPatches bool
+	// handoverPatch is true for Tier 10's candidate release only: its build
+	// copies the application, applies the teammate's handover patch to the
+	// copy, and builds that, so the two planted defects live only in the
+	// candidate's image and never in the repository tree (#290, T10-W-38).
+	handoverPatch bool
 }
 
 var firmwareVariants = map[string]firmwareVariant{
@@ -868,6 +902,7 @@ var firmwareApps = map[string]string{
 	"07": "firmware/tier-07-operational-identity",
 	"08": "firmware/tier-08-credential-lifecycle",
 	"09": "firmware/tier-09-vulnerability-support",
+	"10": "firmware/tier-10-integrated-defense",
 }
 
 // tierSignsItsOwnImage names the tiers whose bootloader is built separately
@@ -878,7 +913,7 @@ var firmwareApps = map[string]string{
 // the property is "this tier's bootloader checks who published an image", and
 // every tier from Tier 3 on has it.
 func tierSignsItsOwnImage(tier string) bool {
-	return tier == "03" || tier == "04" || tier == "05" || tier == "06" || tier == "07" || tier == tier08 || tier == tier09
+	return tier == "03" || tier == "04" || tier == "05" || tier == "06" || tier == "07" || tier == tier08 || tier == tier09 || tier == tier10
 }
 
 func variantsForTier(tier string) map[string]firmwareVariant {
@@ -899,6 +934,8 @@ func variantsForTier(tier string) map[string]firmwareVariant {
 		return tier08Variants
 	case tier09:
 		return tier09Variants
+	case tier10:
+		return tier10Variants
 	default:
 		return firmwareVariants
 	}
@@ -938,6 +975,19 @@ func (a *app) buildFirmware(args []string) error {
 		return fmt.Errorf("tier %s has no firmware application", tier)
 	}
 
+	// Tier 10's candidate builds a throwaway copy of the application with the
+	// teammate's handover patch applied, so the repository tree is never
+	// touched (#290). The corrected variant, and every other tier, builds the
+	// committed tree. appDir is repo-relative either way.
+	if tier == tier10 {
+		tree, cleanup, err := a.tier10AppTree(variant)
+		if err != nil {
+			return err
+		}
+		defer cleanup()
+		appDir = tree
+	}
+
 	confPath, host, err := a.writeFirmwareConfig(variant, tier)
 	if err != nil {
 		return err
@@ -970,7 +1020,7 @@ func (a *app) buildFirmware(args []string) error {
 	// can verify a Release manifest. It is a separate variable from the trust
 	// anchor because it answers a separate question: the anchor says which
 	// service to talk to, this says whose release metadata to believe.
-	if tier == "04" || tier == "05" || tier == "06" || tier == "07" || tier == tier08 || tier == tier09 {
+	if tier == "04" || tier == "05" || tier == "06" || tier == "07" || tier == tier08 || tier == tier09 || tier == tier10 {
 		keyDir, err := a.writeSigningPublicKeyInc()
 		if err != nil {
 			return err
@@ -1000,20 +1050,31 @@ func (a *app) buildFirmware(args []string) error {
 		fmt.Fprintf(a.out, "+ %s ./scripts/build-zephyr-baseline.sh\n", strings.Join(printed, " "))
 		return runAttachedEnv(a.root, a.out, a.errOut, buildEnv, "./scripts/build-zephyr-baseline.sh")
 	}
-	// Tier 9 builds through its patch guard, which refuses a patched module
-	// and applies the West patch around the remediation build alone.
-	if tier == tier09 {
-		// The tree's state is read before the build, because that is the
-		// tree the image is made from.
+	// Tier 9 and Tier 10 build through the patch guard, which refuses a patched
+	// module and applies the TF-PSA-Crypto West patch around the build. The
+	// tree's state is read before the build, because that is the tree the image
+	// is made from.
+	switch tier {
+	case tier09:
 		clean, revision := a.treeIsClean(), a.fullSourceRevision()
-		if err := a.withTier09Patches(variant, runBuild); err != nil {
+		if err := a.withTierPatches(tier, variant, runBuild); err != nil {
 			return err
 		}
 		if err := a.writeTier09BuildRecord(variant, buildDir, confPath, clean, revision); err != nil {
 			return err
 		}
-	} else if err := runBuild(); err != nil {
-		return err
+	case tier10:
+		clean, revision := a.treeIsClean(), a.fullSourceRevision()
+		if err := a.withTierPatches(tier, variant, runBuild); err != nil {
+			return err
+		}
+		if err := a.writeTier10BuildRecord(variant, buildDir, confPath, clean, revision); err != nil {
+			return err
+		}
+	default:
+		if err := runBuild(); err != nil {
+			return err
+		}
 	}
 
 	// Tier 3 and Tier 4 stop here. The image exists and it is unsigned, which
@@ -1139,7 +1200,7 @@ CONFIG_COURSE_TRUST_ANCHOR_FINGERPRINT=%q
 	//
 	// The hardware revision is asserted here and nowhere read. The channel is
 	// a policy choice, not a property of the device.
-	if tier == "04" || tier == "05" || tier == "06" || tier == "07" || tier == tier08 || tier == tier09 {
+	if tier == "04" || tier == "05" || tier == "06" || tier == "07" || tier == tier08 || tier == tier09 || tier == tier10 {
 		body += fmt.Sprintf(`CONFIG_COURSE_SECURITY_COUNTER=%d
 CONFIG_COURSE_HARDWARE_REVISION=%d
 CONFIG_COURSE_RELEASE_CHANNEL=%q
@@ -1158,7 +1219,7 @@ CONFIG_COURSE_RELEASE_CHANNEL=%q
 	// swapping in. Both copies are covered by the image signature. It
 	// identifies the build and not the release, and a Learner's own build
 	// carries their hash and will usually be dirty.
-	if tier == "05" || tier == "06" || tier == "07" || tier == tier08 || tier == tier09 {
+	if tier == "05" || tier == "06" || tier == "07" || tier == tier08 || tier == tier09 || tier == tier10 {
 		symbol, err := trialBehaviourSymbol(variant.trialBehaviour)
 		if err != nil {
 			return "", "", err
@@ -1176,7 +1237,7 @@ CONFIG_COURSE_RELEASE_CHANNEL=%q
 	// that Tier 7 keeps: CONFIG_COURSE_IDENTITY_FACTORY is a plain bool there
 	// rather than half of a choice, so the generated line configures both
 	// trees and the two tiers stay readable side by side.
-	if tier == "06" || tier == "07" || tier == tier08 || tier == tier09 {
+	if tier == "06" || tier == "07" || tier == tier08 || tier == tier09 || tier == tier10 {
 		symbol, err := identityModelSymbol(variant.identityModel)
 		if err != nil {
 			return "", "", err
@@ -1186,7 +1247,7 @@ CONFIG_COURSE_RELEASE_CHANNEL=%q
 
 	// Tier 8 seeds its Time floor with the moment of this build (#217), and
 	// Tier 9 keeps the floor.
-	if tier == tier08 || tier == tier09 {
+	if tier == tier08 || tier == tier09 || tier == tier10 {
 		seed := variant.timeFloorSeed
 		if seed == "" {
 			seed = tier08TimeFloorSeed(time.Now())
@@ -1455,7 +1516,7 @@ func (a *app) serviceStart(https, mutualTLS, releaseApproval bool, present strin
 	if err := runAttached(a.root, a.out, a.errOut, build[0], build[1:]...); err != nil {
 		return err
 	}
-	log, err := os.OpenFile(a.serviceLogPath(), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+	log, err := os.OpenFile(a.serviceLogPath(), a.serviceLogFlags(), 0o600)
 	if err != nil {
 		return err
 	}
@@ -1510,6 +1571,9 @@ func (a *app) serviceStart(https, mutualTLS, releaseApproval bool, present strin
 		"COURSE_RELEASE_DIR="+filepath.Join(a.root, a.manifest.Paths.GeneratedArtifacts, "releases"),
 		"COURSE_RANGE_BEHAVIOUR="+rangeBehaviour,
 	)
+	if a.scenario {
+		command.Env = append(command.Env, "COURSE_RANGE_LOG=plain", "TZ=UTC")
+	}
 	if https {
 		material, ok := presentedCertificate[present]
 		if !ok {
@@ -1583,6 +1647,17 @@ func (a *app) serviceStart(https, mutualTLS, releaseApproval bool, present strin
 	}
 	a.serviceStop()
 	return fmt.Errorf("OTA service did not become healthy, see %s", a.serviceLogPath())
+}
+
+// serviceLogFlags truncates ota.log on every start, which is what every tier
+// before Tier 10 has always done, except under the scenario runner. The
+// runner restarts the service between events, and the Learner reads one
+// continuous log across all eight (#291).
+func (a *app) serviceLogFlags() int {
+	if a.scenario {
+		return os.O_CREATE | os.O_WRONLY | os.O_APPEND
+	}
+	return os.O_CREATE | os.O_WRONLY | os.O_TRUNC
 }
 
 func (a *app) serviceStop() error {
@@ -2073,20 +2148,64 @@ func (a *app) attackRun(args []string) error {
 	if hold > 0 && !f.HardwareRequired {
 		return fmt.Errorf("--hold applies only to a fixture that needs hardware; %s does not", id)
 	}
+	// A device polls on its own schedule. Without a hold, the reset restores
+	// the baseline release before any board can read the insecure one, so the
+	// hardware effect could never be observed.
+	var holdFor func()
+	if hold > 0 {
+		holdFor = func() {
+			fmt.Fprintf(a.out, "Holding the insecure state for %d seconds so an attached device can poll.\n", hold)
+			fmt.Fprintf(a.out, "Watch it with ./course device logs in another terminal.\n")
+			time.Sleep(time.Duration(hold) * time.Second)
+		}
+	}
+	run, err := a.executeAndReset(id, selected, target, selectedInterface, env, fingerprint, holdFor)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(a.out, "Result: %s\n", run.observed)
+	return nil
+}
+
+// fixtureRun is what one guarded execution of a fixture produced.
+type fixtureRun struct {
+	observed string
+	evidence string
+}
+
+// executeAndReset is the side-effecting half of the runner, after the dry run,
+// the exact identifier and the marker handshake: execute, hold, reset, write
+// the evidence record, and block the fixture if the reset failed.
+//
+// hold runs between the execution and the reset, and only after a successful
+// execution. The attack runner's --hold sleeps there. Tier 10's regression
+// rerun waits there for the board's own reaction instead (#292), which is why
+// this is a function and not the tail of attackRun.
+func (a *app) executeAndReset(id, selected, target, selectedInterface string, env environment,
+	fingerprint string, hold func()) (fixtureRun, error) {
+	f := a.manifest.Fixtures[id]
 	start := time.Now().UTC()
 	a.selector = selected
+	a.fixtureID = id
+	defer func() { a.fixtureID = "" }()
 	observed, limitation, artifactHashes, runErr := a.executeFixture(id, target, env)
-	// A device polls on its own schedule. Without a hold, the reset below
-	// restores the baseline release before any board can read the insecure
-	// one, so the hardware effect could never be observed.
-	if hold > 0 && runErr == nil {
-		fmt.Fprintf(a.out, "Holding the insecure state for %d seconds so an attached device can poll.\n", hold)
-		fmt.Fprintf(a.out, "Watch it with ./course device logs in another terminal.\n")
-		time.Sleep(time.Duration(hold) * time.Second)
+	if hold != nil && runErr == nil {
+		hold()
 	}
-	resetErr := a.resetFixtureState(id, target, env)
+	// The scenario runner holds a staged fixture's state until its next step,
+	// because the board polls on its own schedule and the Learner reads the
+	// event before the next one is staged. It resets through
+	// ./course attack reset then. A failed run is still reset at once.
+	held := a.scenario && runErr == nil
+	var resetErr error
+	if !held {
+		resetErr = a.resetFixtureState(id, target, env)
+	}
 	result := "passed"
 	resetResult := "passed"
+	if held {
+		resetResult = "held by ./course scenario until its next step"
+	}
 	if runErr != nil {
 		result = "failed"
 	}
@@ -2105,17 +2224,17 @@ func (a *app) attackRun(args []string) error {
 	}
 	evidencePath, evidenceErr := a.writeAttackEvidence(id, record)
 	if evidenceErr != nil {
-		return evidenceErr
+		return fixtureRun{}, evidenceErr
 	}
 	fmt.Fprintf(a.out, "Evidence: %s\nReset result: %s\n", evidencePath, resetResult)
+	run := fixtureRun{observed: observed, evidence: evidencePath}
 	if resetErr != nil {
-		return fmt.Errorf("automatic reset failed: %v; run %s", resetErr, f.Reset)
+		return run, fmt.Errorf("automatic reset failed: %v; run %s", resetErr, f.Reset)
 	}
 	if runErr != nil {
-		return runErr
+		return run, runErr
 	}
-	fmt.Fprintf(a.out, "Result: %s\n", observed)
-	return nil
+	return run, nil
 }
 
 // An attack a Learner cannot see teaches nothing. These helpers narrate a
@@ -2355,6 +2474,21 @@ func (a *app) executeFixture(id, target string, env environment) (string, string
 		a.note("sha256: %s", hex.EncodeToString(sum[:]))
 
 		a.step(2, "Overwrite the record that decides which firmware every device installs.")
+		if a.hostingMode(id) {
+			if err := a.hostingPublish(id, release); err != nil {
+				return "", "", nil, err
+			}
+			a.step(3, "Read it back from the release store the device listener serves.")
+			body, err := a.hostingStoreFile(name)
+			if err != nil || !bytes.Equal(body, image) {
+				return "", "", nil, errors.New("altered image is not in the release store unchanged")
+			}
+			a.got("%d bytes, byte for byte the altered image.", len(body))
+			a.note("No Release manifest names it, so a device from Tier 4 on has nothing it could verify.")
+			return "a compromised hosting side made the altered unsigned image the Fleet baseline",
+				"the refusal under test is the device's; read the board",
+				map[string]string{name: "sha256:" + hex.EncodeToString(sum[:])}, nil
+		}
 		a.note("The record is mutable and the service does not ask who is changing it.")
 		data, _ := json.Marshal(release)
 		a.sent(http.MethodPut, target+"/v1/releases/current")
@@ -2526,6 +2660,25 @@ func (a *app) resetFixtureState(id, target string, env environment) error {
 	if id == "tier-09/support-listener" {
 		return a.resetSupportListener()
 	}
+	// On a mutual-TLS service the hosting fixtures wrote the baseline file
+	// themselves, so their reset writes back the bytes they saved. It never
+	// asks for the lab reset, which reseeds the Tier 0 release and deletes
+	// the event log every board result is read from (#292).
+	if a.hostingMode(id) {
+		if err := a.hostingRestore(id); err != nil {
+			return err
+		}
+		if id == "tier-00/altered-image" {
+			return a.removeAlteredPlaceholder()
+		}
+		return nil
+	}
+	// The lab reset deletes events.jsonl and reseeds Tier 0. Under the scenario
+	// runner that would erase the incident the Learner is reconstructing and
+	// the Tier 9 end state it runs on, so it is refused outright (#291).
+	if a.scenario {
+		return fmt.Errorf("%s would reset the service to the Tier 0 seed, which the Tier 10 scenario never does", id)
+	}
 	// Tier 2 moved the lab endpoints behind TLS, so the reset goes there and
 	// verifies the certificate like everything else. The marker check that
 	// authorised this run stayed in the clear; the reset is data, and data
@@ -2557,18 +2710,24 @@ func (a *app) resetFixtureState(id, target string, env environment) error {
 		}
 	}
 	if id == "tier-00/altered-image" {
-		// A built altered image is a build output, not fixture state, so it
-		// survives the reset and the Learner can rerun the fixture without
-		// another firmware build. Reset still returns the service to the
-		// baseline release, which is what the device installs next.
-		var built map[string]any
-		builtPath := filepath.Join(a.root, a.manifest.Paths.State, "ota", "built-altered.json")
-		if err := readJSON(builtPath, &built); err == nil {
-			return nil
-		}
-		if err := os.Remove(filepath.Join(a.root, a.manifest.Paths.GeneratedArtifacts, "releases", "tier-00-altered.bin")); err != nil && !errors.Is(err, os.ErrNotExist) {
-			return err
-		}
+		return a.removeAlteredPlaceholder()
+	}
+	return nil
+}
+
+// removeAlteredPlaceholder removes the placeholder altered image and keeps a
+// built one. A built altered image is a build output, not fixture state, so it
+// survives the reset and the Learner can rerun the fixture without another
+// firmware build. Reset still returns the service to the baseline release,
+// which is what the device installs next.
+func (a *app) removeAlteredPlaceholder() error {
+	var built map[string]any
+	builtPath := filepath.Join(a.root, a.manifest.Paths.State, "ota", "built-altered.json")
+	if err := readJSON(builtPath, &built); err == nil {
+		return nil
+	}
+	if err := os.Remove(filepath.Join(a.root, a.manifest.Paths.GeneratedArtifacts, "releases", "tier-00-altered.bin")); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
 	}
 	return nil
 }

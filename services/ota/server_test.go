@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"io"
+	"log"
 	"math/big"
 	"net/http"
 	"net/http/httptest"
@@ -20,6 +21,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -363,6 +365,79 @@ func TestFirmwareCanBeInterrupted(t *testing.T) {
 	}
 	if len(body) > 1024 {
 		t.Fatalf("received %d bytes, want no more than the 1024 byte limit", len(body))
+	}
+}
+
+// lockedBuffer collects log output written from the handler's goroutine.
+type lockedBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *lockedBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *lockedBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
+}
+
+// The Tier 10 scenario stages the same interruption as a scenario event
+// (#291). The Learner classifies it from ota.log, so the line must read like
+// any cut transfer: the cut and the resume are both there, and nothing in it
+// says the course arranged either.
+func TestInterruptCanLogPlainly(t *testing.T) {
+	var logged lockedBuffer
+	log.SetOutput(&logged)
+	defer log.SetOutput(os.Stderr)
+
+	image := bytes.Repeat([]byte{0xa5}, 4096)
+	server := newRangeServer(t, "interrupt:2458", image)
+	server.cfg.RangeLogPlain = true
+	srv := httptest.NewServer(server.Handler())
+	defer srv.Close()
+
+	response, err := http.Get(srv.URL + "/v1/firmware/tier-05-healthy.bin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, readErr := io.ReadAll(response.Body)
+	response.Body.Close()
+	if readErr == nil {
+		t.Fatal("the first transfer finished; it should have been cut")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, srv.URL+"/v1/firmware/tier-05-healthy.bin", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Range", "bytes="+strconv.Itoa(len(first))+"-")
+	response, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rest, err := io.ReadAll(response.Body)
+	response.Body.Close()
+	if err != nil || len(first)+len(rest) != len(image) {
+		t.Fatalf("the resume returned %d bytes after %d (err %v); want the rest of %d",
+			len(rest), len(first), err, len(image))
+	}
+
+	text := logged.String()
+	if strings.Contains(text, "COURSE") || strings.Contains(strings.ToLower(text), "range behaviour") {
+		t.Fatalf("the plain log names the staging:\n%s", text)
+	}
+	for _, want := range []string{
+		"firmware tier-05-healthy.bin: connection lost after 2458 of 4096 bytes from offset 0",
+		"firmware tier-05-healthy.bin: sent " + strconv.Itoa(len(rest)) + " bytes from offset " + strconv.Itoa(len(first)),
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("log lacks %q:\n%s", want, text)
+		}
 	}
 }
 

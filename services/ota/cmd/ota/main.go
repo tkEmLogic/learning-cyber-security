@@ -68,9 +68,12 @@ func main() {
 		StateDir:      env("COURSE_STATE_DIR", ".course-state/ota"),
 		ReleaseDir:    env("COURSE_RELEASE_DIR", "artifacts/generated/releases"),
 		// Empty unless a Learner deliberately started a misbehaving service.
-		// Tier 5 is the only tier that sets it.
+		// Tier 5 sets it, and so does the Tier 10 scenario runner.
 		RangeBehaviour: os.Getenv("COURSE_RANGE_BEHAVIOUR"),
-		MutualTLS:      mutual,
+		// Set only by the Tier 10 scenario runner, so a staged interruption
+		// reads in ota.log like any other cut transfer (#291).
+		RangeLogPlain: os.Getenv("COURSE_RANGE_LOG") == "plain",
+		MutualTLS:     mutual,
 		// false unless a Tier 9 Learner started the service with it: the
 		// baseline PUT then needs an approved release, like a rollout does.
 		ReleaseApproval: releaseApproval,

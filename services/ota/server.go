@@ -42,6 +42,15 @@ type Config struct {
 	//                  transfer rather than a simulated one
 	RangeBehaviour string
 
+	// RangeLogPlain words the interrupt behaviour's log line as an ordinary
+	// cut transfer, with no course marker in it. The Tier 10 scenario runner
+	// sets it (#291), because there the interruption is a scenario event the
+	// Learner classifies from ota.log, and a line announcing "COURSE RANGE
+	// BEHAVIOUR" would hand them the answer. The runner's own staging log
+	// records the mechanism for the Mentor. Tier 5 runs without it, where
+	// naming the staging is the point.
+	RangeLogPlain bool
+
 	// MutualTLS is nil unless the service was started with --mutual-tls, and
 	// nil is what Tiers 0 to 6 run with. The flag is the Learner's to set:
 	// nothing here turns it on by itself, because the fixture safety contract
@@ -435,8 +444,16 @@ func (s *Server) serveInterrupted(w http.ResponseWriter, r *http.Request, file *
 	if flusher, ok := w.(http.Flusher); ok {
 		flusher.Flush()
 	}
-	log.Printf("COURSE RANGE BEHAVIOUR: sent %d of %d bytes from offset %d, then dropped the connection",
-		sent, remaining, start)
+	switch {
+	case !s.cfg.RangeLogPlain:
+		log.Printf("COURSE RANGE BEHAVIOUR: sent %d of %d bytes from offset %d, then dropped the connection",
+			sent, remaining, start)
+	case sent < remaining:
+		log.Printf("firmware %s: connection lost after %d of %d bytes from offset %d",
+			info.Name(), sent, remaining, start)
+	default:
+		log.Printf("firmware %s: sent %d bytes from offset %d", info.Name(), sent, start)
+	}
 
 	if sent < remaining {
 		panic(http.ErrAbortHandler)

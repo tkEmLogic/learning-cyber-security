@@ -1,6 +1,6 @@
 # Fixture safety contract
 
-Status: Resolved design. Tier 0 rules are from the first runnable course release. Tier 2, Tier 3, Tier 4, Tier 6, Tier 7, Tier 8 and Tier 9 rules extend them. Tier 6 is the first to carry a named exception rather than only additions, and it is bounded in the section that takes it. Tier 7 takes no new exception, and it writes the tightest bounds in this document, because its adversary holds a signing key that a correctly configured service obeys. Tier 9 takes no new exception either, and it is the first tier whose attack fixture speaks to the board over the network rather than to the service.
+Status: Resolved design. Tier 0 rules are from the first runnable course release. Tier 2, Tier 3, Tier 4, Tier 6, Tier 7, Tier 8, Tier 9 and Tier 10 rules extend them. Tier 6 is the first to carry a named exception rather than only additions, and it is bounded in the section that takes it. Tier 7 takes no new exception, and it writes the tightest bounds in this document, because its adversary holds a signing key that a correctly configured service obeys. Tier 9 takes no new exception either, and it is the first tier whose attack fixture speaks to the board over the network rather than to the service. Tier 10 adds no fixture. It reruns the earlier ones as regression evidence, and it changes how four of them publish on a mutual-TLS service, which its section bounds.
 
 This contract lets a Learner demonstrate insecure behavior, and later watch a control refuse it, without turning a course fixture into a general network attack tool.
 
@@ -733,6 +733,91 @@ fixture sends one datagram to the board's recorded address. The fleet requires
 no hardware of its own: a synthetic fleet does not need the boards it stands in
 for, and what it may not claim is anything about a device.
 
+## Tier 10 fixtures
+
+Tier 10 adds no fixture and no new authority. It adds two commands, `./course regression run`, which reruns the earlier fixtures against the release the board is running, and `./course scenario`, which stages the integration scenario from existing machinery. It also changes how four existing fixtures publish when the service runs mutual TLS. All three are bound here.
+
+### Four fixtures publish as a compromised hosting side on a mutual-TLS service
+
+`tier-00/altered-image`, `tier-03/hostile-image`, `tier-04/hostile-release` and `tier-04/replay-release` publish by changing the Fleet baseline. Up to Tier 6 they send the baseline PUT and undo it with `POST /v1/lab/reset`. From Tier 7 neither works. The PUT goes to the TLS port, which is now the device listener and demands a client certificate the fixture does not hold, and from Tier 9 the operator listener's PUT refuses an unapproved release. The lab reset is worse: it reseeds the Tier 0 release and deletes `events.jsonl`, which is the record every board result from Tier 7 on is read from.
+
+**When the service runs mutual TLS, these four write `.course-state/ota/current-release.json` directly.** The actor is a compromised hosting side, not a compromised operator. Whoever can write the service's own state file is past every check the service makes, release approval included, so what is left to refuse the release is the board, which is what each of these fixtures exists to show. The fixture says this in its output every time it publishes this way.
+
+**It saves the exact bytes it replaces, and its reset writes those bytes back.** The saved copy is `.course-state/ota/hosting-saved-release.json` and names the fixture that wrote it. The reset never calls the lab reset in this mode. A second hosting publish is refused while a save exists, because it would save the first fixture's hostile release as the thing to restore, and one fixture's reset does not restore another's save.
+
+**It refuses while a rollout is open.** A device in a rollout is offered the rollout's release, never the baseline, so the board could not see what the fixture wrote, and silence would look like a refusal.
+
+**It reads back from the release store, not over the device listener.** The fixture holds no Operational certificate, so the step that fetched the release back the way a device would now reads the files the device listener serves from, and says so.
+
+The replay's candidate set is wider from Tier 10. It is still a manifest-owned list and never a directory scan, but it now holds the good releases of Tiers 4 to 9 rather than Tier 4's only. It leaves out a withdrawn release, because the service never offers one again, and the Tier 8 Time floor lab image, because that image refuses its own board's certificate if it ever runs.
+
+On a service without mutual TLS all four behave exactly as the earlier sections describe.
+
+### The regression rerun
+
+| Command | Permitted action | Refused behavior |
+| --- | --- | --- |
+| `./course regression run` | Rerun the plan in the `regression:` block of `course.yml`: the board-capable fixtures through the attack runner's own execution and reset, the support listener's `inventory` request, one host probe per Tier 0 and Tier 2 attack, E-6-07, and the Tier 7 and Tier 8 host rows through their own wrapper. Read the board's reactions from the service's event log. Write one receipt per run under `.course-state/regression/`. | A fixture, selector, device id, release id, address or port on the command line. A plan entry outside each fixture's own allowlist. The support listener's `reboot` request. An unbounded wait or retry. A host result reported as a board result. Starting while a hosting fixture's save is still in place. |
+
+**It keeps every Tier 0 guarantee.** A dry run is the default and prints the plan. `--execute regression` runs it, and `--only <fixture>` narrows it to an id the plan already holds. The marker handshake runs once against the plain target before any side effect, and the run requires the Learner's own mutual-TLS service, as the Tier 7 rows do. Each board fixture runs through the same execution, reset, evidence record and block-after-failed-reset that `./course attack run` uses. The one difference is where the hold sits: the run waits for the board's own reaction there, within `board_wait_seconds`, instead of sleeping.
+
+**A board result is the board's own record.** It is an event the service stored under the board's device id while the release was published (`update.refused`, `update.failed`, or `update.installed` followed by a report of the release it was already running), or the board's own answer on the support-listener port. The board's id is found in the log, as the one device that reported over mutual TLS within `board_fresh_seconds` and that no synthetic list in the manifest names. The run refuses when there is no such device or more than one.
+
+**A wait that runs out is no result, never a pass.** So is silence from the support listener after every attempt. A planned release entry that cannot reach the board, because a rollout is open, is also no result, and says why.
+
+**The support listener may be asked more than once, and this is one of two bounded retries in this contract.** The other is the integration scenario's Event 8, below. The planted listener is live only while the candidate is on trial, so a run may start a little before the trial boot opens it. The run sends at most `support_attempts` single datagrams, `support_interval_seconds` apart, and stops at the first answer: a reply, or the board's port unreachable. Only silence is retried. The command caps the count at 6 and the span at 120 s whatever `course.yml` says. Each attempt is still one datagram out and at most one in.
+
+**The plan must cover every board-capable fixture.** Each registered fixture with `hardware_required: true` is either rerun on the board or listed in `not_rerun` with a reason, and the run prints each exclusion as "not run". A fixture added later cannot be left out silently.
+
+**Labels come from the plan, not from outcomes.** An entry in the board list is labelled `board` and must name a fixture that needs hardware. An entry in the host list is labelled `host`. A host result never stands in for a board result.
+
+**The host probes change no service state, so they need no reset.** They are not run through `./course attack run`, because the Tier 0 and Tier 2 fixtures publish to the TLS port without a client certificate and reset through the lab reset. The Tier 7 and Tier 8 rows leave the adversary owner live, so `./course service bypass reset` runs once after them.
+
+**The run checks the Fleet baseline and the rollout state before and after.** It reads both from the operator listener. A release step that does not leave the baseline as it found it stops the release steps after it, and a run that changed either fails and says so.
+
+### The integration scenario
+
+`./course scenario start`, `next`, `status` and `reset` stage the eight scenario events of #288, one per `next`, so the Learner can classify each one before the next is staged. **It is not a fixture and adds no attack.** Each event calls machinery the course already has, through that machinery's own Go entry point and with all of its own checks: a service restart with `--present wrong-name`, `tier-04/hostile-release --release wrong-key` and `tier-04/replay-release` through the attack runner, `service bypass e-8-07` through its own wrapper followed by `service bypass reset`, the rollout commands acting as the role `teammate`, a service restart with `--range interrupt:<bytes>`, and `tier-09/support-listener --request inventory` through the attack runner.
+
+| Command | Permitted action | Refused behavior |
+| --- | --- | --- |
+| `./course scenario` | Stage the events listed in the `scenario:` block of `course.yml`, in that order, with the inputs that block names. Restart the Learner's own service with the Tier 9 flags plus one event's change. Sign, describe, test and approve the candidate as `teammate`. Write its state and a staging log under `.course-state/scenario/`. | A fixture, selector, row, release, interval or count on the command line. A device id other than an active, non-synthetic device in the manufacturing record. The lab reset. The support listener's `reboot` request. An unbounded wait or series. Starting anywhere but the Tier 9 end state. |
+
+**It fails closed on every command that acts.** `start`, `next`, and a `reset` with anything to undo each check the target rules and the marker handshake over plain HTTP, and require the Learner's own mutual-TLS service, before any side effect. `start` also refuses unless the Tier 9 end state holds: the running service's own command line carries `--https --mutual-tls --release-approval` (read from `/proc`, because nothing else records the last flag), the Fleet baseline is `tier-09-remediation`, no rollout is open, the candidate has not been withdrawn in an earlier run, the board's address is on record, and the hostile release Event 2 publishes has been built.
+
+**The board is found, not typed.** It is the one active device in the manufacturing record that no synthetic list in the manifest names: the fleet's devices, every bypass block's identifiers, and every fixture's phantom identifiers. `--device` may name it when there is more than one, and it is held to the same test. The misspelled canary group the teammate types is derived from it by swapping its last pair of differing characters. A swap that would name a device the record holds is skipped for the pair before it, so the group never names a real device.
+
+**It never asks the service to reset the lab.** That reset reseeds the Tier 0 release and deletes `events.jsonl`, the record the Learner reconstructs the incident from. The scenario sets a flag on the runner that refuses the lab reset outright, so a fixture reset that would reach it fails instead. The hosting fixtures' own reset, which writes back the saved baseline bytes, is what undoes Events 2 and 3.
+
+**A staged fixture keeps its state until the next step, and that is the one change to the reset contract.** The board polls on its own schedule and the Learner reads each event before staging the next, so the runner does not reset a fixture at the end of its run. The evidence record says the reset is held by the scenario. The next `next`, or `reset`, runs `./course attack reset` for it before anything else, and `scenario status` says a temporary change is in force. A fixture run that fails is still reset at once.
+
+**Each `next` undoes the previous event's temporary change before staging.** The one planned exception is the interruption. The board downloads within about 30 s of the rollout's advance, so the service is restarted with `--range interrupt:<bytes>` while Event 5 is staged, at 0.6 of the candidate's size so one cut and one resume complete a transfer. Event 6 waits, bounded, for the cut and the resume in `ota.log` and then restarts the service without it.
+
+**Event 8 is a bounded series of separate fixture runs.** One candidate cycle takes minutes and the trial window is 60 s, so the runner sends `tier-09/support-listener --request inventory` every `listener_interval_seconds`, for at most `listener_max_seconds`, and stops at the first answer. Each run is an ordinary fixture run, with its own marker handshake, single datagram, evidence record and no-op reset; nothing retries inside a run. The runner refuses a block that asks for a series longer than 600 s or an interval shorter than 5 s.
+
+**The service it restarts is changed in three ways, and only by the runner.** `ota.log` is appended to rather than truncated, so one continuous log survives the restarts. It logs in UTC, the host clock the timeline lines the board console up against. And an interrupted transfer logs as `firmware <image>: connection lost after ...` rather than with the course's `COURSE RANGE BEHAVIOUR` marker, because the Learner classifies that event from `ota.log`. The staging log records the mechanism for the Mentor.
+
+**The terminal shows symptoms only.** It prints `Event N staged at <UTC time>` and where an operator would look. Everything the called machinery prints goes to `.course-state/scenario/staging.log`, which is the Mentor's. Event 4 is labelled `HOST result`, because a bypass row runs from the host, and a host result never stands in for a board result.
+
+**Its reset undoes only the runner's own temporary changes.** It restarts the service with the Tier 9 flags if an event changed them, resets a held fixture, and forgets the scenario. It rewinds no record and closes no rollout: the rollout, the approval and every record line are the incident, and closing the rollout is the Learner's recovery.
+
+### Manifest entries these read
+
+| Entry | Read by | For |
+| --- | --- | --- |
+| `scenario.target`, `.interface` | the scenario | the marker handshake and the interface check |
+| `scenario.baseline_release`, `.candidate_variant`, `.candidate_release`, `.actor` | the scenario | the Tier 9 end state it starts from, the candidate, and the role that approves and rolls it out |
+| `scenario.events` | the scenario | each event's id, step and the allowlisted inputs it passes on, checked against each fixture's own allowlist |
+| `scenario.interrupt_fraction`, `.transfer_wait_seconds`, `.revert_wait_seconds`, `.listener_interval_seconds`, `.listener_max_seconds` | the scenario | the interruption point and every bound on a wait or a series |
+| `.course-state/scenario/state.json`, `staging.log` | the scenario | what is staged and what is in force, and the Mentor's record of how |
+| `regression.target`, `.interface` | the regression run | the marker handshake and the interface check |
+| `regression.device_port`, `.operator_port`, `.service_name` | the regression run | the host probes and the baseline and rollout reads, so no endpoint is on a command line |
+| `regression.board_wait_seconds`, `.board_fresh_seconds` | the regression run | the bound on each wait, and how recent the board's report must be |
+| `regression.support_attempts`, `.support_interval_seconds` | the regression run | the bounded support-listener retry |
+| `regression.board`, `.host`, `.not_rerun` | the regression run | the plan, each entry's expected outcome, and each exclusion's reason |
+| `.course-state/ota/events.jsonl` | the regression run | the board's identity, its running release, and its reactions |
+| `.course-state/ota/hosting-saved-release.json` | the four hosting fixtures and the regression run | the exact baseline bytes a hosting publish replaced |
+
 ## Capture rules
 
 A fixture may capture traffic only under these bounds.
@@ -783,7 +868,7 @@ The fixture exits nonzero and names the failed check.
 
 It never falls back to a weaker target check, a wider address scope, a default device, or an unrestricted command.
 
-Sources: [Define the Tier 0 fixture safety contract](https://github.com/tkEmLogic/learning-cyber-security/issues/24) for the Tier 0 rules, [Extend the fixture safety contract to HTTPS and a named service](https://github.com/tkEmLogic/learning-cyber-security/issues/41) for the transport, service name, and capture rules, [Extend the fixture safety contract to hostile firmware images and signing keys](https://github.com/tkEmLogic/learning-cyber-security/issues/53) for the key material and Tier 3 rules, [What does the fixture safety contract need for Tier 4?](https://github.com/tkEmLogic/learning-cyber-security/issues/70) for the manifest signing and replay rules, [Write the Tier 6 section of the fixture safety contract](https://github.com/tkEmLogic/learning-cyber-security/issues/122) for the compiled-in credential exception, the append-only reset, and the flash dump rules, [Write the Tier 7 section of the fixture safety contract](https://github.com/tkEmLogic/learning-cyber-security/issues/149) for the Operational CA signing bounds, the reset split between history and live authorization state, and the naming-convention limitation, [Build the Tier 8 attack fixture](https://github.com/tkEmLogic/learning-cyber-security/issues/257) for the Tier 8 rows, [Show the Time floor refusing a far-future manifest on the host](https://github.com/tkEmLogic/learning-cyber-security/issues/262) for `E-8-11`, and [Build the Tier 9 rollout commands, attack fixture and synthetic canary fleet](https://github.com/tkEmLogic/learning-cyber-security/issues/279) for the Tier 9 support-listener fixture, the board-address lab control and the synthetic canary fleet.
+Sources: [Define the Tier 0 fixture safety contract](https://github.com/tkEmLogic/learning-cyber-security/issues/24) for the Tier 0 rules, [Extend the fixture safety contract to HTTPS and a named service](https://github.com/tkEmLogic/learning-cyber-security/issues/41) for the transport, service name, and capture rules, [Extend the fixture safety contract to hostile firmware images and signing keys](https://github.com/tkEmLogic/learning-cyber-security/issues/53) for the key material and Tier 3 rules, [What does the fixture safety contract need for Tier 4?](https://github.com/tkEmLogic/learning-cyber-security/issues/70) for the manifest signing and replay rules, [Write the Tier 6 section of the fixture safety contract](https://github.com/tkEmLogic/learning-cyber-security/issues/122) for the compiled-in credential exception, the append-only reset, and the flash dump rules, [Write the Tier 7 section of the fixture safety contract](https://github.com/tkEmLogic/learning-cyber-security/issues/149) for the Operational CA signing bounds, the reset split between history and live authorization state, and the naming-convention limitation, [Build the Tier 8 attack fixture](https://github.com/tkEmLogic/learning-cyber-security/issues/257) for the Tier 8 rows, [Show the Time floor refusing a far-future manifest on the host](https://github.com/tkEmLogic/learning-cyber-security/issues/262) for `E-8-11`,, [Build the Tier 9 rollout commands, attack fixture and synthetic canary fleet](https://github.com/tkEmLogic/learning-cyber-security/issues/279) for the Tier 9 support-listener fixture, the board-address lab control and the synthetic canary fleet, and [Build the regression rerun command](https://github.com/tkEmLogic/learning-cyber-security/issues/292) for the regression rerun and the hosting publish on a mutual-TLS service, and [Build the Tier 10 scenario runner](https://github.com/tkEmLogic/learning-cyber-security/issues/291) for the integration scenario.
 
 ## Where each rule is enforced
 
@@ -839,5 +924,18 @@ A rule with no named enforcement point is a wish. This table says where each rul
 | The synthetic canary fleet uses one manifest-owned owner that is not the board owner or the adversary, and never signs with the Operational CA key | `ensureFleetOwner` and `fleetClaim` in `internal/courseapp/tier09_fleet.go`, against `fleet.owner` in `course.yml`, and `TestFleetOwnerIsNotTheBoardOwnerOrAdversary` | Enforced |
 | The fleet enrols only bounded manifest identifiers and never downloads or installs firmware | `fleetAllowed` and `fleetOfferedRelease` in `internal/courseapp/tier09_fleet.go`, against `fleet.device_ids`, and `TestFleetRefusesUnknownDevice`, `TestFleetEnrollBaselinePollAndReset` | Enforced |
 | The fleet's reset removes the fleet owner, keeps the devices and their keys, and appends a `fixture_reset` line | `fleetReset` in `internal/courseapp/tier09_fleet.go`, reusing `removeOwnerEntries`, and `TestFleetEnrollBaselinePollAndReset` | Enforced |
+| On a mutual-TLS service the four baseline fixtures publish by writing the state file, save the exact bytes first, and reset by writing them back, never through the lab reset | `hostingPublish` and `hostingRestore` in `internal/courseapp/tier10_hosting.go`, reached from `putRelease`, the altered-image fixture and `resetFixtureState`, and `TestHostingPublishAndRestoreOnTheMutualTLSService` | Enforced |
+| A hosting publish refuses over an unreset save and under an open rollout | `hostingPublish` in `internal/courseapp/tier10_hosting.go`, and `TestHostingPublishAndRestoreOnTheMutualTLSService` | Enforced |
+| The replay names only a good release from the manifest-owned lists of Tiers 4 to 9, never a withdrawn one or the Time floor lab image | `replayCandidates` in `internal/courseapp/tier04.go`, and `TestReplayCandidatesSpanTiersAndSkipWithdrawn` | Enforced |
+| The regression plan covers every board-capable fixture, takes selectors only from each fixture's allowlist, starts with the support listener's inventory, and labels by list | `buildRegressionPlan` in `internal/courseapp/tier10_regression.go`, and `TestRegressionPlanFromCourseYML`, `TestRegressionPlanRefusesABadBlock` | Enforced |
+| A board result is read from the board's own stored events, and a wait that runs out is no result | `identifyBoard`, `classifyReleaseReaction`, `waitForReaction` and `judge` in `internal/courseapp/tier10_regression.go`, and `TestClassifyReleaseReactionFromEventRecords`, `TestWaitForReactionTimesOutAsNoResult` | Enforced |
+| The support listener's retry is bounded and stops at the first answer | `askSupportListener` and `buildRegressionPlan` in `internal/courseapp/tier10_regression.go` | Enforced |
+| The scenario stages only the manifest's events, in #288's order, with inputs from each fixture's own allowlist | `validateScenarioManifest` in `internal/courseapp/tier10_scenario.go`, and `TestScenarioManifestRefusesWhatItCannotRun` | Enforced |
+| The scenario checks the marker before every action and starts only from the Tier 9 end state | `checkEnvironment` and `start` in `internal/courseapp/tier10_scenario.go`, and `TestScenarioRefusals` and `TestScenarioNextFailsClosedOutsideTheEnvironment` | Enforced |
+| The scenario never reaches the lab reset | the `scenario` flag in `resetFixtureState` in `internal/courseapp/app.go`, and `TestScenarioNeverResetsTheLab` | Enforced |
+| Each `next` undoes the previous event's temporary change first, except the interruption Event 6 needs | `next` and `undoTemporary` in `internal/courseapp/tier10_scenario.go`, and `TestScenarioNextStagesTheEventsInOrder` | Enforced |
+| The terminal names no class, boundary, control or mechanism, and labels the host event | `printStaged` in `internal/courseapp/tier10_scenario.go`, and `TestScenarioTerminalWordingLeaksNothing` | Enforced |
+| One continuous `ota.log`, and a staged interruption logged without the course marker | `serviceLogFlags` in `internal/courseapp/app.go` and `RangeLogPlain` in `services/ota/server.go`, and `TestServiceLogAppendsOnlyUnderTheScenario` and `TestInterruptCanLogPlainly` | Enforced |
+| The regression run keeps the dry run, the exact identifier, the marker handshake and a receipt | `regressionRun` in `internal/courseapp/tier10_regression.go`, and `TestRegressionRunAgainstTheMutualTLSService` | Enforced |
 
 When a rule moves, this table moves with it.

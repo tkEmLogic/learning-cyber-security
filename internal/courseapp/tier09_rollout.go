@@ -34,16 +34,19 @@ func (a *app) rollout(args []string) error {
 	}
 }
 
-// rolloutOptions reads the options every rollout command shares. Tier is
-// accepted and must be 09, so a command copied from the module reads the same
-// way the release commands do.
+// rolloutOptions reads the options every rollout command shares. The tier is
+// read from --tier and must be 09 or 10: both tiers offer releases through the
+// same rollout routes, and #288 found that rollout start accepted only Tier 9's
+// variants. It defaults to Tier 9 when omitted, so Tier 9's module examples read
+// unchanged.
 type rolloutOptions struct {
+	tier                   string
 	variant, actor, reason string
 	canary                 []string
 }
 
 func parseRolloutOptions(args []string, allowed ...string) (rolloutOptions, error) {
-	var opts rolloutOptions
+	opts := rolloutOptions{tier: tier09}
 	permitted := map[string]bool{"--tier": true, "--actor": true}
 	for _, name := range allowed {
 		permitted[name] = true
@@ -60,9 +63,11 @@ func parseRolloutOptions(args []string, allowed ...string) (rolloutOptions, erro
 		i++
 		switch name {
 		case "--tier":
-			if normalizeTier(value) != tier09 {
-				return opts, errors.New("rollouts are Tier 9's; pass --tier 09")
+			tier := normalizeTier(value)
+			if tier != tier09 && tier != tier10 {
+				return opts, errors.New("rollouts are Tier 9's and Tier 10's; pass --tier 09 or --tier 10")
 			}
+			opts.tier = tier
 		case "--variant":
 			opts.variant = value
 		case "--actor":
@@ -83,6 +88,19 @@ func parseRolloutOptions(args []string, allowed ...string) (rolloutOptions, erro
 	return opts, nil
 }
 
+// storedManifestForTier reads a signed release manifest for whichever tier owns
+// the variant, so the rollout and withdraw commands forge nothing: the release
+// record comes from the release's own signed manifest.
+func (a *app) storedManifestForTier(tier string, variant firmwareVariant) (releaseManifest, error) {
+	switch tier {
+	case tier09:
+		return a.tier09StoredManifest(variant)
+	case tier10:
+		return a.tier10StoredManifest(variant)
+	}
+	return releaseManifest{}, fmt.Errorf("tier %s has no rollout releases", tier)
+}
+
 // rolloutStart offers an approved release to a named Canary group. The
 // release record comes from the release's own signed manifest, as every
 // earlier assign did, so the command forges nothing.
@@ -91,14 +109,14 @@ func (a *app) rolloutStart(args []string) error {
 	if err != nil {
 		return err
 	}
-	variant, err := tier09Variant(opts.variant)
+	variant, err := a.firmwareTierVariant(opts.tier, opts.variant)
 	if err != nil {
 		return err
 	}
 	if len(opts.canary) == 0 {
 		return errors.New("--canary <device id>[,<device id>] is required: a rollout starts with a named Canary group")
 	}
-	manifest, err := a.tier09StoredManifest(variant)
+	manifest, err := a.storedManifestForTier(opts.tier, variant)
 	if err != nil {
 		return err
 	}

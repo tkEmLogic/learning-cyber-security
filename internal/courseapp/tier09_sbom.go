@@ -56,6 +56,19 @@ type tier09BuildRecord struct {
 	ConfigFragmentSHA256 string               `json:"config_fragment_sha256"`
 	Projects             []tier09Project      `json:"projects"`
 	WestPatches          []tier09AppliedPatch `json:"west_patches"`
+	// HandoverPatch is set only for Tier 10's candidate: the application-level
+	// patch applied to the build-time copy of the tree (#290, T10-W-38).
+	HandoverPatch *tier10HandoverRecord `json:"handover_patch,omitempty"`
+}
+
+// tier10HandoverRecord names the handover patch a build carried, so the build
+// record and manifest are honest that the image is the committed tree plus that
+// patch, not the committed tree alone (#290).
+type tier10HandoverRecord struct {
+	File        string `json:"file"`
+	SHA256      string `json:"sha256"`
+	AppliedTo   string `json:"applied_to"`
+	Description string `json:"description"`
 }
 
 // tier09Project is one West project as the build found it.
@@ -691,23 +704,24 @@ func newBOM(record tier09BuildRecord, top cdxComponent, components []cdxComponen
 // tier09BuildManifest is the record that ties a release to what built it.
 // The service reads only clean_tree from it, and digests the rest (#276).
 type tier09BuildManifest struct {
-	SchemaVersion        int                  `json:"schema_version"`
-	ReleaseID            string               `json:"release_id"`
-	SourceRevision       string               `json:"source_revision"`
-	CleanTree            bool                 `json:"clean_tree"`
-	BuiltAt              string               `json:"built_at"`
-	Application          string               `json:"application"`
-	Board                string               `json:"board"`
-	SecurityCounter      int                  `json:"security_counter"`
-	ConfigFragmentSHA256 string               `json:"config_fragment_sha256"`
-	SigningKey           string               `json:"signing_key_fingerprint"`
-	Toolchain            map[string]string    `json:"toolchain"`
-	Projects             []tier09Project      `json:"projects"`
-	WestPatches          []tier09AppliedPatch `json:"west_patches"`
-	Builds               map[string]any       `json:"builds"`
-	Outputs              map[string][]cdxHash `json:"outputs"`
-	SBOMs                map[string]string    `json:"sboms"`
-	Limitations          []string             `json:"limitations"`
+	SchemaVersion        int                   `json:"schema_version"`
+	ReleaseID            string                `json:"release_id"`
+	SourceRevision       string                `json:"source_revision"`
+	CleanTree            bool                  `json:"clean_tree"`
+	BuiltAt              string                `json:"built_at"`
+	Application          string                `json:"application"`
+	Board                string                `json:"board"`
+	SecurityCounter      int                   `json:"security_counter"`
+	ConfigFragmentSHA256 string                `json:"config_fragment_sha256"`
+	SigningKey           string                `json:"signing_key_fingerprint"`
+	Toolchain            map[string]string     `json:"toolchain"`
+	Projects             []tier09Project       `json:"projects"`
+	WestPatches          []tier09AppliedPatch  `json:"west_patches"`
+	HandoverPatch        *tier10HandoverRecord `json:"handover_patch,omitempty"`
+	Builds               map[string]any        `json:"builds"`
+	Outputs              map[string][]cdxHash  `json:"outputs"`
+	SBOMs                map[string]string     `json:"sboms"`
+	Limitations          []string              `json:"limitations"`
 }
 
 // sbomFirmware writes the release's SBOM, the shipped bootloader's SBOM, and
@@ -729,23 +743,27 @@ func (a *app) sbomFirmware(args []string) error {
 		}
 		args = args[2:]
 	}
-	if tier != tier09 {
-		return errors.New("./course sbom firmware is Tier 9's; pass --tier 09 --variant support-listener or remediation")
+	// Tier 9 and Tier 10 share this command: both write a CycloneDX SBOM over
+	// the same Zephyr workspace, differing only in which application and which
+	// variant they describe (#290).
+	if tier != tier09 && tier != tier10 {
+		return errors.New("./course sbom firmware is Tier 9's and Tier 10's; pass --tier 09 or --tier 10 --variant <release>")
 	}
-	variant, err := tier09Variant(name)
+	variant, err := a.firmwareTierVariant(tier, name)
 	if err != nil {
 		return err
 	}
-	buildDir := a.tier09BuildDir(variant)
+	appBase := filepath.Base(firmwareApps[tier])
+	buildDir := filepath.Join(a.zephyrWorkspace(), "build", appBase+"-"+variant.label)
 	var record tier09BuildRecord
 	if err := readJSON(filepath.Join(buildDir, "course-build.json"), &record); err != nil {
-		return fmt.Errorf("no build record for %s; run ./course build firmware --tier 09 --variant %s first", variant.label, variant.label)
+		return fmt.Errorf("no build record for %s; run ./course build firmware --tier %s --variant %s first", variant.label, tier, variant.label)
 	}
 	signed := filepath.Join(a.releaseDir(), variant.imageName)
 	if _, err := os.Stat(signed); err != nil {
-		return fmt.Errorf("no signed release to describe; run ./course release sign --tier 09 --variant %s first", variant.label)
+		return fmt.Errorf("no signed release to describe; run ./course release sign --tier %s --variant %s first", tier, variant.label)
 	}
-	appBuild := filepath.Join(buildDir, "tier-09-vulnerability-support")
+	appBuild := filepath.Join(buildDir, appBase)
 	bootBuild := buildDir + "-bootloader"
 	soc := "esp32c6"
 
@@ -851,6 +869,11 @@ func (a *app) sbomFirmware(args []string) error {
 		fmt.Fprintln(a.out, "Note: this image was built from a tree with uncommitted changes. The build")
 		fmt.Fprintln(a.out, "Note: manifest says so, and the service will refuse to approve the release.")
 	}
+	if record.HandoverPatch != nil {
+		fmt.Fprintf(a.out, "Note: this image carries the handover patch %s\n", record.HandoverPatch.File)
+		fmt.Fprintf(a.out, "Note: sha256 %s, applied to %s.\n", record.HandoverPatch.SHA256, record.HandoverPatch.AppliedTo)
+		fmt.Fprintln(a.out, "Note: the build manifest records it, so the record is honest about what built the image.")
+	}
 	return nil
 }
 
@@ -894,6 +917,7 @@ func (a *app) tier09Manifest(variant firmwareVariant, record tier09BuildRecord, 
 		Toolchain:            a.tier09Toolchain(appBuild),
 		Projects:             record.Projects,
 		WestPatches:          record.WestPatches,
+		HandoverPatch:        record.HandoverPatch,
 		Builds: map[string]any{
 			"application": map[string]string{"directory": appBuild, "kind": "sysbuild application image"},
 			"bootloader_shipped": map[string]string{"directory": bootBuild,
