@@ -285,7 +285,7 @@ The moment, recorded in UTC, when the manufacturer has a reasonable degree of
 certainty after a prompt assessment that a reportable event has happened. Every
 reporting deadline counts from it except the final report, which counts from
 its own anchor event.
-_Avoid_: Discovery time, detection time
+_Avoid_: Discovery time, detection time, first observed
 
 **Scenario clock**:
 A script of timestamped events that a reporting exercise follows instead of the
@@ -306,6 +306,13 @@ expected to answer, before the next event is staged. The answer key holds the
 final classification.
 _Avoid_: Incident, step, stage
 
+**Incident record**:
+The internal handling record of one integration scenario: a timeline of facts
+that names the clock each time came from, every scenario event with its first
+and final classification, and the response, recovery and lessons learned. It
+is written for the team that handled the events, not for a regulator.
+_Avoid_: Incident report, incident log
+
 **Support period**:
 The fixed span, counted from when the product is first placed on the market,
 during which the manufacturer handles vulnerabilities and issues security
@@ -324,6 +331,19 @@ One row per CRA duty, linking it to product assumptions, requirements,
 controls, evidence, status, residual risk, the responsible role and a dated
 legal source, and saying whether legal review is required.
 _Avoid_: Compliance matrix, conformity record
+
+**Final claim matrix**:
+One row per security claim at the end of the core course, giving its status,
+the controls behind it, the evidence for it, and the open weakness-ledger rows
+that limit it. A claim whose only evidence is a host result is at most partly
+supported.
+_Avoid_: Compliance matrix, final report
+
+**Residual-risk summary**:
+Every residual risk still open at the end of the core course, grouped by who
+closes it: Advanced Tier A, Advanced Tier B, accepted for the core course, or a
+recorded limit of the lab that no tier closes.
+_Avoid_: Risk register, limitations list
 
 **Coordinated vulnerability disclosure policy**:
 The manufacturer's public statement of how outside parties report a suspected
