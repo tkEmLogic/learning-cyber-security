@@ -778,30 +778,6 @@ evidence:
       template: evidence/templates/tier-02/claim-and-residual-risk.md
       format: markdown
       learner_path: evidence/learner/tier-02/claim-and-residual-risk.md
-  # Tiers 3 to 9 never added entries here, and no command reads this block:
-  # `./course evidence check --tier NN` reads evidence/templates/tier-NN/.
-  # Tier 10's closing records are listed so the manifest names them.
-  tier_10:
-    - id: incident-record
-      template: evidence/templates/tier-10/incident-record.md
-      format: markdown
-      learner_path: evidence/learner/tier-10/incident-record.md
-    - id: recovery-record
-      template: evidence/templates/tier-10/recovery-record.md
-      format: markdown
-      learner_path: evidence/learner/tier-10/recovery-record.md
-    - id: corrected-release
-      template: evidence/templates/tier-10/corrected-release.md
-      format: markdown
-      learner_path: evidence/learner/tier-10/corrected-release.md
-    - id: final-claim-matrix
-      template: evidence/templates/tier-10/final-claim-matrix.md
-      format: markdown
-      learner_path: evidence/learner/tier-10/final-claim-matrix.md
-    - id: residual-risk-summary
-      template: evidence/templates/tier-10/residual-risk-summary.md
-      format: markdown
-      learner_path: evidence/learner/tier-10/residual-risk-summary.md
 
 safety:
   synthetic_data_only: true
@@ -1596,12 +1572,6 @@ tiers:
     complete_checkpoint: course-v1.0-tier-10-complete
     module: course-material/tiers/tier-10-integrated-defense/index.md
     prerequisites: ["09"]
-    evidence:
-      - incident-record
-      - recovery-record
-      - corrected-release
-      - final-claim-matrix
-      - residual-risk-summary
   "A":
     title: Add ESP32-C6 hardware-rooted security
     kind: control
