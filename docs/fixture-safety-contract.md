@@ -777,7 +777,7 @@ On a service without mutual TLS all four behave exactly as the earlier sections 
 
 ### The integration scenario
 
-`./course scenario start`, `next`, `status` and `reset` stage the eight scenario events of #288, one per `next`, so the Learner can classify each one before the next is staged. **It is not a fixture and adds no attack.** Each event calls machinery the course already has, through that machinery's own Go entry point and with all of its own checks: a service restart with `--present wrong-name`, `tier-04/hostile-release --release wrong-key` and `tier-04/replay-release` through the attack runner, `service bypass e-8-07` through its own wrapper, the rollout commands acting as the role `teammate`, a service restart with `--range interrupt:<bytes>`, and `tier-09/support-listener --request inventory` through the attack runner.
+`./course scenario start`, `next`, `status` and `reset` stage the eight scenario events of #288, one per `next`, so the Learner can classify each one before the next is staged. **It is not a fixture and adds no attack.** Each event calls machinery the course already has, through that machinery's own Go entry point and with all of its own checks: a service restart with `--present wrong-name`, `tier-04/hostile-release --release wrong-key` and `tier-04/replay-release` through the attack runner, `service bypass e-8-07` through its own wrapper followed by `service bypass reset`, the rollout commands acting as the role `teammate`, a service restart with `--range interrupt:<bytes>`, and `tier-09/support-listener --request inventory` through the attack runner.
 
 | Command | Permitted action | Refused behavior |
 | --- | --- | --- |

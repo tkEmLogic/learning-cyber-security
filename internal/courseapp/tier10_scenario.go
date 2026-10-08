@@ -434,9 +434,6 @@ func (r *scenarioRunner) start(device string) error {
 				want, strings.Join(scenarioServiceFlags, " "))
 		}
 	}
-	if variant := variantsForTier(r.block.Tier)[r.block.CandidateVariant]; variant.releaseID != r.block.CandidateRelease {
-		return fmt.Errorf("this checkout cannot build or sign %s yet; it needs the Tier 10 firmware (#290)", r.block.CandidateRelease)
-	}
 	var baseline releaseRecord
 	if err := readJSON(filepath.Join(r.a.root, r.a.manifest.Paths.State, "ota", "current-release.json"), &baseline); err != nil {
 		return fmt.Errorf("cannot read the Fleet baseline: %w", err)
@@ -477,6 +474,10 @@ func (r *scenarioRunner) start(device string) error {
 				return fmt.Errorf("event %d needs the %s release, which is not built; run ./course release hostile --tier 04", event.Number, event.Selector)
 			}
 		}
+	}
+
+	if variant := variantsForTier(r.block.Tier)[r.block.CandidateVariant]; variant.releaseID != r.block.CandidateRelease {
+		return fmt.Errorf("this checkout cannot build or sign %s yet; it needs the Tier 10 firmware (#290)", r.block.CandidateRelease)
 	}
 
 	// The candidate arrives approved by the teammate (#287): signed,
@@ -824,7 +825,15 @@ func (r *scenarioRunner) stageFixture(st *scenarioState, event scenarioEvent) er
 
 func (r *scenarioRunner) stageBypass(_ *scenarioState, event scenarioEvent) error {
 	r.logf("./course service bypass %s --execute %s", event.Row, event.Row)
-	return r.a.serviceBypass([]string{event.Row, "--execute", event.Row})
+	if err := r.a.serviceBypass([]string{event.Row, "--execute", event.Row}); err != nil {
+		return err
+	}
+	// The row leaves the adversary owner's credential live. Its own reset
+	// clears that at once, as an ordinary run would be followed by it; it
+	// deletes nothing from events.jsonl, so the refusal the Learner reads
+	// stays where it is.
+	r.logf("./course service bypass reset")
+	return r.a.serviceBypass([]string{"reset"})
 }
 
 // stageRollout is the teammate's operator error (#288): start the candidate's

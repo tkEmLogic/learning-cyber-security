@@ -512,3 +512,71 @@ func TestScenarioSymptomReaders(t *testing.T) {
 		t.Fatal("a timeout was taken for an answer")
 	}
 }
+
+// Against the real mutual-TLS listeners: start refuses before any side effect
+// when the Tier 9 end state does not hold, and a held hosting fixture is
+// undone by writing back the exact baseline bytes, through the fixture's own
+// reset, with the event log intact.
+func TestScenarioAgainstTheMutualTLSService(t *testing.T) {
+	f := regressionBench(t, closedUDPPort(t))
+	a := f.app
+	target := a.manifest.Bypass[tier07BypassKey].Target
+	block := a.manifest.Scenario
+	block.Target = target
+	a.manifest.Scenario = block
+	hostile := a.manifest.Fixtures["tier-04/hostile-release"]
+	hostile.Target = target
+	a.manifest.Fixtures["tier-04/hostile-release"] = hostile
+	if err := a.writeRecord(provisionRecord{Kind: "activation", DeviceID: testBoardID, CertSerial: testBoardSeria}); err != nil {
+		t.Fatal(err)
+	}
+	staging := &bytes.Buffer{}
+	r := a.newScenarioRunner(staging)
+	r.serviceFlags = func() ([]string, error) { return scenarioServiceFlags, nil }
+
+	baseline, err := os.ReadFile(a.baselinePath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	events, err := os.ReadFile(a.eventsPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The hostile release Event 2 publishes has not been built here, so start
+	// stops at that check, having found the board on the way.
+	if err := r.start(""); err == nil || !strings.Contains(err.Error(), "wrong-key") {
+		t.Fatalf("start without the hostile release = %v", err)
+	}
+	if _, err := os.Stat(a.scenarioStatePath()); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("a refused start wrote state")
+	}
+
+	// A held fixture, undone through its own reset.
+	a.fixtureID = "tier-04/hostile-release"
+	if err := a.hostingPublish("tier-04/hostile-release", map[string]any{"schema_version": 1, "release_id": "tier-04-hostile-wrong-key"}); err != nil {
+		t.Fatal(err)
+	}
+	a.fixtureID = ""
+	st := &scenarioState{ServiceFlags: scenarioServiceFlags, HeldFixture: "tier-04/hostile-release"}
+	if err := r.undoTemporary(st, false); err != nil {
+		t.Fatal(err)
+	}
+	if st.HeldFixture != "" {
+		t.Fatal("the undo left the fixture marked as held")
+	}
+	restored, _ := os.ReadFile(a.baselinePath())
+	if !bytes.Equal(restored, baseline) {
+		t.Fatalf("the baseline came back as %q, want %q", restored, baseline)
+	}
+	after, _ := os.ReadFile(a.eventsPath())
+	if !bytes.HasPrefix(after, events) {
+		t.Fatal("the undo touched the event log")
+	}
+
+	// A rollout left open is not the Tier 9 end state.
+	f.approveAndStartRollout(t, testBoardID)
+	if err := r.start(""); err == nil || !strings.Contains(err.Error(), "is open") {
+		t.Fatalf("start with a rollout open = %v", err)
+	}
+}
