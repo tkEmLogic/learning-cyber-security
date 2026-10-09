@@ -71,6 +71,11 @@ func TestScenarioManifestRefusesWhatItCannotRun(t *testing.T) {
 		"right cert":      func(m *manifest) { m.Scenario.Events[0].Present = "service" },
 		"fraction":        func(m *manifest) { m.Scenario.InterruptFraction = 1 },
 		"unbounded wait":  func(m *manifest) { m.Scenario.ListenerMaxSeconds = 100000 },
+		"long series":     func(m *manifest) { m.Scenario.ListenerMaxSeconds = 121 },
+		"dense series":    func(m *manifest) { m.Scenario.ListenerIntervalSeconds = 1 },
+		"no reply bound":  func(m *manifest) { m.Scenario.ListenerReplySeconds = 0 },
+		"long reply":      func(m *manifest) { m.Scenario.ListenerReplySeconds = 4 },
+		"no trial wait":   func(m *manifest) { m.Scenario.TrialWaitSeconds = 0 },
 		"public target":   func(m *manifest) { m.Scenario.Target = "http://8.8.8.8:8080" },
 		"missing actor":   func(m *manifest) { m.Scenario.Actor = " " },
 		"renumbered":      func(m *manifest) { m.Scenario.Events[4].ID = "tier-10/event-99" },
@@ -197,9 +202,9 @@ func newFakeRunner(t *testing.T) (*scenarioRunner, *fakeScenario, *bytes.Buffer,
 		stageFixture:       step(stageFixture, func(st *scenarioState, e scenarioEvent) { st.HeldFixture = e.Fixture }),
 		stageBypass:        step(stageBypass, func(*scenarioState, scenarioEvent) {}),
 		stageRollout:       step(stageRollout, func(st *scenarioState, _ scenarioEvent) { st.Range = "interrupt:600" }),
-		stageTransfer:      step(stageTransfer, func(st *scenarioState, _ scenarioEvent) { st.Range = "" }),
+		stageTransfer:      step(stageTransfer, func(*scenarioState, scenarioEvent) {}),
 		stageRevert:        step(stageRevert, func(*scenarioState, scenarioEvent) {}),
-		stageFixtureSeries: step(stageFixtureSeries, func(*scenarioState, scenarioEvent) {}),
+		stageFixtureSeries: step(stageFixtureSeries, func(st *scenarioState, _ scenarioEvent) { st.Range = "" }),
 	}
 	if err := r.saveState(&scenarioState{SchemaVersion: 1, BoardDeviceID: "beacon-t08c-206ef1170d64",
 		CanaryDeviceID: "beacon-t08c-206ef1170d46", ServiceFlags: scenarioServiceFlags}); err != nil {
@@ -214,8 +219,8 @@ func describeTemporary(st *scenarioState, keepRange bool) string {
 }
 
 // Eight nexts stage the eight events in order, each undoing the change the
-// previous one left, except the interruption Event 6 needs from Event 5. A
-// ninth is refused.
+// previous one left, except the interruption Event 5 switches on, which stays
+// until Event 8 switches it off (#293). A ninth is refused.
 func TestScenarioNextStagesTheEventsInOrder(t *testing.T) {
 	r, f, terminal, _ := newFakeRunner(t)
 	for i := 1; i <= 8; i++ {
@@ -234,8 +239,8 @@ func TestScenarioNextStagesTheEventsInOrder(t *testing.T) {
 		"present= range= held=tier-04/replay-release",
 		"present= range= held=",
 		"present= range=interrupt:600 held= keep-range",
-		"present= range= held=",
-		"present= range= held=",
+		"present= range=interrupt:600 held= keep-range",
+		"present= range=interrupt:600 held= keep-range",
 	}
 	if strings.Join(f.undos, "|") != strings.Join(wantUndos, "|") {
 		t.Fatalf("undo saw\n%s\nwant\n%s", strings.Join(f.undos, "\n"), strings.Join(wantUndos, "\n"))
@@ -505,6 +510,29 @@ func TestScenarioSymptomReaders(t *testing.T) {
 		t.Fatal("a revert of another release was taken for the candidate's")
 	}
 
+	board := "beacon-t08c-206ef1170d64"
+	line := func(event, device, detail, at string) string {
+		return `{"event":"` + event + `","device_id":"` + device + `","detail":"` + detail + `","service_received_at":"` + at + `"}` + "\n"
+	}
+	installed := line("update.installed", board, "tier-10-candidate", "2026-10-09T12:04:00.5Z")
+	reverted := line("update.reverted", board, "tier-10-candidate beacon-advancing", "2026-10-09T12:05:00Z")
+	if signal, at := nextCandidateTrial(installed, board, "tier-10-candidate"); signal != trialInstalled ||
+		!at.Equal(time.Date(2026, 10, 9, 12, 4, 0, 500000000, time.UTC)) {
+		t.Fatalf("an install without its revert is a trial under way, got %v at %v", signal, at)
+	}
+	if signal, _ := nextCandidateTrial(installed+reverted, board, "tier-10-candidate"); signal != trialNone {
+		t.Fatalf("a reverted trial is over, got %v", signal)
+	}
+	if signal, _ := nextCandidateTrial(reverted+line("update.refused", board, "trial-limit", "2026-10-09T12:06:00Z"), board, "tier-10-candidate"); signal != trialRefused {
+		t.Fatalf("a trial-limit refusal means no trial is coming, got %v", signal)
+	}
+	if signal, _ := nextCandidateTrial(line("update.installed", "beacon-fleet-e9-01", "tier-10-candidate", "2026-10-09T12:04:00Z"), board, "tier-10-candidate"); signal != trialNone {
+		t.Fatalf("another device's install was taken for the board's, got %v", signal)
+	}
+	if signal, _ := nextCandidateTrial(line("update.installed", board, "tier-10-corrected", "2026-10-09T12:04:00Z"), board, "tier-10-candidate"); signal != trialNone {
+		t.Fatalf("another release's install was taken for the candidate's, got %v", signal)
+	}
+
 	if !listenerAnswered("Result: the unauthenticated support listener answered \"inventory\" with \"device_id=x security_counter=7\"\n", "inventory") {
 		t.Fatal("the answer was not recognised")
 	}
@@ -578,5 +606,22 @@ func TestScenarioAgainstTheMutualTLSService(t *testing.T) {
 	f.approveAndStartRollout(t, testBoardID)
 	if err := r.start(""); err == nil || !strings.Contains(err.Error(), "is open") {
 		t.Fatalf("start with a rollout open = %v", err)
+	}
+}
+
+// Event 8 may shorten the support fixture's wait for an answer, never
+// lengthen it, and an ordinary run keeps the full 3 s.
+func TestFixtureReplyTimeoutOnlyShortens(t *testing.T) {
+	a := &app{}
+	if got := a.fixtureReplyTimeout(); got != supportReplyTimeout {
+		t.Fatalf("an ordinary run waits %v, want %v", got, supportReplyTimeout)
+	}
+	a.supportTimeout = time.Second
+	if got := a.fixtureReplyTimeout(); got != time.Second {
+		t.Fatalf("the scenario's 1 s became %v", got)
+	}
+	a.supportTimeout = 10 * time.Second
+	if got := a.fixtureReplyTimeout(); got != supportReplyTimeout {
+		t.Fatalf("a longer wait was accepted: %v", got)
 	}
 }
