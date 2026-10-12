@@ -153,8 +153,16 @@ type recordRule func(name string, lines []string) []string
 // every record says it is not a conformity claim, and every row of the CRA
 // traceability matrix names a dated legal source and says whether a lawyer
 // must look at it. Neither rule reads what the Learner wrote.
+//
+// Tier 10's four rules (#289) are about the shape of its closing records: a
+// timeline whose every time names its clock, a first pass that classified all
+// eight scenario events with one of three words, a final claim matrix that
+// covers the nine claims and supports none on host results alone, and a
+// residual-risk summary where every row has a group and an owner. Tier 10
+// records are not CRA records, so the Tier 9 boundary line is not required.
 var tierRecordRules = map[string][]recordRule{
 	"09": {checkBoundaryLine, checkTraceabilityRows},
+	"10": {checkClockSources, checkFirstPass, checkFinalClaimMatrix, checkResidualRiskGroups},
 }
 
 // craBoundaryLine is the fixed line every Tier 9 template opens with, as a

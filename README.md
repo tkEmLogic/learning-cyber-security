@@ -26,14 +26,15 @@ Everything runs in a dev container. Your own machine needs Podman and an editor,
 | [Tier 7: Add owner-scoped operational identity and mutual TLS](course-material/tiers/tier-07-operational-identity/index.md) | An Operational certificate authority, a two-party claim with a physical action and an authenticated owner, and mutual TLS on every endpoint a device uses |
 | [Tier 8: Operate the credential lifecycle](course-material/tiers/tier-08-credential-lifecycle/index.md) | Renewal into a second key slot, revocation of a certificate or a device, recovery of a lost identity, ownership transfer, decommissioning with a verified erase, and a Time floor that lets a device without a clock refuse its own expired certificate |
 | [Tier 9: Manage dependencies, vulnerabilities, and support](course-material/tiers/tier-09-vulnerability-support/index.md) | A software bill of materials for the firmware and the service, pinned vulnerability scans triaged into records and OpenVEX, a reported flaw reproduced and withdrawn, a remediation release shipped through a release approval and a canary rollout, and the disclosure, support, user-information and CRA records that never claim conformity |
+| [Tier 10: Defend the integrated reference product](course-material/tiers/tier-10-integrated-defense/index.md) | No new control. A symptoms-only incident scenario of real attacks and operational failures, recovery of a failed test boot without an unsafe bypass, one corrected release shipped through a canary, a regression rerun of every fixture, and a final claim matrix and residual-risk summary |
 
-Eleven core tiers and two advanced tiers are planned. [The course page](course-material/index.md) lists all of them, so you can see where the work goes.
+All eleven core tiers are published. Two advanced tiers are planned. [The course page](course-material/index.md) lists all of them, so you can see where the work goes.
 
 ## Hardware
 
 A physical ESP32-C6 development kit is optional for most work and required for flashing, serial output, Wi-Fi behavior, and anything the device itself must prove.
 
-The course's board is the Espressif ESP32-C6-DevKitC-1. Tiers 0, 2, 3, 4, 5, 6, 7, 8 and 9 are validated on it: every hardware result those tiers record was observed on this board. Tier 1 is analysis only and has no hardware results.
+The course's board is the Espressif ESP32-C6-DevKitC-1. Tiers 0, 2, 3, 4, 5, 6, 7, 8, 9 and 10 are validated on it: every hardware result those tiers record was observed on this board. Tier 1 is analysis only and has no hardware results.
 
 `course.yml` records each hardware result. A skipped hardware check never supports a hardware claim.
 

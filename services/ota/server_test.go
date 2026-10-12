@@ -1010,6 +1010,15 @@ func TestExpiredCertificateIsRefusedByACheckAndNotByTheHandshake(t *testing.T) {
 func (f *mutualFixture) overTheWire(t *testing.T, leaf *x509.Certificate,
 	key *ecdsa.PrivateKey, path string) (*http.Response, error) {
 	t.Helper()
+	client, url := f.wireClient(t, leaf, key)
+	return client.Get(url + path)
+}
+
+// wireClient starts the real device listener and returns a client that
+// presents one client certificate to it, and the listener's URL.
+func (f *mutualFixture) wireClient(t *testing.T, leaf *x509.Certificate,
+	key *ecdsa.PrivateKey) (*http.Client, string) {
+	t.Helper()
 	listener := httptest.NewUnstartedServer(f.server.DeviceHandler())
 	listener.TLS = &tls.Config{
 		ClientAuth:            tls.RequireAnyClientCert,
@@ -1026,7 +1035,35 @@ func (f *mutualFixture) overTheWire(t *testing.T, leaf *x509.Certificate,
 	transport.TLSClientConfig.GetClientCertificate = func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
 		return &tls.Certificate{Certificate: [][]byte{leaf.Raw}, PrivateKey: key}, nil
 	}
-	return client.Get(listener.URL + path)
+	return client, listener.URL
+}
+
+// The stored event names the address the request came from, as the listener
+// saw the connection, and a body that states its own is overwritten. The
+// regression rerun ties the board's recorded address to this field (#284), so
+// it is tested through a real TLS connection, where RemoteAddr is the peer's,
+// not through a synthesized request.
+func TestADeviceEventRecordsTheSourceAddressTheListenerSaw(t *testing.T) {
+	f := newMutualFixture(t)
+	now := time.Now()
+	device := "beacon-remfg-206ef1170d64"
+	cert, key := f.operational.issue(t, 7014, device, "northwind", now.Add(-time.Hour), now.Add(time.Hour))
+	f.claim(t, device, "northwind", 7014)
+
+	client, url := f.wireClient(t, cert, key)
+	response, err := client.Post(url+"/v1/devices/"+device+"/events", "application/json",
+		strings.NewReader(`{"device_id":"`+device+`","event":"status.observed","source_address":"192.0.2.9"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	response.Body.Close()
+	if response.StatusCode != http.StatusAccepted {
+		t.Fatalf("event = %d, want 202", response.StatusCode)
+	}
+	stored := readEventLines(t, filepath.Join(f.stateDir, "events.jsonl"))
+	if len(stored) != 1 || stored[0]["source_address"] != "127.0.0.1" {
+		t.Fatalf("the event must carry the listener's view of the source, 127.0.0.1: %#v", stored)
+	}
 }
 
 // The safety check must never depend on the control it tests. The marker stays

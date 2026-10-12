@@ -462,6 +462,17 @@ func (r *scenarioRunner) start(device string) error {
 				want, strings.Join(scenarioServiceFlags, " "))
 		}
 	}
+	// The withdrawal is checked before the baseline and the rollout, because
+	// it is the one refusal nothing can repair. A Learner who has finished
+	// the tier would otherwise be told to restore the Tier 9 baseline, and
+	// only after doing so learn that the scenario can never run again.
+	rollout, err := r.rolloutState()
+	if err != nil {
+		return err
+	}
+	if contains(rollout.Withdrawn, r.block.CandidateRelease) {
+		return fmt.Errorf("%s was withdrawn in an earlier run, and a withdrawal is permanent; this environment cannot stage the scenario again", r.block.CandidateRelease)
+	}
 	var baseline releaseRecord
 	if err := readJSON(filepath.Join(r.a.root, r.a.manifest.Paths.State, "ota", "current-release.json"), &baseline); err != nil {
 		return fmt.Errorf("cannot read the Fleet baseline: %w", err)
@@ -469,15 +480,8 @@ func (r *scenarioRunner) start(device string) error {
 	if baseline.ReleaseID != r.block.BaselineRelease {
 		return fmt.Errorf("the Fleet baseline is %s, not %s; the scenario starts from the Tier 9 end state", baseline.ReleaseID, r.block.BaselineRelease)
 	}
-	rollout, err := r.rolloutState()
-	if err != nil {
-		return err
-	}
 	if rollout.Open {
 		return fmt.Errorf("a rollout of %s is open; the scenario starts with none open", rollout.ReleaseID)
-	}
-	if contains(rollout.Withdrawn, r.block.CandidateRelease) {
-		return fmt.Errorf("%s was withdrawn in an earlier run, and a withdrawal is permanent; this environment cannot stage the scenario again", r.block.CandidateRelease)
 	}
 
 	records, err := r.a.readRecords()
@@ -1005,6 +1009,17 @@ func (r *scenarioRunner) stageFixtureSeries(st *scenarioState, event scenarioEve
 }
 
 func (r *scenarioRunner) reachListener(st *scenarioState, event scenarioEvent) error {
+	// The series sends to the address on record. If that is not where the
+	// board reports from, no run can reach the board's listener, and the
+	// trial window would pass with nothing learned, so it is refused before
+	// any wait (#284).
+	reason, err := r.a.checkBoardAddress(st.BoardDeviceID)
+	if err != nil {
+		return err
+	}
+	if reason != "" {
+		return errors.New(reason)
+	}
 	rollout, err := r.rolloutState()
 	if err != nil {
 		return err

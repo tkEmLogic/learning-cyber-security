@@ -16,6 +16,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -701,22 +702,173 @@ func TestARowStillRefusesAtItsOwnCheckAfterAReset(t *testing.T) {
 	}
 }
 
-// The one row a reset genuinely cannot give back says so itself.
-func TestTheReplayRowSaysAResetCannotUndoAClaim(t *testing.T) {
+// Every host row refuses at its own check on a second run in the same
+// environment, after the reset the regression runs between its runs.
+//
+// The regression in Tier 10 reruns every row a Learner already ran in Tier 7,
+// so a row that could run only once would end every Learner's regression in a
+// failure the control did not cause. E-7-12 is left out in short mode, as in
+// TestClosedWindowIsRefusedAtClaimWindowOpen, because its backoff is real.
+func TestEveryHostRowRefusesAtItsOwnCheckOnASecondRun(t *testing.T) {
+	rows := []struct {
+		id    string
+		check string
+	}{
+		{"e-7-03", "identity-operational"},
+		{"e-7-04", "identity-factory"},
+		{"e-7-05", "certificate-active"},
+		{"e-7-06", "certificate-active"},
+		{"e-7-07", "certificate-active"},
+		{"e-7-08", "device-claimed"},
+		{"e-7-09", "identifier-consistent"},
+		{"e-7-10", "ownership-context"},
+		{"e-7-11", "nonce-unspent"},
+		{"e-7-12", "claim-window-open"},
+		{"e-7-13", "nonce-match"},
+		{"e-7-14", "device-unowned"},
+	}
+	if testing.Short() {
+		rows = append(rows[:9], rows[10:]...)
+	}
+	f := newBypassFixture(t)
+	f.claimTheBoard(t)
+	for run := 1; run <= 2; run++ {
+		for _, row := range rows {
+			output := f.run(t, row.id)
+			if !strings.Contains(output, "Result: "+strings.ToUpper(row.id)+" refused at "+row.check) {
+				t.Fatalf("run %d of %s did not refuse at %s:\n%s", run, row.id, row.check, output)
+			}
+		}
+		f.out.Reset()
+		if err := f.app.bypassReset(); err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(f.out.String(), "spent in this environment") {
+			t.Fatalf("reset after run %d says a row is spent:\n%s", run, f.out.String())
+		}
+	}
+}
+
+// E-7-11 replays the nonce its own first run spent. The second run makes no
+// new claim: the device is already owned, and the record gains no claim line.
+func TestTheReplayRowReplaysTheNonceItsFirstRunSpent(t *testing.T) {
 	f := newBypassFixture(t)
 	f.run(t, "e-7-11")
+	state, err := f.app.readAdversaryState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.Devices["beacon-bypass-e7-11"].SpentNonce == "" {
+		t.Fatal("the fixture did not keep the nonce its claim spent")
+	}
 	if err := f.app.bypassReset(); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(f.out.String(), "E-7-11 replays a nonce") {
-		t.Fatalf("reset did not name the row it cannot give back:\n%s", f.out.String())
+	claims := f.countRecords(t, recordClaim, "beacon-bypass-e7-11")
+	output := f.run(t, "e-7-11")
+	if !strings.Contains(output, "Result: E-7-11 refused at nonce-unspent") {
+		t.Fatalf("the second run did not refuse at nonce-unspent:\n%s", output)
 	}
+	if now := f.countRecords(t, recordClaim, "beacon-bypass-e7-11"); now != claims {
+		t.Fatalf("the second run wrote %d new claim record(s)", now-claims)
+	}
+}
+
+// An E-7-11 claim made by an earlier fixture version, which kept no nonce, is
+// a row this environment has spent. It is no result, never a pass and never a
+// failure, and reset names it.
+func TestAReplayRowWithNoKeptNonceIsNoResult(t *testing.T) {
+	f := newBypassFixture(t)
+	f.run(t, "e-7-11")
+	f.editState(t, func(state *adversaryState) {
+		state.Devices["beacon-bypass-e7-11"].SpentNonce = ""
+	})
 	f.out.Reset()
 	err := f.app.serviceBypass([]string{"e-7-11", "--execute", "e-7-11"})
-	if err == nil {
-		t.Fatal("E-7-11 ran a second time against a claim that had already happened")
+	var notRepeatable rowNotRepeatable
+	if !errors.As(err, &notRepeatable) {
+		t.Fatalf("want a row that cannot be repeated, got %v\n%s", err, f.out.String())
 	}
-	if !strings.Contains(err.Error(), "reset cannot undo a claim") {
-		t.Fatalf("the refusal did not explain itself: %v", err)
+	if !strings.Contains(f.out.String(), "Result: E-7-11 has no result in this environment") {
+		t.Fatalf("the row did not say it has no result:\n%s", f.out.String())
 	}
+	if got := f.evidenceResult(t); got != verdictNoResult {
+		t.Fatalf("the evidence record says %q, want %q", got, verdictNoResult)
+	}
+	f.out.Reset()
+	if err := f.app.bypassReset(); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(f.out.String(), "One row is spent in this environment") {
+		t.Fatalf("reset did not name the row it cannot give back:\n%s", f.out.String())
+	}
+}
+
+// An identifier the record certified, with no key left in fixture state, is
+// stranded. The row says so without asking the station, so the append-only
+// record gains no refused enrollment, and the regression reads it as no
+// result.
+func TestAStrandedIdentifierIsNoResultAndAsksTheStationNothing(t *testing.T) {
+	f := newBypassFixture(t)
+	f.run(t, "e-7-03")
+	f.editState(t, func(state *adversaryState) {
+		delete(state.Devices, "beacon-bypass-e7-03")
+	})
+	before := f.readLines(t, f.app.provisionRecordPath())
+
+	step, err := hostStep(f.app.manifest, regressionEntry{ID: "e-7-03", Expect: outcomeRefused})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := f.app.runHostStep(step)
+	if result.Result != verdictNoResult || !strings.Contains(result.Detail, "no longer holds its private key") {
+		t.Fatalf("a stranded row was %q: %s", result.Result, result.Detail)
+	}
+	if after := f.readLines(t, f.app.provisionRecordPath()); len(after) != len(before) {
+		t.Fatalf("a stranded row added %d line(s) to the manufacturing record", len(after)-len(before))
+	}
+}
+
+func (f *bypassFixture) editState(t *testing.T, edit func(*adversaryState)) {
+	t.Helper()
+	state, err := f.app.readAdversaryState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	edit(state)
+	if err := f.app.saveAdversaryState(state); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func (f *bypassFixture) countRecords(t *testing.T, kind, deviceID string) int {
+	t.Helper()
+	records, err := f.app.readRecords()
+	if err != nil {
+		t.Fatal(err)
+	}
+	count := 0
+	for _, record := range records {
+		if record.Kind == kind && record.DeviceID == deviceID {
+			count++
+		}
+	}
+	return count
+}
+
+// evidenceResult reads the result field of the evidence record the last run
+// named on its Evidence line.
+func (f *bypassFixture) evidenceResult(t *testing.T) string {
+	t.Helper()
+	path := evidenceLine(f.out.String())
+	if path == "" {
+		t.Fatalf("the run named no evidence record:\n%s", f.out.String())
+	}
+	var record struct {
+		Result string `json:"result"`
+	}
+	if err := readJSON(filepath.Join(f.root, path), &record); err != nil {
+		t.Fatal(err)
+	}
+	return record.Result
 }

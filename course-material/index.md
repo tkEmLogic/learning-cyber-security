@@ -32,7 +32,7 @@ A Security claim is only as good as its evidence. When you did not observe somet
 
 ## The tiers
 
-The core course is eleven tiers and about 60 hours of work. Two advanced tiers follow it for teams with disposable hardware.
+The core course is eleven tiers and about 63 hours of work. Two advanced tiers follow it for teams with disposable hardware.
 
 **The linked tiers are written and ready to work through. The rest is the course plan**, here so you can see where the work goes rather than because you can start it yet.
 
@@ -50,7 +50,7 @@ Three short names run through the table below and through the whole course. TLS 
 | [Tier 7: Add owner-scoped operational identity and mutual TLS](tiers/tier-07-operational-identity/index.md) | A rotatable Operational identity and mutual TLS | Factory credentials overused for daily access, or an unclaimed device joining | 8 hours |
 | [Tier 8: Operate the credential lifecycle](tiers/tier-08-credential-lifecycle/index.md) | Rotation, renewal, revocation, ownership transfer, decommissioning | Expired, stolen, copied, or old-owner credentials that still work | 12 hours |
 | [Tier 9: Manage dependencies, vulnerabilities, and support](tiers/tier-09-vulnerability-support/index.md) | A software bill of materials, or SBOM, with vulnerability handling, disclosure, and reporting exercises | Unknown components, unreviewed vulnerabilities, and late reporting | 10 hours |
-| Tier 10: Defend the integrated reference product | No new control. Diagnose and repair the whole product under attack | A mixed campaign combining impersonation, replay, and interruption | 5 hours |
+| [Tier 10: Defend the integrated reference product](tiers/tier-10-integrated-defense/index.md) | No new control. Diagnose and repair the whole product under attack | A mixed campaign combining impersonation, replay, and interruption | 8 hours |
 | Advanced Tier A: Add a hardware-rooted boot chain and confidentiality | ESP32-C6 Secure Boot v2 and flash encryption | A physical attacker replaces the bootloader or reads flash | 6 to 8 hours |
 | Advanced Tier B: Isolate operational identity in STSAFE-A120 | A secure element that never exports its private keys | Key extraction from MCU storage, and misuse by compromised application code | 6 to 8 hours |
 
@@ -138,6 +138,11 @@ This table holds the course's own roles and records. The security words themselv
 | Annex I control map | One row per Annex I requirement of the CRA, naming the controls that address it, the evidence and a status. It shows where the product stands, not that it meets the requirement |
 | CRA traceability matrix | One row per CRA duty, linking it to requirements, controls, evidence, status, residual risk, the responsible role and a dated legal source |
 | Coordinated vulnerability disclosure policy | The manufacturer's public statement of how outside parties report a suspected vulnerability, how it responds, and when the vulnerability is disclosed |
+| Integration scenario | A prepared sequence of scenario events that mixes real attacks and operational failures, staged one event at a time on the hardened device. You see only what an operator would see and decide what each event was |
+| Scenario event | One staged occurrence in an integration scenario. You record a first classification, attack or failure, the boundary it reached and the control expected to answer, before the next event is staged |
+| Incident record | The internal handling record of one integration scenario: a timeline of facts that names the clock each time came from, every scenario event with its first and final classification, and the response, recovery and lessons learned |
+| Final claim matrix | One row per Security claim at the end of the core course, giving its status, the controls behind it, the evidence for it, and the open Weakness ledger rows that limit it. A claim whose only evidence is a host result is at most partly supported |
+| Residual-risk summary | Every residual risk still open at the end of the core course, grouped by who closes it: Advanced Tier A, Advanced Tier B, accepted for the core course, or a recorded limit of the lab that no tier closes |
 | Secure element | A separate security component that generates or stores private keys and performs cryptographic operations without exporting those private keys |
 
 ## Safety

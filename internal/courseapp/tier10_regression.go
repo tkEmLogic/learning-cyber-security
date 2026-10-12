@@ -381,6 +381,62 @@ type boardEvent struct {
 	Detail           string    `json:"detail"`
 	AcceptedFrom     string    `json:"accepted_from"`
 	ReceivedAt       time.Time `json:"service_received_at"`
+	// SourceAddress is where the request came from, as the service's own
+	// listener saw it. Lines written before the service recorded it have
+	// none.
+	SourceAddress string `json:"source_address"`
+}
+
+// boardAddressMismatch says why the address on record cannot be trusted as the
+// board's, or "" when the board's most recent event came from it.
+//
+// The support listener's answer is read as the board's because it came from
+// the recorded address, and nothing else tied that address to the board: with
+// 127.0.0.1 on record the host's own stack answered port unreachable and the
+// row passed. The board's events are the one record of where it really is, so
+// the address must match the source of the latest one. Only events accepted
+// over mutual TLS count, because a body device id alone is anyone's claim.
+func boardAddressMismatch(events []boardEvent, deviceID, recorded string) string {
+	var last boardEvent
+	found := false
+	for _, event := range events {
+		if event.DeviceID != deviceID || event.AcceptedFrom != "client_certificate" {
+			continue
+		}
+		if !found || !event.ReceivedAt.Before(last.ReceivedAt) {
+			last, found = event, true
+		}
+	}
+	at := last.ReceivedAt.Format(time.RFC3339)
+	switch {
+	case !found:
+		return fmt.Sprintf("the service holds no event %s sent over mutual TLS, so nothing shows that the address on record, %s, is the board's",
+			deviceID, recorded)
+	case last.SourceAddress == "":
+		return fmt.Sprintf("the board's most recent event (%s at %s) records no source address, so nothing shows that the address on record, %s, is the board's; restart the service with this checkout and wait for the board's next poll",
+			last.Event, at, recorded)
+	}
+	got, want := net.ParseIP(last.SourceAddress), net.ParseIP(recorded)
+	if got == nil || want == nil || !got.Equal(want) {
+		return fmt.Sprintf("the address on record, %s, is not where the board last reported from (%s at %s); re-record it with ./course device address",
+			recorded, last.SourceAddress, at)
+	}
+	return ""
+}
+
+// checkBoardAddress reads the address on record and the event log and returns
+// the reason they disagree, or "" when the board last reported from the
+// address on record.
+func (a *app) checkBoardAddress(deviceID string) (string, error) {
+	address, err := a.boardAddress()
+	if err != nil {
+		return "", err
+	}
+	events, err := readBoardEvents(a.eventsPath())
+	if err != nil {
+		return "", fmt.Errorf("cannot read the service's event log: %w", err)
+	}
+	return boardAddressMismatch(events, deviceID, address), nil
 }
 
 // readBoardEvents reads the service's event log. A line that does not parse is
@@ -1033,6 +1089,17 @@ func (a *app) runBoardStep(step regressionStep, board boardState, env environmen
 	result := newResult(step)
 	switch step.kind {
 	case kindSupportListener:
+		// Checked before any datagram is sent: an answer from the wrong host
+		// is no result, never the board's absence (#284).
+		reason, err := a.checkBoardAddress(board.DeviceID)
+		if err != nil {
+			result.Detail = err.Error()
+			break
+		}
+		if reason != "" {
+			result.Detail = reason
+			break
+		}
 		observed, detail, err := a.askSupportListener(step)
 		result.Observed, result.Detail = observed, detail
 		if err != nil {
@@ -1174,6 +1241,12 @@ func (a *app) runHostStep(step regressionStep) regressionResult {
 		output, err := a.quietly(func() error { return a.runBypassRow(row, row.id) })
 		result.Observed, result.Detail = refusalOutcome(output, err)
 		result.Evidence = evidenceLine(output)
+		// A row this environment's history has spent tested nothing, so it is
+		// no result: never a pass, and never a failure of the control.
+		var notRepeatable rowNotRepeatable
+		if errors.As(err, &notRepeatable) {
+			result.Observed, result.Detail = "", notRepeatable.reason
+		}
 	}
 	result.Result = judge(step.entry.Expect, "", result.Observed, "")
 	return result
