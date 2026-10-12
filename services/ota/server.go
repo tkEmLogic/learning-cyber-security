@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -474,6 +475,13 @@ func (s *Server) deviceEvent(w http.ResponseWriter, r *http.Request) {
 	accepted := bodyID
 	event["path_device_id"] = r.PathValue("device_id")
 	event["service_received_at"] = time.Now().UTC().Format(time.RFC3339Nano)
+	// Where the request came from, as this listener saw it. The regression
+	// rerun and the scenario runner send UDP to the board's recorded address
+	// and read the answer as the board's; without this nothing tied that
+	// address to the board, and a run against 127.0.0.1 passed on the host's
+	// own port unreachable. Written by the service over any body value of the
+	// same name, so a device cannot state its own.
+	event["source_address"] = sourceAddress(r)
 	// Which value the service believed, and why, written into the record
 	// itself. In Tier 0 it believed the body because nothing else was on
 	// offer. Behind mutual TLS it believes the client certificate, and the
@@ -523,6 +531,18 @@ func (s *Server) deviceEvent(w http.ResponseWriter, r *http.Request) {
 		"accepted_device_id": bodyID,
 		"warning":            "Tier 0 trusts the JSON body device_id",
 	})
+}
+
+// sourceAddress is the host part of the request's remote address: the peer of
+// the TCP connection, which behind rootless podman's pasta forward is still
+// the board's LAN address. A remote address that does not split is kept
+// whole rather than dropped, so the record never claims less than it saw.
+func sourceAddress(r *http.Request) string {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return host
 }
 
 func (s *Server) seed(w http.ResponseWriter, r *http.Request) {

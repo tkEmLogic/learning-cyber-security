@@ -436,6 +436,20 @@ var hostileManifests = []struct {
 	},
 }
 
+// disguisedRelease is the wrong-key forgery a second time, under a release
+// identifier that gives nothing away. It is not an eighth hostile release for
+// Tier 4: it tests nothing wrong-key does not, and Tier 4's seven stay seven.
+//
+// It exists for Tier 10's Event 2 (#284). The seven are named for what is wrong
+// with them, so the board prints the answer on serial: "offers
+// tier-04-hostile-wrong-key". Someone forging a release names it to look like
+// the next real one. The identifier follows the product line's own naming and
+// matches no release this course signs, so the device still has a reason to
+// look, and only the check it refuses at can say what it was.
+var disguisedRelease = struct{ selector, forges, releaseID string }{
+	selector: "disguised", forges: "wrong-key", releaseID: "tier-10-security-fix",
+}
+
 // hostileReleaseID gives every hostile release an identifier of its own.
 //
 // This is not cosmetic. The device decides whether to look at a release at all
@@ -443,7 +457,19 @@ var hostileManifests = []struct {
 // hostile release that reused the good identifier would be ignored, and a
 // Learner would watch a device do nothing and call it a refusal.
 func hostileReleaseID(name string) string {
+	if name == disguisedRelease.selector {
+		return disguisedRelease.releaseID
+	}
 	return "tier-04-hostile-" + name
+}
+
+// hostileForgery names the variant whose forgery a selector produces. Every
+// selector is its own variant except the disguised one, which is wrong-key.
+func hostileForgery(selector string) string {
+	if selector == disguisedRelease.selector {
+		return disguisedRelease.forges
+	}
+	return selector
 }
 
 // wrongDigest is the SHA-256 of an image that is not the one being delivered.
@@ -624,6 +650,30 @@ func (a *app) releaseHostileTier04() error {
 			a.relative(a.manifestPath(id)), len(body), len(signature))
 		fmt.Fprintf(a.out, "  the device refuses this at %s\n", variant.refusedAt)
 	}
+
+	// The disguised copy of wrong-key, for Tier 10. It is built here so that
+	// one command still makes every release the fixture can publish, and it
+	// is printed apart so the Tier 4 seven read exactly as before.
+	disguised := deriveHostileManifest(disguisedRelease.selector, goodManifest, image, older)
+	body, err := marshalManifest(disguised)
+	if err != nil {
+		return err
+	}
+	signature, err := signManifest(attackerPEM, body)
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(a.manifestPath(disguised.ReleaseID), body, 0o600); err != nil {
+		return err
+	}
+	if err := os.WriteFile(a.manifestSignaturePath(disguised.ReleaseID), signature, 0o600); err != nil {
+		return err
+	}
+	fmt.Fprintf(a.out, "\n%s: the %s forgery again, for Tier 10, under a name that says nothing.\n", disguisedRelease.selector, disguisedRelease.forges)
+	fmt.Fprintf(a.out, "  release_id: %s, which no release of this course uses\n", disguised.ReleaseID)
+	fmt.Fprintf(a.out, "  signing with the attacker key, fingerprint %s\n", attackerFingerprint)
+	fmt.Fprintf(a.out, "  wrote %s, %d bytes, and a %d byte detached signature\n",
+		a.relative(a.manifestPath(disguised.ReleaseID)), len(body), len(signature))
 
 	fmt.Fprintln(a.out, "\nResult: seven hostile releases ready, each with its own identifier.")
 	fmt.Fprintln(a.out, "Publish one through your own service with:")
@@ -980,6 +1030,7 @@ type releaseRecord struct {
 func (a *app) tier04HostileRelease(target string, env environment) (string, string, map[string]string, error) {
 	selector := a.selector
 	id := hostileReleaseID(selector)
+	forgery := hostileForgery(selector)
 	var described struct {
 		learnerSigned bool
 		bootloader    bool
@@ -987,7 +1038,7 @@ func (a *app) tier04HostileRelease(target string, env environment) (string, stri
 		refusedAt     string
 	}
 	for _, variant := range hostileManifests {
-		if variant.name == selector {
+		if variant.name == forgery {
 			described.learnerSigned = variant.learnerSigned
 			described.bootloader = variant.bootloader
 			described.why = variant.why

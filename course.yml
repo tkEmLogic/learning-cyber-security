@@ -202,7 +202,9 @@ fixtures:
   # Tier 4 publishes hostile release metadata, not hostile firmware. All six
   # variants point at the Learner's own good image; what is wrong with them is
   # the signed description of it, so the selector names a release rather than a
-  # file. See docs/fixture-safety-contract.md, "Tier 4 fixtures".
+  # file. disguised is the wrong-key forgery under a release id that names
+  # nothing, for Tier 10's Event 2: a forger names a release to look real. See
+  # docs/fixture-safety-contract.md, "Tier 4 fixtures".
   tier-04/hostile-release:
     tier: "04"
     uses_tls_port: true
@@ -217,6 +219,7 @@ fixtures:
       size: tier-04-hostile-size
       digest: tier-04-hostile-digest
       counter-mismatch: tier-04-hostile-counter-mismatch
+      disguised: tier-10-security-fix
     changes:
       - .course-state/ota/current-release.json
       - artifacts/generated/attacks/tier-04/hostile-release
@@ -499,7 +502,7 @@ scenario:
       where: board
       stage: fixture
       fixture: tier-04/hostile-release
-      selector: wrong-key
+      selector: disguised
     - id: tier-10/event-03
       number: 3
       where: board
@@ -721,6 +724,9 @@ regression:
     - id: tier-09/support-listener
       selector: reboot
       reason: A reset during a candidate trial is a failed trial, so it would burn one of the board's three attempts and cause the revert it is meant to observe.
+    - id: tier-04/hostile-release
+      selector: disguised
+      reason: It is the wrong-key forgery under another release id, refused at the same check, so it adds no check. Tier 10's scenario stages it as Event 2.
     - id: tier-03/hostile-image
       selector: modified
       reason: Refused at the same point as unsigned and wrong-key, the missing Release manifest, so it adds no check.
