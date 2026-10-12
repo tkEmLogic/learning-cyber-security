@@ -52,7 +52,7 @@ You need:
 - A [Tier 9](../tier-09-vulnerability-support/index.md) board: claimed by an Owner of your own, `active`, running `tier-09-remediation` at security counter 6.
 - The Fleet baseline set to `tier-09-remediation`, and no rollout open. `tier-09-support-listener` is approved and withdrawn.
 - The four synthetic fleet devices, `beacon-fleet-e9-01` to `beacon-fleet-e9-04`, `active`.
-- Tier 4's hostile releases, built in Tier 4 with `./course release hostile --tier 04`. One event uses them.
+- Tier 4's hostile releases. One event uses one of them, which Tier 4 did not build. Run `./course release hostile --tier 04` again now, and it builds that one beside the seven you know.
 - Your board's address on record. Tier 9 recorded it with `./course device address`.
 - The Tier 9 Security evidence pack, and a clean working tree.
 
@@ -212,18 +212,19 @@ The service log showed the same two connections from its side:
 
 On the capture this event was staged at 19:02:45 UTC.
 
-**What the operator sees.** On the board's next poll, the service offered a release the board had never seen:
+**What the operator sees.** On the board's next poll, the service offered a release the board had never seen. These lines come from a later capture, at 20:04 UTC, after the campaign, on the corrected board at counter 8:
 
 ```text
-ota.assignment offers tier-04-hostile-wrong-key instead of the running tier-09-remediation; asking for its signed manifest
-ota.manifest fetched 498 manifest bytes and a 71 byte detached signature
+ota.assignment release_id=tier-10-security-fix version=0.4.1-security-fix image=tier-04-security-fix.bin
+ota.assignment offers tier-10-security-fix instead of the running tier-10-corrected; asking for its signed manifest
+ota.manifest fetched 493 manifest bytes and a 71 byte detached signature
 release.refused check=manifest-signature
-release.refused   compared: the detached signature against SHA-256 of the 498 manifest bytes exactly as they arrived, using the key compiled into this image
+release.refused   compared: the detached signature against SHA-256 of the 493 manifest bytes exactly as they arrived, using the key compiled into this image
 release.refused   rejected: the signature does not verify, status=-149; either these bytes are not what was signed, or they were signed by another key
 release.refused   consequence: no image bytes were requested, and the running image is unchanged
 ```
 
-The service stored the board's report in `events.jsonl`. Its `event` field reads `update.refused`, its `detail` reads `tier-04-hostile-wrong-key`, and its `service_received_at` reads `2026-10-12T19:03:29.026408527Z`. The service log shows only a restart at 19:02:45.
+The service stored the board's report in `events.jsonl`. Its `event` field reads `update.refused`, and its `detail` reads `tier-10-security-fix check=manifest-signature`. Its `source_address` reads `192.168.68.74`, the address the report came from, and its `service_received_at` reads `2026-10-12T20:04:37.159102104Z`. The service log has no line for this event.
 
 **Where to look.** The board's serial console, and `.course-state/ota.log`. The `events.jsonl` line is the service clock's record of the same moment.
 
@@ -783,9 +784,9 @@ host   e-8-10                                            pass       expected ref
 
 The capture's other eleven host lines, `e-7-03` to `e-7-09` and `e-7-11` to `e-7-14`, reported `no result`. That came from the capture bench's own history: an earlier reset, before Tier 7 was published, removed the private keys those rows had enrolled. Your environment does not have that history. If one of your host lines reports it anyway, [Troubleshooting](#troubleshooting) says what to record.
 
-In your environment every host line should pass. The run then ends with its counts, the receipt path and the verdict. With every line passing, the four last lines read `Board: 12 pass, 0 fail, 0 no result, 3 not run`, then `Host: 28 pass, 0 fail, 0 no result, 4 not run`, then `Receipt:` with the path of your receipt under `.course-state/regression/`, and last `Result: pass`. That is a description of what the command prints, not a capture. Any line that is not a pass makes the result `fail`, and the command says that every such line is listed above it.
+In your environment every host line should pass. The run then ends with its counts, the receipt path and the verdict. With every line passing, the four last lines read `Board: 12 pass, 0 fail, 0 no result, 4 not run`, then `Host: 28 pass, 0 fail, 0 no result, 4 not run`, then `Receipt:` with the path of your receipt under `.course-state/regression/`, and last `Result: pass`. That is a description of what the command prints, not a capture. Any line that is not a pass makes the result `fail`, and the command says that every such line is listed above it.
 
-The plan leaves seven fixtures out, and prints each as `not run` with its reason. One is the support listener's `reboot` request, which would burn a trial attempt or restart a healthy board. Two are Tier 3 hostile images refused at the same point as the two that run. The other four are host fixtures that test nothing about the running release, or repeat what another entry covers.
+The plan leaves eight fixtures out, and prints each as `not run` with its reason. One is the support listener's `reboot` request, which would burn a trial attempt or restart a healthy board. Two are Tier 3 hostile images refused at the same point as the two that run. One is the Tier 4 release Event 2 used, which is `wrong-key` under another name and adds no check. The capture's run predates it, so it shows three. The other four are host fixtures that test nothing about the running release, or repeat what another entry covers.
 
 ### The planted regression, before and after
 
@@ -827,7 +828,7 @@ refused check=none status=404 path=/v1/releases/tier-03-hostile-unsigned/manifes
 
 That is where a stored refusal reading `check=none`, such as `tier-03-hostile-unsigned check=none`, comes from: a release with no signed manifest at all.
 
-Every stored refusal from the corrected release names its check this way, after the release identifier. Tier 9's records named only the release, which is why Event 2's line had no `check=`. [What this tier found in the tiers before it](#what-this-tier-found-in-the-tiers-before-it) explains why that matters.
+Every stored refusal from the corrected release names its check this way, after the release identifier. Tier 9's records named only the release, which is why Event 3's line has no `check=`. Event 2's line has one, because it was captured on the corrected release. [What this tier found in the tiers before it](#what-this-tier-found-in-the-tiers-before-it) explains why that matters.
 
 ### What an attacker still controls
 
@@ -843,7 +844,7 @@ What they no longer achieve: the corrected release opens no support port at any 
 
 ## Test safety and failure behavior
 
-Ten rows. The `Observed on` column says who produced each result. `device` means your board produced it. `host` means the service or a course command produced it on this machine. A host result never stands in for a device result.
+Eleven rows. The `Observed on` column says who produced each result. `device` means your board produced it. `host` means the service or a course command produced it on this machine. A host result never stands in for a device result.
 
 | Evidence ID | Test | Expected result | Observed on | Actual result |
 | --- | --- | --- | --- | --- |
@@ -857,8 +858,13 @@ Ten rows. The `Observed on` column says who produced each result. `device` means
 | E-10-08 | The full regression run while a rollout is open | Every release entry is `no result: not offered`, never `pass` | host | |
 | E-10-09 | Tier 9's remediation offered to the board at counter 8, by the replay entry | Refused at `security-counter`, 6 against 8, with no image bytes requested | device | |
 | E-10-10 | `./course scenario start` after the candidate is withdrawn | Refused: the withdrawal is permanent, and the scenario cannot be staged again | host | |
+| E-10-11 | Support-listener regression with the wrong address on record | `no result`, naming the address the board reports from | device | |
 
-The capture produced `E-10-01`, `E-10-02`, `E-10-06`, `E-10-07` and `E-10-09`, and this page quotes them in the sections above. It did not run `E-10-03`, `E-10-04`, `E-10-05`, `E-10-08` or `E-10-10`, so your actual result is the first one recorded for each. Run `E-10-08` only if you want to, and only before you advance: it takes as long as a full run and changes nothing.
+The capture produced `E-10-01`, `E-10-02`, `E-10-06`, `E-10-07` and `E-10-09`, and this page quotes them in the sections above.
+
+The bench ran four more rows on 12 October 2026, after the campaign. `E-10-03` and `E-10-04` were both refused at check `release-withdrawn`, with the reason `release tier-10-candidate has been withdrawn, and a withdrawn release is never offered again`. `E-10-10` was refused with `tier-10-candidate was withdrawn in an earlier run, and a withdrawal is permanent; this environment cannot stage the scenario again`. `E-10-11` is quoted in [Informal Mentor conversation](#informal-mentor-conversation).
+
+The bench did not run `E-10-05`, because its corrected release was already approved, or `E-10-08`, because that row needs an open rollout. Your actual result is the first one recorded for each. Run `E-10-08` only if you want to, and only before you advance: it takes as long as a full run and changes nothing.
 
 Three rows deserve a second look.
 
@@ -910,7 +916,7 @@ No control in this course has reached `verified`, and this tier does not change 
 
 Tier 10 is not a control tier, so it does not add to the count [Tier 3 explains](../tier-03-signed-images/index.md#what-this-tier-found-in-tier-2), which stands at seven control tiers out of seven. It found one thing worth your attention anyway, and two more that already have a home elsewhere.
 
-**A record that names the outcome but not the reason cannot tell two controls apart.** Up to Tier 9, the board stored a refusal as `update.refused` with only the release identifier, as Event 2's line shows. A refusal at the signature and a refusal at the counter looked identical in the service's log. Only the serial console said which check ran, and the console is the one record with no clock that nothing on the service side keeps. Nothing failed, because no tier before this one needed a stored record to say which check refused. The regression run must, so the Tier 10 firmware stores the check after the release identifier. Tier 9's records stand as they were written, and the limit belongs to Tier 9's firmware.
+**A record that names the outcome but not the reason cannot tell two controls apart.** Up to Tier 9, the board stored a refusal as `update.refused` with only the release identifier, as Event 3's line shows. A refusal at the signature and a refusal at the counter looked identical in the service's log. Only the serial console said which check ran, and the console is the one record with no clock that nothing on the service side keeps. Nothing failed, because no tier before this one needed a stored record to say which check refused. The regression run must, so the Tier 10 firmware stores the check after the release identifier. Tier 9's records stand as they were written, and the limit belongs to Tier 9's firmware.
 
 Two more findings are recorded where they belong, and are not told again here. The four Tier 4 checks that never ran on Tier 10 are in [What a pass does not prove](#what-a-pass-does-not-prove). The two gaps in Tier 9's release process are `T10-W-39` and `T10-W-40`, in [the ledger](#weakness-ledger-after-the-work).
 
@@ -947,7 +953,7 @@ Check the structure of what you wrote with `./course evidence check --tier 10`. 
 | A command fails with `403` and a marker mismatch | The service was started before your last `./course setup`, so it holds the old marker. Restart it with `./course service start --https --mutual-tls --release-approval` |
 | `scenario start` refuses because the candidate was withdrawn in an earlier run | The scenario runs once per environment, because a withdrawal is permanent. Bring in a Mentor before you change any service state |
 | Event 8 stops without staging, and the board's console shows `check=trial-limit` | The board used all three trial attempts before Event 8 could reach a trial window. Recover as the recovery section says, and record what happened. Bring in a Mentor about the missing event |
-| The support-listener regression reports `no result` | Silence is not a pass. Check that the address `./course device address` prints is the one on the board's latest `wifi.address` line, and record it again if it changed |
+| The support-listener regression reports `no result` | Silence is not a pass. If the line says the address on record is not where the board last reported from, it names that address. Check it against the board's latest `wifi.address` line, and record it again with `./course device address` |
 | `release approve` is refused at `build-tree-clean` | You built from a tree with uncommitted changes, probably your evidence. Commit, then build, sign, describe and test again before you approve |
 | The full regression reports `no result: not offered` for every release entry | A rollout is still open. Complete it, then run again |
 | A Tier 7 host line reports `no result` and says the fixture `no longer holds its private key` | That environment's Tier 7 fixture keys were removed by an earlier reset. The board results still stand. Record the row as `no result` in your final claim matrix, with that reason in the gap of the claim it touches |
@@ -981,7 +987,15 @@ Run the current Reference product and demonstrate the integrated defense. Your M
 
 Your Mentor selects one prepared failure and you work it through together, using the course material, your evidence and any hints you need.
 
-The prepared failure for this gate is **a pass that came from the wrong place**. Your Mentor changes one piece of lab state without telling you which, then asks you to run the support-listener regression against your corrected release. It passes. Every instinct says the listener is gone and the evidence is good. Your Mentor will ask you to prove that the pass came from your board. A good first question is what, exactly, answered the datagram.
+The prepared failure for this gate is **a regression that will not give a result**. Your Mentor changes one piece of lab state without telling you which, then asks you to run the support-listener regression against your corrected release. The board is healthy and the listener is gone, but the line does not pass. On the bench it read:
+
+```text
+board  tier-09/support-listener --request inventory      no result  expected absent, observed nothing; the address on record, 127.0.0.1, is not where the board last reported from (192.168.68.74 at 2026-10-12T19:57:20Z); re-record it with ./course device address
+```
+
+The run then ended with `Board: 0 pass, 0 fail, 1 no result, 0 not run` and `Result: fail`. Your Mentor will ask you why the command refused to call this a pass, and what it compared. This is `E-10-11`.
+
+"No answer" from an address is evidence about your board only if the address is your board's. The service's record of where the board's own reports come from, the `source_address` of its events, is what ties the two together.
 
 The worked answer, the scenario's answer key and the unsafe shortcuts are in [the Tier 10 Mentor key](mentor-key.md). The page is public. Finish your own records first, then compare, and record the differences rather than copying the answers.
 

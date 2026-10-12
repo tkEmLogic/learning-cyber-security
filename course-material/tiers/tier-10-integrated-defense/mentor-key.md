@@ -11,7 +11,7 @@ Every time on this page is UTC and comes from the Tier 10 board campaign of 12 O
 | Event | Mechanism | Where | Class | Boundary | Control that answers |
 | --- | --- | --- | --- | --- | --- |
 | 1 | The runner restarts the service with `--present wrong-name`, so it presents a certificate for another name | board | attack: service impersonation | The device and the OTA service | `CTL-03`, the device's server name check (Tier 2). The board refused with verification flags `0x00000004` |
-| 2 | `tier-04/hostile-release --release wrong-key`, written into the Fleet baseline as a compromised hosting side | board | attack: malicious hosting | The release signing workstation and the OTA service | `CTL-02`, the manifest signature (Tier 4). Refused at `manifest-signature`, `status=-149` |
+| 2 | `tier-04/hostile-release --release disguised`, the `wrong-key` forgery under the release identifier `tier-10-security-fix`, written into the Fleet baseline as a compromised hosting side | board | attack: malicious hosting | The release signing workstation and the OTA service | `CTL-02`, the manifest signature (Tier 4). Refused at `manifest-signature`, `status=-149` |
 | 3 | `tier-04/replay-release` offers `tier-05-crash`, a genuine older release at counter 4, unedited | board | attack: replay | The release signing workstation and the OTA service | `CTL-02`, the security counter (Tier 4), with `CTL-01` in MCUboot behind it. Refused at `security-counter`, 4 against 6 |
 | 4 | `service bypass e-8-07`: a revoked device presents its own unrevoked certificate | host, labeled as a host result | attack: credential misuse | The device and the OTA service, decided at the service | `CTL-12`, revocation (Tier 8). Refused at `device-unrevoked` |
 | 5 | The runner, as `teammate`, starts the candidate rollout with a misspelled canary, `beacon-t08c-206ef1170d46`, reads that nothing was served, and advances | service | operational failure: operator error | `none` is right. The customer operator and the manufacturer service is acceptable if the Learner says the operator here is the manufacturer's own | Nothing. `CTL-18` checks only that the group is well formed, which is `T10-W-40` |
@@ -19,11 +19,15 @@ Every time on this page is UTC and comes from the Tier 10 board campaign of 12 O
 | 7 | The candidate's beacon period is 90 s, so `beacon-advancing` fails at the gate's second sample | board | operational failure: bad release health | MCUboot and the Zephyr application | `CTL-05`, the health gate and automatic revert (Tier 5) |
 | 8 | `tier-09/support-listener --request inventory`, sent in a series until one lands inside the trial window | board | attack | The device and the local Wi-Fi network | Nothing on the board. It is `T10-W-38`, the planted regression of `T9-W-34`. The release process should have caught it: a canary that waits, and the support-listener regression before the advance |
 
-The staged times on the capture were 19:01:59, 19:02:45, 19:03:28, 19:04:30, 19:04:39, 19:06:48, 19:07:58 and 19:10:24.
+The staged times on the capture were 19:01:59, 19:02:45, 19:03:28, 19:04:30, 19:04:39, 19:06:48, 19:07:58 and 19:10:24. In the campaign, Event 2 published `wrong-key` under its own name, `tier-04-hostile-wrong-key`. The module quotes a later capture of `disguised`, at 20:04 on the corrected board at counter 8, which the board refused at the same check.
 
 ### What to accept as a first classification
 
 `undetermined` is a good first answer for Event 1 and Event 2, if the Learner can say what would settle it. A certificate with the wrong name can be a misconfigured service, and a signature that does not verify can be a key rotation mistake. Both were attacks here, and the evidence that settles it is that nobody on the team changed a certificate or a key.
+
+The forged release in Event 2 carries a plausible name on purpose. A forger names a release to look like the next real one, so `tier-10-security-fix` says nothing about what it is. Only the check that refused it does. A Learner who distrusts it because nobody announced a release with that name has reasoned well.
+
+Event 8's console shows the line `support.listener it asks no one who they are (T9-W-34)`. It comes from the inherited Tier 9 listener code, which the teammate's change switched back on, and it names a weakness the Learner already knows. It is a hint the Learner may use. The gate still asks for the boundary and the control, and a Learner who only repeats the weakness identifier has not given either.
 
 Push back on `attack` for Event 6. The download resumed, the image hashed to its signed digest, and the board installed it. A Learner who calls it an attack has usually reasoned from "something cut my connection" to "someone cut my connection".
 
@@ -85,7 +89,7 @@ The corrected release is the committed tree, which carries neither hunk. A Learn
 
 The planning assumed the listener would be live for the whole 60 s window. On the board it is live for about 9 to 10 s, from the gate's start to its second sample. That is why the scenario sends a series of single datagrams for Event 8.
 
-## Diagnose: a pass that came from the wrong place
+## Diagnose: a regression that will not give a result
 
 **Preparation.** Before the session, record the lab host's own loopback address as the board's address:
 
@@ -93,15 +97,21 @@ The planning assumed the listener would be live for the whole 60 s window. On th
 ./course device address 127.0.0.1
 ```
 
-Then ask the Learner to run the support-listener regression against the corrected release. Nothing listens on UDP 7700 on the lab host either, so the host's own network stack refuses the datagram, and the run reports `pass`, `observed absent`. Run it once yourself before the session to confirm your host answers that way. Put the board's real address back at the end.
+Then ask the Learner to run the support-listener regression against the corrected release. Put the board's real address back at the end, from the board's latest `wifi.address` line.
 
-**The symptom.** A pass, on the release that should pass. Everything points to "the listener is gone, the evidence is good".
+**The symptom.** The board is healthy and runs the release that should pass, and the line does not pass. On the bench, with the board at `192.168.68.74`, it read:
 
-**The cause.** The datagram never reached the board. A port-unreachable answer says only that something at that address has no socket open on that port. It does not say which device answered.
+```text
+board  tier-09/support-listener --request inventory      no result  expected absent, observed nothing; the address on record, 127.0.0.1, is not where the board last reported from (192.168.68.74 at 2026-10-12T19:57:20Z); re-record it with ./course device address
+```
 
-**A good diagnostic path.** The Learner asks what answered the datagram, prints the address on record with `./course device address`, and compares it with the board's latest `wifi.address` line. Then they reach for the evidence that does name the device: the board's own boot log, `support.listener absent`, which no other host can print. Tier 9 already called port unreachable weak evidence. This failure shows why it is weak in a second way.
+The run ended with `Board: 0 pass, 0 fail, 1 no result, 0 not run` and `Result: fail`. That is `E-10-11`.
 
-**What it teaches.** A regression line is only as good as its target. The board's real reports reach the course through `events.jsonl` under the board's device identifier, read over mutual TLS. The support-listener line is the one board result that is not, and it trusts an address a person typed.
+**The cause.** The address on record is not the board's. Without the comparison, this would look like a pass. Nothing listens on UDP 7700 on the lab host either, so the host's own stack would refuse the datagram, and port unreachable would look like the board's answer. A port-unreachable answer says only that something at that address has no socket open on that port. It does not say which device answered.
+
+**A good diagnostic path.** The Learner reads the line before reaching for a command, and asks what the regression compared. The address on record came from a person. The address in the parentheses came from the service: it is the `source_address` of the board's own reports in `events.jsonl`, which arrive over mutual TLS under the board's device identifier. The Learner checks the second address against the board's `wifi.address` line, records it again, and runs the regression once more.
+
+**What it teaches.** "No answer" from an address is evidence about the board only if the address is the board's. The service's record of where the board reports from is what ties the two together, and the command now refuses to call silence a pass without it. Ask the Learner what a run that printed `pass` here would have proved. The honest answer is nothing about the board. Tier 9 already called port unreachable weak evidence, and this shows a second reason.
 
 ## Explain: what the attacker can still do
 
