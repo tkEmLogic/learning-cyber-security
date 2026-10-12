@@ -1413,6 +1413,64 @@ verification:
       # instead; it rate-limits port-unreachable replies.
       replay_counter_6_no_reply_no_reset: validated
 
+  tier_10:
+    hardware:
+      # Issue #293, on the ESP32-C6-DevKitC-1, 2026-10-12, with no BOOT press.
+      # The board started as beacon-t08c-206ef1170d64, claimed by harbor-owner,
+      # on tier-09-remediation at counter 6 with the Fleet baseline
+      # tier-09-remediation and no rollout open, restored by a serial flash.
+      # It ended on tier-10-corrected at counter 8, the Fleet baseline, with
+      # tier-10-candidate withdrawn. A first run on 2026-10-08 missed Event 8
+      # (see #293); the runner was fixed and the scenario restaged on a
+      # rewound lab state. Event 4 and the host results of the regression run
+      # are host results and are not listed here.
+
+      # Event 1: the service presented a certificate for the wrong name, and
+      # the board refused the handshake with verification flags 0x00000004.
+      scenario_service_impersonation_refused: validated
+      # Event 2: a release signed with the wrong key, refused at
+      # manifest-signature before any image byte was requested.
+      scenario_hostile_release_refused: validated
+      # Event 3: tier-05-crash re-offered unedited; the signature verified and
+      # the board refused it at security-counter, 4 against 6.
+      scenario_replay_refused: validated
+      # Event 5: the teammate's rollout named beacon-t08c-206ef1170d46, a
+      # device that does not exist, served nobody at the canary stage, and was
+      # advanced anyway; the board was then served at the fleet stage.
+      scenario_misspelled_canary_rollout_advanced: validated
+      # Event 6: the candidate's download was cut at 500439 of 834066 bytes
+      # and resumed from offset 458752; the image hashed to its signed digest.
+      scenario_interrupted_download_resumed: validated
+      # Event 7: counter 7 on trial, four boot checks passed, beacon-advancing
+      # failed 11 s into the window, and the board reverted and stored
+      # update.reverted "tier-10-candidate beacon-advancing".
+      candidate_fails_health_and_reverts: validated
+      # Event 8: the support listener started before the health gate and
+      # answered an unauthenticated inventory, security_counter=7, inside
+      # trial 2's window of about 9 s (T10-W-38).
+      candidate_listener_answers_inside_trial_window: validated
+      # The regression run during trial 1 failed tier-09/support-listener:
+      # "expected absent, observed answered".
+      regression_catches_planted_listener: validated
+
+      # Recovery: paused and withdrawn (VR-10-01) 4 s after Event 8, after 2
+      # of 3 trial attempts; the rollout closed, the Fleet baseline stayed
+      # tier-09-remediation, and the board came back confirmed at counter 6.
+      candidate_withdrawn_board_back_on_counter_6: validated
+
+      # The corrected release: rollout started with the board's real id as
+      # the only canary, update.confirmed at counter 8 before the advance,
+      # the boot log's listener-absent line, and port unreachable on UDP 7700
+      # from the regression run before advancing; complete made it the Fleet
+      # baseline.
+      corrected_installs_as_canary_at_counter_8: validated
+      corrected_boot_log_states_listener_absent: validated
+      # The full regression with no rollout open: 12 board results passed
+      # (the listener, the seven hostile manifests, the replay, two hostile
+      # images and the altered image), each stored as update.refused with
+      # check=<name>.
+      regression_board_results_pass_on_counter_8: validated
+
 tiers:
   "00":
     title: Build the unsecured reference product
