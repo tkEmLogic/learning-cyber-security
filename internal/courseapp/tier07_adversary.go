@@ -70,7 +70,8 @@ type tier07Adversary struct {
 // It holds secrets: the adversary owner's credential and every synthetic
 // device's private keys. It lives under `.course-state/`, which is ignored and
 // never committed, at 0600 inside a 0700 directory, and nothing ever prints
-// its contents. Reset deletes it.
+// its contents. Reset clears the owner credential and keeps the keys, because
+// the enrollments they belong to stay in the append-only record.
 type adversaryState struct {
 	OwnerCredential string                      `json:"owner_credential"`
 	Devices         map[string]*syntheticDevice `json:"devices"`
@@ -92,6 +93,12 @@ type syntheticDevice struct {
 	OperationalCertificate string `json:"operational_certificate,omitempty"`
 	OperationalSerial      string `json:"operational_serial,omitempty"`
 	OwnerID                string `json:"owner_id,omitempty"`
+
+	// SpentNonce is the nonce the fixture's own claim spent. It authorizes
+	// nothing anywhere once spent, because nonce-unspent refuses it on both
+	// halves, and it is what E-7-11 replays. Keeping it is what lets that row
+	// run again after the claim, which cannot be undone.
+	SpentNonce string `json:"spent_nonce,omitempty"`
 }
 
 func (a *app) bypassStateDir() string {
@@ -218,6 +225,20 @@ func (x *tier07Adversary) ensureEnrolled(deviceID string) (*syntheticDevice, err
 	if device, ok := x.state.Devices[deviceID]; ok && device.FactoryCertificate != "" {
 		return device, nil
 	}
+	// An identifier the record already certified, with no key here to go with
+	// it, is stranded: the station would refuse it at identifier-unused, which
+	// is Tier 6's check and not the row's. It is read from the record first, as
+	// decommission does, so a stranded row asks the station nothing and adds no
+	// refused enrollment to the record on every run.
+	records, err := x.app.readRecords()
+	if err != nil {
+		return nil, err
+	}
+	if serial, ok := factorySerialOf(records, deviceID); ok {
+		return nil, rowNotRepeatable{fmt.Sprintf(
+			"the manufacturing record already holds Factory certificate %s for %s, and this fixture no longer holds its private key. The station refuses a second certificate under that identifier and the record is append only, so %s cannot run in this Course environment. Nothing was sent to the station",
+			serial, deviceID, x.row)}
+	}
 	credential, _, err := x.app.mintCredential(deviceID)
 	if err != nil {
 		return nil, err
@@ -269,7 +290,10 @@ func (x *tier07Adversary) ensureEnrolled(deviceID string) (*syntheticDevice, err
 // property under test is simply absent, which is the honest reason the
 // claim-window rows are labelled "host, board required".
 //
-// The nonce it returns is the one that was spent, which E-7-11 replays.
+// The nonce it returns is the one that was spent, which E-7-11 replays. It is
+// kept in fixture state with the device, so a device claimed on an earlier run
+// returns the same spent nonce. It is empty only for a claim an earlier fixture
+// version made without keeping it.
 func (x *tier07Adversary) claimSynthetic(deviceID string) (*syntheticDevice, string, error) {
 	device, err := x.ensureEnrolled(deviceID)
 	if err != nil {
@@ -280,7 +304,7 @@ func (x *tier07Adversary) claimSynthetic(deviceID string) (*syntheticDevice, str
 		return nil, "", err
 	}
 	if device.OperationalCertificate != "" {
-		return device, "", nil
+		return device, device.SpentNonce, nil
 	}
 
 	operationalKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -339,6 +363,7 @@ func (x *tier07Adversary) claimSynthetic(deviceID string) (*syntheticDevice, str
 	device.OperationalCertificate = certificate
 	device.OperationalSerial, _ = issued.Body["certificate_serial"].(string)
 	device.OwnerID = owner
+	device.SpentNonce = nonce
 	if err := x.save(); err != nil {
 		return nil, "", err
 	}
@@ -393,6 +418,17 @@ func (x *tier07Adversary) signWithOperationalCA(deviceID, ownerScope string,
 		return "", nil, err
 	}
 	return string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})), key, nil
+}
+
+// factorySerialOf returns the serial of the Factory certificate the station
+// issued under this identifier, if it ever issued one.
+func factorySerialOf(records []provisionRecord, deviceID string) (string, bool) {
+	for _, record := range records {
+		if record.Kind == recordEnrollment && record.Result == "issued" && record.DeviceID == deviceID {
+			return record.CertSerial, true
+		}
+	}
+	return "", false
 }
 
 // recordsName reports whether the device lifecycle record holds any line for
@@ -637,9 +673,9 @@ const crockfordAlphabet = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 // bytes as twenty-four characters. 120 bits divides evenly by five, so there
 // is no padding and the six groups of four are real rather than cosmetic.
 //
-// The fixture holds it in memory for the length of one run and prints none of
-// them, which is the same rule the board's console cannot follow and the
-// reason the claim-window rows need a board to mean anything.
+// The fixture prints none of them, which is the same rule the board's console
+// cannot follow and the reason the claim-window rows need a board to mean
+// anything. It keeps one only after the nonce is spent, for E-7-11.
 func newClaimNonce() (string, error) {
 	raw := make([]byte, 15)
 	if _, err := rand.Read(raw); err != nil {

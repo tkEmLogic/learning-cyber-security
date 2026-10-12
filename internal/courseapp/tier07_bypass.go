@@ -257,6 +257,15 @@ func tier07Rows() []bypassRow {
 	}
 }
 
+// rowNotRepeatable is a row that cannot run in this Course environment, for a
+// reason that is a fact about the environment's append-only history and not
+// about the check under test. It is neither a pass nor a failure: the row never
+// reached the check it exists to show, so nothing was tested. Its evidence
+// record and the regression both say "no result".
+type rowNotRepeatable struct{ reason string }
+
+func (e rowNotRepeatable) Error() string { return e.reason }
+
 func lookupBypassRow(id string) (bypassRow, bool) {
 	for _, row := range append(tier07Rows(), tier08Rows()...) {
 		if row.id == id {
@@ -419,7 +428,13 @@ func (a *app) runBypassRow(row bypassRow, executeID string) error {
 	start := time.Now().UTC()
 	runErr := row.run(adversary)
 	result := "passed"
-	if runErr != nil {
+	var notRepeatable rowNotRepeatable
+	switch {
+	case errors.As(runErr, &notRepeatable):
+		result = verdictNoResult
+		fmt.Fprintf(a.out, "\nResult: %s has no result in this environment: %s\n",
+			strings.ToUpper(row.id), notRepeatable.reason)
+	case runErr != nil:
 		result = "failed"
 	}
 	record := map[string]any{
@@ -757,18 +772,20 @@ func (x *tier07Adversary) rowOwnershipContext() error {
 // anything asks who owns the device. That order is load bearing: device-unowned
 // first would make a replayed nonce refuse as already-owned and put a named
 // success criterion out of the board's reach.
+//
+// The claim that spends the nonce cannot be undone: ownership is first come and
+// the record is append only. So the fixture keeps the spent nonce with the
+// device, and a later run replays the nonce the first run spent.
 func (x *tier07Adversary) rowReplayedNonce() error {
 	const deviceID = "beacon-bypass-e7-11"
-	if device, ok := x.state.Devices[deviceID]; ok && device.OperationalCertificate != "" {
-		// The spent nonce is held only for the length of the run that spent
-		// it, and the claim that spent it cannot be undone: ownership is first
-		// come and the record is append only. Reset cannot give this row back,
-		// and it says so rather than letting the row fail at some other check.
-		return errors.New("this row replays a nonce it watched being spent, and the claim that spent it has already happened in this environment; reset cannot undo a claim, so discard the Course environment to run it again")
-	}
 	_, nonce, err := x.claimSynthetic(deviceID)
 	if err != nil {
 		return err
+	}
+	if nonce == "" {
+		return rowNotRepeatable{fmt.Sprintf(
+			"%s was claimed by an earlier fixture version that kept no copy of the nonce it spent, so there is no spent nonce to replay. A claim cannot be undone and the record is append only, so E-7-11 cannot run in this Course environment",
+			deviceID)}
 	}
 	fmt.Fprintln(x.out(), "  the same nonce is presented to the operator half a second time.")
 	fmt.Fprintln(x.out(), "  The device is now owned, so two checks could refuse this. Watch which one does.")
@@ -1064,8 +1081,8 @@ func (a *app) bypassReset() error {
 	if spent {
 		fmt.Fprintln(a.out)
 		fmt.Fprintln(a.out, "One row is spent in this environment and reset cannot give it back.")
-		fmt.Fprintln(a.out, "E-7-11 replays a nonce it watched being spent, and a nonce is spent once.")
-		fmt.Fprintln(a.out, "Discard the whole Course environment to run that row again.")
+		fmt.Fprintln(a.out, "E-7-11 replays the nonce its claim spent, and an earlier fixture version")
+		fmt.Fprintln(a.out, "claimed beacon-bypass-e7-11 without keeping that nonce.")
 	}
 	fmt.Fprintf(a.out, "Result: the Tier 7 adversary holds no live authorization state\n")
 	return nil
@@ -1076,13 +1093,16 @@ func (a *app) bypassReset() error {
 //
 // The owner credential goes because the account it authenticates has gone. The
 // revoked serials go because they were un-revoked above. What stays is key
-// material, which reset may not touch, and the record of which devices this
+// material, which reset may not touch, the record of which devices this
 // fixture has already claimed, because that is a fact about the append-only
-// record rather than a store deciding anything.
+// record rather than a store deciding anything, and the nonces those claims
+// spent, which authorize nothing. The one spent row is an E-7-11 claim an
+// earlier fixture version made without keeping its nonce.
 func (a *app) discardAuthorizationState(state *adversaryState) (spent bool) {
 	state.OwnerCredential = ""
 	state.RevokedSerials = nil
-	if device, ok := state.Devices["beacon-bypass-e7-11"]; ok && device.OperationalCertificate != "" {
+	if device, ok := state.Devices["beacon-bypass-e7-11"]; ok &&
+		device.OperationalCertificate != "" && device.SpentNonce == "" {
 		spent = true
 	}
 	return spent

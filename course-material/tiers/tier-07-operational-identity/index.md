@@ -800,10 +800,7 @@ Resetting the Tier 7 adversary. This is append only wherever it can be.
 
 A record of what happened is never rewound. A store that decides what
 happens next is. That is the whole difference between the two lists above.
-
-One row is spent in this environment and reset cannot give it back.
-E-7-11 replays a nonce it watched being spent, and a nonce is spent once.
-Discard the whole Course environment to run that row again.
+Result: the Tier 7 adversary holds no live authorization state
 ```
 
 That output is worth as much as any of the rows. Reset removes the adversary's owner account, because an account left behind is a live credential after the lab is over, and it removes the serials the fixture marked revoked, because those change how the service answers a later honest request. It removes nothing from the manufacturing record and nothing from the service's own trail, and it says so. A record of what happened is never rewound; a store that decides what happens next is.

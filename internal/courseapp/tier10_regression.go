@@ -1174,6 +1174,12 @@ func (a *app) runHostStep(step regressionStep) regressionResult {
 		output, err := a.quietly(func() error { return a.runBypassRow(row, row.id) })
 		result.Observed, result.Detail = refusalOutcome(output, err)
 		result.Evidence = evidenceLine(output)
+		// A row this environment's history has spent tested nothing, so it is
+		// no result: never a pass, and never a failure of the control.
+		var notRepeatable rowNotRepeatable
+		if errors.As(err, &notRepeatable) {
+			result.Observed, result.Detail = "", notRepeatable.reason
+		}
 	}
 	result.Result = judge(step.entry.Expect, "", result.Observed, "")
 	return result
