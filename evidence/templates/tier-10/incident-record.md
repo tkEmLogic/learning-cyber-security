@@ -40,7 +40,7 @@ Every time in this record has a clock source. There are three, and you write exa
 | Write | When the time comes from |
 | --- | --- |
 | `host` | The `Event N staged at` line that `./course scenario next` printed, or a capture you started on the host |
-| `service` | A line in `.course-state/ota/ota.log` or `.course-state/ota/events.jsonl` |
+| `service` | A line in `.course-state/ota.log`, `.course-state/ota/events.jsonl` or `.course-state/provisioning/records.jsonl` |
 | `none` | A line on the board's serial console. The console prints no time. Leave the time empty, and place the row by its order between the rows around it |
 
 Do not invent a time for a board line. A line with no clock is still a fact, and its order is the fact you have.

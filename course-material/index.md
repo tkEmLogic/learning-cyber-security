@@ -138,6 +138,11 @@ This table holds the course's own roles and records. The security words themselv
 | Annex I control map | One row per Annex I requirement of the CRA, naming the controls that address it, the evidence and a status. It shows where the product stands, not that it meets the requirement |
 | CRA traceability matrix | One row per CRA duty, linking it to requirements, controls, evidence, status, residual risk, the responsible role and a dated legal source |
 | Coordinated vulnerability disclosure policy | The manufacturer's public statement of how outside parties report a suspected vulnerability, how it responds, and when the vulnerability is disclosed |
+| Integration scenario | A prepared sequence of scenario events that mixes real attacks and operational failures, staged one event at a time on the hardened device. You see only what an operator would see and decide what each event was |
+| Scenario event | One staged occurrence in an integration scenario. You record a first classification, attack or failure, the boundary it reached and the control expected to answer, before the next event is staged |
+| Incident record | The internal handling record of one integration scenario: a timeline of facts that names the clock each time came from, every scenario event with its first and final classification, and the response, recovery and lessons learned |
+| Final claim matrix | One row per Security claim at the end of the core course, giving its status, the controls behind it, the evidence for it, and the open Weakness ledger rows that limit it. A claim whose only evidence is a host result is at most partly supported |
+| Residual-risk summary | Every residual risk still open at the end of the core course, grouped by who closes it: Advanced Tier A, Advanced Tier B, accepted for the core course, or a recorded limit of the lab that no tier closes |
 | Secure element | A separate security component that generates or stores private keys and performs cryptographic operations without exporting those private keys |
 
 ## Safety
