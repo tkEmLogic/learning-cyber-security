@@ -263,6 +263,62 @@ func TestIdentifyBoard(t *testing.T) {
 	}
 }
 
+// The address on record is the board's only when the board's most recent
+// event, accepted over mutual TLS, came from it (#284).
+func TestBoardAddressMismatch(t *testing.T) {
+	now := time.Date(2026, 10, 12, 20, 0, 0, 0, time.UTC)
+	from := func(e boardEvent, address string) boardEvent {
+		e.SourceAddress = address
+		return e
+	}
+	moved := from(event(testBoard, "status.observed", "tier-10-corrected", "", now), "192.168.68.74")
+	older := from(event(testBoard, "status.observed", "tier-10-corrected", "", now.Add(-time.Hour)), "192.168.68.50")
+	spoofed := from(event(testBoard, "status.observed", "tier-10-corrected", "", now.Add(time.Minute)), "127.0.0.1")
+	spoofed.AcceptedFrom = ""
+	other := from(event("beacon-t07b-206ef1170d64", "status.observed", "x", "", now.Add(time.Minute)), "127.0.0.1")
+	events := []boardEvent{moved, older, spoofed, other}
+
+	if reason := boardAddressMismatch(events, testBoard, "192.168.68.74"); reason != "" {
+		t.Errorf("the board's latest address must match: %s", reason)
+	}
+	reason := boardAddressMismatch(events, testBoard, "127.0.0.1")
+	if want := "the address on record, 127.0.0.1, is not where the board last reported from (192.168.68.74 at 2026-10-12T20:00:00Z); re-record it with ./course device address"; reason != want {
+		t.Errorf("mismatch reason = %q, want %q", reason, want)
+	}
+	if reason := boardAddressMismatch(events, testBoard, "192.168.68.50"); reason == "" {
+		t.Error("an older event's address must not stand in for the latest one")
+	}
+	unrecorded := append(events, event(testBoard, "update.refused", "tier-10-corrected", "", now.Add(2*time.Minute)))
+	if reason := boardAddressMismatch(unrecorded, testBoard, "192.168.68.74"); !strings.Contains(reason, "records no source address") {
+		t.Errorf("a latest event with no source address must be refused, got %q", reason)
+	}
+	if reason := boardAddressMismatch(events[2:], testBoard, "127.0.0.1"); !strings.Contains(reason, "holds no event") {
+		t.Errorf("with no mutual-TLS event from the board the address cannot be trusted, got %q", reason)
+	}
+}
+
+// The support listener's row is no result, with the reason, when the address
+// on record is not where the board reports from, even though a closed port
+// on that host answers port unreachable exactly as the board's stack would.
+func TestRegressionRefusesTheListenerRowAtTheWrongHost(t *testing.T) {
+	f := regressionBench(t, closedUDPPort(t))
+	status := event(testBoardID, "status.observed", "tier-09-remediation", "", time.Now().UTC())
+	status.SourceAddress = "192.168.68.74"
+	line, _ := json.Marshal(status)
+	if err := os.WriteFile(f.app.eventsPath(), append(line, '\n'), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	err := f.app.regressionRun([]string{"--execute", "regression", "--only", supportListenerFixtureID})
+	output := f.out.String()
+	if err == nil || !strings.Contains(output, "Result: fail") {
+		t.Fatalf("a run against the wrong host passed:\n%s", output)
+	}
+	if !strings.Contains(output, "no result  expected absent, observed nothing; the address on record, 127.0.0.1, is not where the board last reported from (192.168.68.74 at ") {
+		t.Fatalf("the listener row must be no result with the reason:\n%s", output)
+	}
+}
+
 // The replay may name any tier's good release now, but never a withdrawn one,
 // and never the Time floor lab image.
 func TestReplayCandidatesSpanTiersAndSkipWithdrawn(t *testing.T) {
@@ -332,6 +388,7 @@ func regressionBench(t *testing.T, supportPort int) *bypassFixture {
 		t.Fatal(err)
 	}
 	status := event(testBoardID, "status.observed", "tier-09-remediation", "", time.Now().UTC())
+	status.SourceAddress = "127.0.0.1"
 	line, _ := json.Marshal(status)
 	if err := os.WriteFile(f.app.eventsPath(), append(line, '\n'), 0o600); err != nil {
 		t.Fatal(err)

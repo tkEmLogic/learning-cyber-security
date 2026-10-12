@@ -625,3 +625,28 @@ func TestFixtureReplyTimeoutOnlyShortens(t *testing.T) {
 		t.Fatalf("a longer wait was accepted: %v", got)
 	}
 }
+
+// Event 8's series refuses before any wait when the address on record is not
+// where the board reports from, because no run could reach the board's
+// listener there (#284). With the board's own address on record it goes on
+// to the rollout, which this bench has not opened.
+func TestScenarioSeriesRefusesTheWrongHost(t *testing.T) {
+	f := regressionBench(t, closedUDPPort(t))
+	r := f.app.newScenarioRunner(&bytes.Buffer{})
+	st := &scenarioState{BoardDeviceID: testBoardID}
+
+	if err := r.reachListener(st, scenarioEvent{}); err == nil || !strings.Contains(err.Error(), "no rollout of") {
+		t.Fatalf("with the board's address on record the series must reach the rollout check, got %v", err)
+	}
+
+	status := event(testBoardID, "status.observed", "tier-09-remediation", "", time.Now().UTC())
+	status.SourceAddress = "192.168.68.74"
+	line, _ := json.Marshal(status)
+	if err := os.WriteFile(f.app.eventsPath(), append(line, '\n'), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	err := r.reachListener(st, scenarioEvent{})
+	if err == nil || !strings.Contains(err.Error(), "the address on record, 127.0.0.1, is not where the board last reported from (192.168.68.74 at ") {
+		t.Fatalf("the series must refuse the wrong host with the reason, got %v", err)
+	}
+}

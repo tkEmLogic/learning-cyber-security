@@ -1009,6 +1009,17 @@ func (r *scenarioRunner) stageFixtureSeries(st *scenarioState, event scenarioEve
 }
 
 func (r *scenarioRunner) reachListener(st *scenarioState, event scenarioEvent) error {
+	// The series sends to the address on record. If that is not where the
+	// board reports from, no run can reach the board's listener, and the
+	// trial window would pass with nothing learned, so it is refused before
+	// any wait (#284).
+	reason, err := r.a.checkBoardAddress(st.BoardDeviceID)
+	if err != nil {
+		return err
+	}
+	if reason != "" {
+		return errors.New(reason)
+	}
 	rollout, err := r.rolloutState()
 	if err != nil {
 		return err
