@@ -616,9 +616,9 @@ Source: resolved decision ticket [#12](https://github.com/tkEmLogic/learning-cyb
 | Failure criteria | The Learner treats all failures as TLS problems, bypasses verification to recover, loses the last confirmed image, or hides failed evidence. |
 | Mentor review gate | Required core-course completion gate. |
 | Lab artifact | Incident timeline, diagnostic evidence, corrected release record, canary result, recovery proof, final claim matrix, and residual-risk summary. |
-| Expected time | 5 hours. |
+| Expected time | 8 hours. |
 
-**Fixed decision.** The expected core hands-on time is about 60 hours. Reading, setup variation, Mentor scheduling, and optional extension work are additional. Tier 7 is about twice the length of any other module, Tier 8 about three times, and Tier 9 about two and a half times, so their estimates are set from measured length rather than from the band the other tiers sit in.
+**Fixed decision.** The expected core hands-on time is about 63 hours. Reading, setup variation, Mentor scheduling, and optional extension work are additional. Tier 7 is about twice the length of any other module, Tier 8 about three times, Tier 9 about two and a half times, and Tier 10 about twice, so their estimates are set from measured length rather than from the band the other tiers sit in.
 
 ### Advanced hardening tiers
 

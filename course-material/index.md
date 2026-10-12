@@ -32,7 +32,7 @@ A Security claim is only as good as its evidence. When you did not observe somet
 
 ## The tiers
 
-The core course is eleven tiers and about 60 hours of work. Two advanced tiers follow it for teams with disposable hardware.
+The core course is eleven tiers and about 63 hours of work. Two advanced tiers follow it for teams with disposable hardware.
 
 **The linked tiers are written and ready to work through. The rest is the course plan**, here so you can see where the work goes rather than because you can start it yet.
 
@@ -50,7 +50,7 @@ Three short names run through the table below and through the whole course. TLS 
 | [Tier 7: Add owner-scoped operational identity and mutual TLS](tiers/tier-07-operational-identity/index.md) | A rotatable Operational identity and mutual TLS | Factory credentials overused for daily access, or an unclaimed device joining | 8 hours |
 | [Tier 8: Operate the credential lifecycle](tiers/tier-08-credential-lifecycle/index.md) | Rotation, renewal, revocation, ownership transfer, decommissioning | Expired, stolen, copied, or old-owner credentials that still work | 12 hours |
 | [Tier 9: Manage dependencies, vulnerabilities, and support](tiers/tier-09-vulnerability-support/index.md) | A software bill of materials, or SBOM, with vulnerability handling, disclosure, and reporting exercises | Unknown components, unreviewed vulnerabilities, and late reporting | 10 hours |
-| Tier 10: Defend the integrated reference product | No new control. Diagnose and repair the whole product under attack | A mixed campaign combining impersonation, replay, and interruption | 5 hours |
+| [Tier 10: Defend the integrated reference product](tiers/tier-10-integrated-defense/index.md) | No new control. Diagnose and repair the whole product under attack | A mixed campaign combining impersonation, replay, and interruption | 8 hours |
 | Advanced Tier A: Add a hardware-rooted boot chain and confidentiality | ESP32-C6 Secure Boot v2 and flash encryption | A physical attacker replaces the bootloader or reads flash | 6 to 8 hours |
 | Advanced Tier B: Isolate operational identity in STSAFE-A120 | A secure element that never exports its private keys | Key extraction from MCU storage, and misuse by compromised application code | 6 to 8 hours |
 
