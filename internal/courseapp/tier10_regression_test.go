@@ -64,8 +64,18 @@ func TestRegressionPlanFromCourseYML(t *testing.T) {
 			releases = append(releases, step.selector)
 		}
 	}
+	// Every selector is rerun or skipped with a reason. The only one skipped
+	// is the disguised copy of wrong-key, which adds no check.
+	for _, skip := range plan.notRerun {
+		if skip.ID == "tier-04/hostile-release" {
+			if skip.Selector != disguisedRelease.selector {
+				t.Errorf("the plan skips Tier 4's %s release, which tests a check of its own", skip.Selector)
+			}
+			releases = append(releases, skip.Selector)
+		}
+	}
 	if len(releases) != len(m.Fixtures["tier-04/hostile-release"].Releases) {
-		t.Errorf("the plan runs %d of Tier 4's hostile releases (%v), want all of them", len(releases), releases)
+		t.Errorf("the plan covers %d of Tier 4's hostile releases (%v), want all of them", len(releases), releases)
 	}
 	skipped := map[string]bool{}
 	for _, skip := range plan.notRerun {

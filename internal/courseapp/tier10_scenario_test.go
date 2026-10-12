@@ -37,8 +37,10 @@ func TestScenarioBlockInCourseYMLIsValid(t *testing.T) {
 	if events[0].Present != "wrong-name" {
 		t.Errorf("event 1 presents %q, want wrong-name", events[0].Present)
 	}
-	if events[1].Fixture != "tier-04/hostile-release" || events[1].Selector != "wrong-key" {
-		t.Errorf("event 2 is %s %s, want tier-04/hostile-release wrong-key", events[1].Fixture, events[1].Selector)
+	// The forgery under a name that gives nothing away: wrong-key's own
+	// identifier would print the class on the board's serial console.
+	if events[1].Fixture != "tier-04/hostile-release" || events[1].Selector != disguisedRelease.selector {
+		t.Errorf("event 2 is %s %s, want tier-04/hostile-release %s", events[1].Fixture, events[1].Selector, disguisedRelease.selector)
 	}
 	if events[2].Fixture != "tier-04/replay-release" {
 		t.Errorf("event 3 is %s, want tier-04/replay-release", events[2].Fixture)
@@ -573,7 +575,7 @@ func TestScenarioAgainstTheMutualTLSService(t *testing.T) {
 
 	// The hostile release Event 2 publishes has not been built here, so start
 	// stops at that check, having found the board on the way.
-	if err := r.start(""); err == nil || !strings.Contains(err.Error(), "wrong-key") {
+	if err := r.start(""); err == nil || !strings.Contains(err.Error(), disguisedRelease.selector) {
 		t.Fatalf("start without the hostile release = %v", err)
 	}
 	if _, err := os.Stat(a.scenarioStatePath()); !errors.Is(err, os.ErrNotExist) {
@@ -582,7 +584,7 @@ func TestScenarioAgainstTheMutualTLSService(t *testing.T) {
 
 	// A held fixture, undone through its own reset.
 	a.fixtureID = "tier-04/hostile-release"
-	if err := a.hostingPublish("tier-04/hostile-release", map[string]any{"schema_version": 1, "release_id": "tier-04-hostile-wrong-key"}); err != nil {
+	if err := a.hostingPublish("tier-04/hostile-release", map[string]any{"schema_version": 1, "release_id": disguisedRelease.releaseID}); err != nil {
 		t.Fatal(err)
 	}
 	a.fixtureID = ""

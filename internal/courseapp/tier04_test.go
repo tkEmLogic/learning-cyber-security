@@ -502,8 +502,11 @@ func TestCourseManifestOffersEveryHostileRelease(t *testing.T) {
 			t.Errorf("course.yml names %s for %s, want %s", got, variant.name, hostileReleaseID(variant.name))
 		}
 	}
-	if len(hostile.Releases) != len(hostileManifests) {
-		t.Errorf("course.yml offers %d releases, the course builds %d", len(hostile.Releases), len(hostileManifests))
+	if got := hostile.Releases[disguisedRelease.selector]; got != disguisedRelease.releaseID {
+		t.Errorf("course.yml names %q for %s, want %s", got, disguisedRelease.selector, disguisedRelease.releaseID)
+	}
+	if len(hostile.Releases) != len(hostileManifests)+1 {
+		t.Errorf("course.yml offers %d releases, the course builds %d", len(hostile.Releases), len(hostileManifests)+1)
 	}
 	if !hostile.HardwareRequired {
 		t.Error("the refusal under test is the device's, so the fixture must declare it needs hardware")
@@ -670,6 +673,38 @@ func TestHostileReleaseGeneratorProducesBothKinds(t *testing.T) {
 		}
 	}
 
+	// The disguised copy is built by the same command, signed by the attacker
+	// key like wrong-key, and points at the same good image.
+	manifest, body, err := a.loadStoredManifest(disguisedRelease.releaseID)
+	if err != nil {
+		t.Fatalf("the generator did not build the disguised release: %v", err)
+	}
+	signature, err := os.ReadFile(a.manifestSignaturePath(disguisedRelease.releaseID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if manifest.ReleaseID != disguisedRelease.releaseID || manifest.ImagePath != good.ImagePath {
+		t.Errorf("disguised names %s at %s, want %s at %s", manifest.ReleaseID, manifest.ImagePath, disguisedRelease.releaseID, good.ImagePath)
+	}
+	if manifestVerifies(public, body, signature) {
+		t.Error("disguised verifies against the release key; it must be the wrong-key forgery")
+	}
+	attackerPEM, err := os.ReadFile(a.signingKeyPath("attacker"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	block, _ := pem.Decode(attackerPEM)
+	attacker, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !manifestVerifies(&attacker.(*ecdsa.PrivateKey).PublicKey, body, signature) {
+		t.Error("disguised must be signed by the attacker key")
+	}
+	if !strings.Contains(out.String(), "Result: seven hostile releases ready") {
+		t.Error("Tier 4's seven must still read as seven")
+	}
+
 	// The narration is a contract rule, not a nicety. A Learner watching their
 	// own key sign hostile manifests with no explanation will conclude it has
 	// leaked.
@@ -683,6 +718,45 @@ func TestHostileReleaseGeneratorProducesBothKinds(t *testing.T) {
 		if !strings.Contains(out.String(), phrase) {
 			t.Errorf("the generator must say %q while it signs", phrase)
 		}
+	}
+}
+
+// Tier 10's Event 2 (#284). The disguised release is the wrong-key forgery,
+// and its identifier must say nothing about that: the board prints it on serial
+// and stores it, so a name that gave the answer would classify the event for
+// the Learner. It must also be no release this course signs, or a device
+// running that release would ignore the offer and do nothing.
+func TestDisguisedReleaseIsWrongKeyUnderANameThatSaysNothing(t *testing.T) {
+	id := hostileReleaseID(disguisedRelease.selector)
+	if id != disguisedRelease.releaseID || hostileForgery(disguisedRelease.selector) != "wrong-key" {
+		t.Fatalf("disguised is %s forging %s, want %s forging wrong-key", id, hostileForgery(disguisedRelease.selector), disguisedRelease.releaseID)
+	}
+	for _, giveaway := range []string{"hostile", "wrong", "key", "forge", "attack", "disguise", "tier-04"} {
+		if strings.Contains(id, giveaway) {
+			t.Errorf("%s contains %q, which names the attack", id, giveaway)
+		}
+	}
+	for _, tier := range []string{"02", "03", "04", "05", "06", "07", tier08, tier09, tier10, "00"} {
+		for name, variant := range variantsForTier(tier) {
+			if variant.releaseID == id {
+				t.Errorf("%s is Tier %s's own %s release", id, tier, name)
+			}
+		}
+	}
+	for _, variant := range hostileManifests {
+		if hostileReleaseID(variant.name) == id {
+			t.Errorf("%s is also the %s release", id, variant.name)
+		}
+	}
+	// Only the identifier differs from wrong-key, so nothing but the
+	// signature can refuse it.
+	good := testGoodManifest()
+	var changed []string
+	for _, line := range manifestDifferences(good, deriveHostileManifest(disguisedRelease.selector, good, nil, nil)) {
+		changed = append(changed, strings.SplitN(line, ",", 2)[0])
+	}
+	if strings.Join(changed, " ") != "release_id" {
+		t.Errorf("disguised changes %v, want only release_id", changed)
 	}
 }
 
